@@ -35,16 +35,20 @@ export function getDb(): DatabaseSync {
   return db;
 }
 
+export function cleanParams(params: unknown[]): unknown[] {
+  return params.map((v) => (v === undefined ? null : v));
+}
+
 export function all<T = Record<string, unknown>>(sql: string, params: unknown[] = []): T[] {
-  return getDb().prepare(sql).all(...(params as never[])) as T[];
+  return getDb().prepare(sql).all(...(cleanParams(params) as never[])) as T[];
 }
 
 export function one<T = Record<string, unknown>>(sql: string, params: unknown[] = []): T | undefined {
-  return getDb().prepare(sql).get(...(params as never[])) as T | undefined;
+  return getDb().prepare(sql).get(...(cleanParams(params) as never[])) as T | undefined;
 }
 
 export function run(sql: string, params: unknown[] = []): { changes: number; lastId: number } {
-  const result = getDb().prepare(sql).run(...(params as never[]));
+  const result = getDb().prepare(sql).run(...(cleanParams(params) as never[]));
   return {
     changes: Number(result.changes),
     lastId: Number(result.lastInsertRowid),
