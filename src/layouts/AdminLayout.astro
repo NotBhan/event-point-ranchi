@@ -1,0 +1,103 @@
+---
+import { getAdminNav } from '../core/registry';
+import Icon from '../components/Icon.astro';
+import { site } from '../core/config';
+import '../styles/tokens.css';
+import '../styles/base.css';
+import '../styles/components.css';
+import '../styles/admin.css';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const { title = 'Dashboard', description = '' } = Astro.props;
+const auth = Astro.locals.auth;
+const user = auth.user!;
+const csrf = Astro.locals.csrf;
+const nav = getAdminNav();
+const path = Astro.url.pathname;
+
+const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path.startsWith(href));
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>{title} · Royal Palace Admin</title>
+    <link rel="icon" type="image/png" href="/images/logo1.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="admin-body">
+    <div class="admin-shell" id="adminShell">
+      <aside class="admin-sidebar">
+        <div class="admin-brand">
+          <img src="/images/logo1.png" alt="Royal Palace" />
+          <div>
+            <strong>Royal Palace</strong>
+            <span>Admin console</span>
+          </div>
+        </div>
+
+        <nav class="admin-nav">
+          <span class="admin-nav-label">Operations</span>
+          {nav.map((item) => (
+            <a href={item.href} class:list={{ active: isActive(item.href) }}>
+              <Icon name={item.icon} size={15} /> {item.label}
+            </a>
+          ))}
+        </nav>
+
+        <div class="admin-user">
+          <div class="admin-user-chip">
+            <span class="avatar">{user.firstName.slice(0, 1).toUpperCase()}</span>
+            <div>
+              <strong>{user.firstName}</strong>
+              <span>{user.role}</span>
+            </div>
+          </div>
+          <div class="admin-user-actions">
+            <a href="/"><Icon name="external" size={14} /> View website</a>
+            <a href="/profile"><Icon name="user" size={14} /> My profile</a>
+            <form method="POST" action="/admin/logout">
+              <input type="hidden" name="_csrf" value={csrf} />
+              <button type="submit" class="danger"><Icon name="logout" size={14} /> Log out</button>
+            </form>
+          </div>
+        </div>
+      </aside>
+
+      <div class="admin-main">
+        <header class="admin-topbar">
+          <button type="button" class="admin-toggle" data-admin-toggle aria-label="Toggle menu">
+            <Icon name="menu" size={18} />
+          </button>
+          <div>
+            <h1>{title}</h1>
+            {description && <p>{description}</p>}
+          </div>
+          <div class="admin-topbar-actions">
+            <span class="badge badge-gold">{site.name}</span>
+          </div>
+        </header>
+
+        <div class="admin-content">
+          <slot />
+        </div>
+      </div>
+    </div>
+
+    <script>
+      import '../client/admin';
+    </script>
+  </body>
+</html>

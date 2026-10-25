@@ -1,0 +1,266 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Icon from '../../../components/Icon.astro';
+import NotFound from '../../../components/NotFound.astro';
+import { formatMoney, imageUrl } from '../../../core/http';
+import type { HallDetail } from '../service';
+import '../halls.css';
+
+interface Props {
+  data?: HallDetail;
+  notFound?: boolean;
+}
+
+const { data, notFound = false } = Astro.props;
+---
+
+{notFound || !data ? (
+  <NotFound />
+) : (
+  <BaseLayout title={`${data.hall.name} | Royal Palace`} description={data.hall.description}>
+    <div
+      data-hall-detail
+      data-id={data.hall.id}
+      data-name={data.hall.name}
+      data-price={data.hall.price_paise}
+      data-capacity={data.hall.capacity}
+    >
+      <section class:list={['hall-hero', { 'with-banner': Boolean(data.hall.banner_image) }]}>
+        {data.hall.banner_image && <img class="hall-hero-media" src={imageUrl(data.hall.banner_image)} alt="" />}
+        <div class="container hall-hero-inner">
+          <div>
+            {data.hall.show_badge === 1 && <span class="badge badge-gold">Premium wedding venue</span>}
+            <h1>{data.hall.name}</h1>
+            <p>{data.hall.description}</p>
+          </div>
+          <div class="hall-hero-actions">
+            <button
+              type="button"
+              class="btn btn-gold btn-lg"
+              data-add-hall
+              data-id={data.hall.id}
+              data-name={data.hall.name}
+              data-price={data.hall.price_paise}
+              data-capacity={data.hall.capacity}
+            >
+              <Icon name="cart" size={16} /> Select this hall
+            </button>
+            <a href="#customize" class="btn btn-secondary btn-lg">Customize event</a>
+          </div>
+          <div class="hall-hero-facts">
+            <div><strong>{data.hall.capacity}</strong><span>Guest capacity</span></div>
+            <div><strong>{data.hall.parking_capacity || 0}</strong><span>Parking bays</span></div>
+            <div><strong>{data.hall.is_ac ? 'Yes' : 'No'}</strong><span>Air conditioned</span></div>
+            <div><strong>{data.hall.is_wifi ? 'Yes' : 'No'}</strong><span>High-speed Wi-Fi</span></div>
+            <div><strong>{data.hall.location || 'On-site'}</strong><span>Location</span></div>
+          </div>
+        </div>
+      </section>
+
+      <div class="container detail-layout">
+        <div class="detail-main">
+          <section class="detail-block">
+            {data.hasBookedDates ? (
+              <div class="alert alert-warning">
+                <Icon name="alert" size={16} />
+                <span>
+                  <strong>Availability caution:</strong> this venue is already reserved on {data.bookedDates}. Please confirm your date before proceeding.
+                </span>
+              </div>
+            ) : (
+              <div class="alert alert-success">
+                <Icon name="check-circle" size={16} />
+                <span><strong>Availability:</strong> this venue is open on all upcoming dates.</span>
+              </div>
+            )}
+          </section>
+
+          {data.features.length > 0 && (
+            <section class="detail-block">
+              <div class="section-head">
+                <span class="eyebrow">Venue information</span>
+                <h2>Everything the venue includes</h2>
+              </div>
+              <div class="info-grid">
+                {data.features.map((feature) => (
+                  <div class="info-card">
+                    <span class="info-icon"><Icon name={feature.icon} size={18} /></span>
+                    <h3>{feature.title}</h3>
+                    <p>{feature.subtitle}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {data.gallery.length > 0 && (
+            <section class="detail-block">
+              <div class="section-head">
+                <span class="eyebrow">Gallery</span>
+                <h2>Step inside the venue</h2>
+              </div>
+              <div class="gallery-grid">
+                {data.gallery.map((image) => (
+                  <button
+                    type="button"
+                    class="gallery-tile"
+                    data-lightbox
+                    data-src={imageUrl(image.image)}
+                    data-caption={image.title || data.hall.name}
+                  >
+                    <img src={imageUrl(image.image)} alt={image.title || data.hall.name} loading="lazy" />
+                    <span class="gallery-overlay">View full image</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <section class="detail-block" id="customize">
+            <div class="section-head">
+              <span class="eyebrow">Customize</span>
+              <h2>Furniture &amp; seating</h2>
+              <p>Set quantities and we will include them in your quotation.</p>
+            </div>
+
+            {data.furniture.map((group) => (
+              <div class="option-group">
+                <h3 class="option-group-title">{group.category}</h3>
+                <div class="furniture-grid">
+                  {group.items.map((item) => (
+                    <div
+                      class="furniture-card"
+                      data-furniture-card
+                      data-id={item.id}
+                      data-name={item.name}
+                      data-price={item.price_paise}
+                      data-default={item.default_quantity}
+                      data-min={item.min_quantity}
+                      data-max={item.max_quantity}
+                    >
+                      <h4><Icon name={item.icon} size={15} /> {item.name}</h4>
+                      <div class="furniture-price">
+                        {formatMoney(item.price_paise)} <span>/ {item.unit}</span>
+                      </div>
+                      <div class="qty">
+                        <button type="button" data-furniture-minus aria-label="Decrease quantity">−</button>
+                        <span data-furniture-qty>{item.default_quantity}</span>
+                        <button type="button" data-furniture-plus aria-label="Increase quantity">+</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </section>
+
+          {data.stages.map((group) => (
+            <section class="detail-block">
+              <div class="section-head">
+                <span class="eyebrow">Stage design</span>
+                <h2>{group.category}</h2>
+                {group.description && <p>{group.description}</p>}
+              </div>
+              <div class="stage-grid">
+                {group.designs.map((design) => (
+                  <article class="stage-card">
+                    <div class="stage-media">
+                      {design.image ? (
+                        <img src={imageUrl(design.image)} alt={design.name} loading="lazy" />
+                      ) : (
+                        <div class="stage-fallback"><Icon name="theater" size={30} /></div>
+                      )}
+                      {design.badge && <span class="badge badge-dark">{design.badge}</span>}
+                      {design.image && (
+                        <button
+                          type="button"
+                          class="stage-zoom"
+                          data-lightbox
+                          data-src={imageUrl(design.image)}
+                          data-caption={design.name}
+                          aria-label={`View ${design.name}`}
+                        >
+                          <Icon name="eye" size={14} />
+                        </button>
+                      )}
+                    </div>
+                    <div class="stage-body">
+                      <h4>{design.name}</h4>
+                      <div class="price">{formatMoney(design.price_paise)}</div>
+                      <button
+                        type="button"
+                        class="btn btn-secondary btn-sm btn-block"
+                        data-stage-select
+                        data-id={design.id}
+                        data-name={design.name}
+                        data-price={design.price_paise}
+                      >
+                        Select stage
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ))}
+
+          {data.services.map((group) => (
+            <section class="detail-block">
+              <div class="section-head">
+                <span class="eyebrow">Production</span>
+                <h2>{group.category}</h2>
+                {group.subtitle && <p>{group.subtitle}</p>}
+              </div>
+              <div class="service-grid">
+                {group.items.map((service) => (
+                  <label class="service-card">
+                    <input
+                      type="checkbox"
+                      data-service-checkbox
+                      data-id={service.id}
+                      data-name={service.name}
+                      data-category={group.category}
+                      data-price={service.price_paise}
+                    />
+                    <span class="service-name">{service.name}</span>
+                    <span class="service-price">{formatMoney(service.price_paise)}</span>
+                  </label>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+
+        <aside class="detail-aside">
+          <div class="summary-card" data-event-summary></div>
+
+          {data.otherHalls.length > 0 && (
+            <div class="panel mt-6">
+              <div class="panel-head" style="margin-bottom:16px;">
+                <div>
+                  <h3>Other venues</h3>
+                  <p>Compare capacity and pricing</p>
+                </div>
+              </div>
+              <div class="other-venues">
+                {data.otherHalls.map((hall) => (
+                  <a href={`/halls/${hall.slug}`} class="other-venue">
+                    <span>
+                      <strong>{hall.name}</strong>
+                      <small>{hall.capacity} guests</small>
+                    </span>
+                    <span class="price price-sm">{formatMoney(hall.price_paise)}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+        </aside>
+      </div>
+    </div>
+
+    <script>
+      import '../../../client/hall-detail';
+    </script>
+  </BaseLayout>
+)}

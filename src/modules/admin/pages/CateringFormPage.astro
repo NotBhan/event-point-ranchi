@@ -1,0 +1,275 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { formatMoney, imageUrl } from '../../../core/http';
+
+interface Section {
+  id: number;
+  title: string;
+  max_selection: number;
+  items: Array<{ id: number; name: string; is_available: number }>;
+}
+
+interface Props {
+  packageData: Record<string, unknown> | null;
+  features: Array<{ id: number; name: string }>;
+  bannerFeatures: Array<{ id: number; name: string }>;
+  pricing: Array<{ id: number; guest_count: number; price_per_plate_paise: number }>;
+  sections: Section[];
+  id: number | null;
+}
+
+const { packageData, features, bannerFeatures, pricing, sections, id } = Astro.props;
+const csrf = Astro.locals.csrf;
+
+const value = (key: string, fallback = '') => String(packageData?.[key] ?? fallback);
+const isActive = packageData ? Boolean(Number(packageData.is_active)) : true;
+const onHome = packageData ? Boolean(Number(packageData.show_on_home)) : true;
+const priceRupees = packageData ? (Number(packageData.price_paise) / 100).toString() : '';
+const action = id ? `/admin/catering/${id}` : '/admin/catering/new';
+---
+
+<AdminLayout title={id ? `Edit ${value('name', 'package')}` : 'Add a catering package'}>
+  <div class="admin-toolbar">
+    <a href="/admin/catering" class="btn btn-secondary btn-sm">← All packages</a>
+  </div>
+
+  <div class="admin-grid-2">
+    <form method="POST" action={action} class="admin-panel" enctype="multipart/form-data">
+      <input type="hidden" name="_csrf" value={csrf} />
+      <input type="hidden" name="action" value="save" />
+      <div class="admin-panel-head"><div><h2>Package details</h2></div></div>
+      <div class="admin-panel-body">
+        <div class="admin-form-grid">
+          <div class="field">
+            <label for="name">Package name *</label>
+            <input class="input" id="name" name="name" required value={value('name')} placeholder="Royal Shahi Feast" />
+          </div>
+          <div class="admin-form-grid" style="grid-template-columns:1fr 1fr;">
+            <div class="field">
+              <label for="price">Base price per plate (₹) *</label>
+              <input class="input" id="price" name="price" required value={priceRupees} placeholder="1850" inputmode="decimal" />
+            </div>
+            <div class="field">
+              <label for="badge">Badge</label>
+              <input class="input" id="badge" name="badge" value={value('badge')} placeholder="Signature" />
+            </div>
+          </div>
+          <div class="field">
+            <label for="description">Description</label>
+            <textarea class="textarea" id="description" name="description" rows="3">{value('description')}</textarea>
+          </div>
+          <div class="field">
+            <label for="image">Package image</label>
+            {value('image') && <img class="admin-thumb" style="width:100%;height:130px;object-fit:cover;" src={imageUrl(value('image'))} alt="" />}
+            <input class="input" type="file" id="image" name="image" accept="image/*" />
+            <input type="hidden" name="image_path" value={value('image')} />
+            <span class="hint" data-file-name>Upload replaces the current image.</span>
+          </div>
+          <div style="display:flex;gap:18px;flex-wrap:wrap;">
+            <label class="switch"><input type="checkbox" name="is_active" checked={isActive} /> Published</label>
+            <label class="switch"><input type="checkbox" name="show_on_home" checked={onHome} /> Show on homepage</label>
+          </div>
+          <button type="submit" class="btn btn-primary">{id ? 'Save package' : 'Create package'}</button>
+        </div>
+      </div>
+    </form>
+
+    <div style="display:flex;flex-direction:column;gap:20px;">
+      {id ? (
+        <>
+          <div class="admin-panel">
+            <div class="admin-panel-head"><div><h2>Guest pricing tiers</h2><p>Exact plate counts get their own rate.</p></div></div>
+            <div class="admin-panel-body">
+              {pricing.length === 0 ? (
+                <p class="text-sm text-muted mb-4">No tiers yet — the base price is used for every guest count.</p>
+              ) : (
+                <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+                  {pricing.map((tier) => (
+                    <div class="flex-between" style="gap:10px;">
+                      <span style="font-size:13px;">{tier.guest_count} guests · <span class="money">{formatMoney(tier.price_per_plate_paise)}</span>/plate</span>
+                      <form method="POST" action={action}>
+                        <input type="hidden" name="_csrf" value={csrf} />
+                        <input type="hidden" name="action" value="delete_pricing" />
+                        <input type="hidden" name="pricing_id" value={tier.id} />
+                        <button type="submit" class="icon-btn danger" aria-label="Delete tier">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                        </button>
+                      </form>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <form method="POST" action={action} class="admin-inline-form">
+                <input type="hidden" name="_csrf" value={csrf} />
+                <input type="hidden" name="action" value="add_pricing" />
+                <div class="field">
+                  <label for="guest_count">Guests</label>
+                  <input class="input" id="guest_count" name="guest_count" type="number" min="1" placeholder="250" required />
+                </div>
+                <div class="field">
+                  <label for="price_per_plate">₹ per plate</label>
+                  <input class="input" id="price_per_plate" name="price_per_plate" placeholder="1750" required />
+                </div>
+                <button type="submit" class="btn btn-secondary btn-sm">Add tier</button>
+              </form>
+            </div>
+          </div>
+
+          <div class="admin-panel">
+            <div class="admin-panel-head"><div><h2>Card features</h2><p>Shown on package cards.</p></div></div>
+            <div class="admin-panel-body">
+              <div class="pill-line mb-4">
+                {features.map((feature) => (
+                  <span class="menu-admin-item">
+                    {feature.name}
+                    <form method="POST" action={action}>
+                      <input type="hidden" name="_csrf" value={csrf} />
+                      <input type="hidden" name="action" value="delete_feature" />
+                      <input type="hidden" name="feature_id" value={feature.id} />
+                      <button type="submit" aria-label="Remove feature">×</button>
+                    </form>
+                  </span>
+                ))}
+                {features.length === 0 && <span class="text-sm text-muted">No features yet.</span>}
+              </div>
+              <form method="POST" action={action} class="admin-inline-form">
+                <input type="hidden" name="_csrf" value={csrf} />
+                <input type="hidden" name="action" value="add_feature" />
+                <div class="field" style="flex:1;">
+                  <label for="feature_name">Feature</label>
+                  <input class="input" id="feature_name" name="name" placeholder="7-Course Live Dining" required />
+                </div>
+                <button type="submit" class="btn btn-secondary btn-sm">Add feature</button>
+              </form>
+            </div>
+          </div>
+
+          <div class="admin-panel">
+            <div class="admin-panel-head"><div><h2>Hero highlights</h2><p>Badges shown on the package hero.</p></div></div>
+            <div class="admin-panel-body">
+              <div class="pill-line mb-4">
+                {bannerFeatures.map((feature) => (
+                  <span class="menu-admin-item">
+                    {feature.name}
+                    <form method="POST" action={action}>
+                      <input type="hidden" name="_csrf" value={csrf} />
+                      <input type="hidden" name="action" value="delete_banner_feature" />
+                      <input type="hidden" name="feature_id" value={feature.id} />
+                      <button type="submit" aria-label="Remove highlight">×</button>
+                    </form>
+                  </span>
+                ))}
+                {bannerFeatures.length === 0 && <span class="text-sm text-muted">No highlights yet.</span>}
+              </div>
+              <form method="POST" action={action} class="admin-inline-form">
+                <input type="hidden" name="_csrf" value={csrf} />
+                <input type="hidden" name="action" value="add_banner_feature" />
+                <div class="field" style="flex:1;">
+                  <label for="banner_name">Highlight</label>
+                  <input class="input" id="banner_name" name="name" placeholder="Live Counters" required />
+                </div>
+                <button type="submit" class="btn btn-secondary btn-sm">Add highlight</button>
+              </form>
+            </div>
+          </div>
+        </>
+      ) : (
+        <div class="admin-panel">
+          <div class="admin-panel-body">
+            <p class="text-sm text-muted">
+              Save the package first — then you can add pricing tiers, menu sections and items.
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  </div>
+
+  {id && (
+    <div class="admin-panel">
+      <div class="admin-panel-head">
+        <div><h2>Menu sections</h2><p>Guests pick a limited number of items per section.</p></div>
+      </div>
+      <div class="admin-panel-body">
+        {sections.map((section) => (
+          <div class="menu-admin-section">
+            <header>
+              <div>
+                <strong>{section.title}</strong>
+                <small>Max {section.max_selection} selections</small>
+              </div>
+              <form method="POST" action={action}>
+                <input type="hidden" name="_csrf" value={csrf} />
+                <input type="hidden" name="action" value="delete_section" />
+                <input type="hidden" name="section_id" value={section.id} />
+                <button type="submit" class="btn btn-danger-soft btn-sm" data-confirm={`Delete section "${section.title}"?`}>Delete section</button>
+              </form>
+            </header>
+            <div class="menu-admin-items">
+              {section.items.map((item) => (
+                <span class="menu-admin-item">
+                  {item.name}
+                  {item.is_available === 0 && <span class="badge badge-muted">hidden</span>}
+                  <form method="POST" action={action}>
+                    <input type="hidden" name="_csrf" value={csrf} />
+                    <input type="hidden" name="action" value="toggle_item" />
+                    <input type="hidden" name="item_id" value={item.id} />
+                    <button type="submit" title="Toggle availability">◐</button>
+                  </form>
+                  <form method="POST" action={action}>
+                    <input type="hidden" name="_csrf" value={csrf} />
+                    <input type="hidden" name="action" value="delete_item" />
+                    <input type="hidden" name="item_id" value={item.id} />
+                    <button type="submit" aria-label="Delete item">×</button>
+                  </form>
+                </span>
+              ))}
+              {section.items.length === 0 && <span class="text-sm text-muted">No items in this section yet.</span>}
+            </div>
+            <div style="padding:0 16px 16px;">
+              <form method="POST" action={action} class="admin-inline-form">
+                <input type="hidden" name="_csrf" value={csrf} />
+                <input type="hidden" name="action" value="add_item" />
+                <input type="hidden" name="section_id" value={section.id} />
+                <div class="field" style="flex:1;">
+                  <label for={`item-${section.id}`}>New item</label>
+                  <input class="input" id={`item-${section.id}`} name="name" placeholder="Paneer Tikka Angara" required />
+                </div>
+                <button type="submit" class="btn btn-secondary btn-sm">Add item</button>
+              </form>
+            </div>
+          </div>
+        ))}
+
+        {sections.length === 0 && <p class="text-sm text-muted mb-4">No menu sections yet.</p>}
+
+        <form method="POST" action={action} class="admin-inline-form">
+          <input type="hidden" name="_csrf" value={csrf} />
+          <input type="hidden" name="action" value="add_section" />
+          <div class="field" style="flex:1;">
+            <label for="section_title">New section title</label>
+            <input class="input" id="section_title" name="title" placeholder="Dessert Boutique" required />
+          </div>
+          <div class="field">
+            <label for="max_selection">Max selections</label>
+            <input class="input" id="max_selection" name="max_selection" type="number" min="1" value="3" />
+          </div>
+          <button type="submit" class="btn btn-secondary btn-sm">Add section</button>
+        </form>
+      </div>
+    </div>
+  )}
+
+  {id && (
+    <div class="admin-panel">
+      <div class="admin-panel-body">
+        <form method="POST" action={action}>
+          <input type="hidden" name="_csrf" value={csrf} />
+          <input type="hidden" name="action" value="toggle" />
+          <button type="submit" class="btn btn-secondary">{isActive ? 'Hide package from website' : 'Publish package'}</button>
+        </form>
+      </div>
+    </div>
+  )}
+</AdminLayout>

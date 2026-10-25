@@ -1,0 +1,27 @@
+{
+  "name": "royal-palace-astro",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Astro port of the Royal Palace event management system, built as removable feature modules.",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro check && astro build",
+    "preview": "node ./dist/server/entry.mjs",
+    "start": "node ./dist/server/entry.mjs",
+    "check": "astro check",
+    "db:reset": "node scripts/reset-db.mjs"
+  },
+  "dependencies": {
+    "@astrojs/node": "^11.1.9",
+    "astro": "^7.4.2"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.12",
+    "@types/node": "^26.6.5",
+    "typescript": "^5.9.3"
+  }
+}

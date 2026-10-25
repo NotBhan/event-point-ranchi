@@ -1,0 +1,93 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { formatMoney, imageUrl } from '../../../core/http';
+import type { listHallsAdmin } from '../service';
+
+interface Props {
+  halls: ReturnType<typeof listHallsAdmin>;
+}
+
+const { halls } = Astro.props;
+const csrf = Astro.locals.csrf;
+---
+
+<AdminLayout title="Banquet halls" description={`${halls.length} venues in the catalogue.`}>
+  <div class="admin-panel">
+    <div class="admin-panel-head">
+      <div>
+        <h2>Venues</h2>
+        <p>Pricing, capacity and visibility on the public site.</p>
+      </div>
+      <a href="/admin/halls/new" class="btn btn-primary btn-sm">Add hall</a>
+    </div>
+
+    <div class="admin-panel-body flush">
+      {halls.length === 0 ? (
+        <div class="admin-empty">No halls yet. <a href="/admin/halls/new" style="color:var(--gold-ink);font-weight:600;">Add the first venue</a>.</div>
+      ) : (
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Hall</th>
+                <th>Capacity</th>
+                <th>Price</th>
+                <th>Bookings</th>
+                <th>Visibility</th>
+                <th style="text-align:right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {halls.map((hall) => (
+                <tr>
+                  <td>
+                    <div style="display:flex;align-items:center;gap:12px;">
+                      {hall.image ? (
+                        <img class="admin-thumb" src={imageUrl(hall.image)} alt="" />
+                      ) : (
+                        <span class="admin-thumb" style="display:flex;align-items:center;justify-content:center;color:var(--muted);">—</span>
+                      )}
+                      <div>
+                        <a href={`/admin/halls/${hall.id}`} style="font-weight:600;color:var(--ink);">{hall.name}</a>
+                        <div class="text-xs text-muted">{hall.location || '—'} · /{hall.slug}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>{hall.capacity}</td>
+                  <td class="money">{formatMoney(hall.price_paise)}</td>
+                  <td>{hall.booking_count}</td>
+                  <td>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                      <span class:list={['badge', hall.is_active ? 'badge-success' : 'badge-muted']}>{hall.is_active ? 'live' : 'hidden'}</span>
+                      {hall.is_featured === 1 && <span class="badge badge-gold">featured</span>}
+                    </div>
+                  </td>
+                  <td>
+                    <div class="admin-row-actions">
+                      <a href={`/admin/halls/${hall.id}`} class="btn btn-secondary btn-sm">Edit</a>
+                      <form method="POST" action={`/admin/halls/${hall.id}/toggle`}>
+                        <input type="hidden" name="_csrf" value={csrf} />
+                        <button type="submit" class="btn btn-secondary btn-sm">{hall.is_active ? 'Hide' : 'Publish'}</button>
+                      </form>
+                      <form method="POST" action={`/admin/halls/${hall.id}/delete`}>
+                        <input type="hidden" name="_csrf" value={csrf} />
+                        <button
+                          type="submit"
+                          class="icon-btn danger"
+                          data-confirm={`Delete "${hall.name}" and all its booking links?`}
+                          aria-label="Delete hall"
+                        >
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                        </button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  </div>
+</AdminLayout>

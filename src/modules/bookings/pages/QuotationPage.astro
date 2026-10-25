@@ -1,0 +1,149 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Icon from '../../../components/Icon.astro';
+import NotFound from '../../../components/NotFound.astro';
+import { formatDate, formatDateTime, formatMoney } from '../../../core/http';
+import type { QuotationData } from '../service';
+import '../bookings.css';
+
+interface Props {
+  data?: QuotationData;
+  state?: 'not-found' | 'forbidden';
+}
+
+const { data, state } = Astro.props;
+
+const statusClass: Record<string, string> = {
+  draft: 'badge-muted',
+  pending: 'badge-warning',
+  confirmed: 'badge-success',
+  cancelled: 'badge-danger',
+};
+---
+
+{state === 'not-found' || (!data && !state) ? (
+  <NotFound />
+) : state === 'forbidden' ? (
+  <BaseLayout title="Invoice access restricted | Royal Palace" noCart>
+    <section class="section">
+      <div class="container">
+        <div style="max-width:560px;margin:40px auto;text-align:center;">
+          <div class="empty-icon" style="margin:0 auto 16px;width:56px;height:56px;border-radius:50%;background:var(--danger-soft);display:flex;align-items:center;justify-content:center;color:var(--danger);">
+            <Icon name="shield" size={24} />
+          </div>
+          <h1 class="display-md">This invoice is private</h1>
+          <p class="lead mt-3">
+            Sign in with the account used for this booking, or open the link shared with your booking confirmation.
+          </p>
+          <div class="flex-center gap-3 mt-6 wrap">
+            <a href="/login?next=/my-bookings" class="btn btn-primary">Log in</a>
+            <a href="/" class="btn btn-secondary">Back to home</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </BaseLayout>
+) : data ? (
+  <BaseLayout title={`Invoice RP-${String(data.booking.id).padStart(5, '0')} | Royal Palace`} noCart>
+    <section class="section-sm" style="background:var(--canvas-warm);">
+      <div class="container">
+        <div class="invoice-page print-area">
+          <div class="invoice-head">
+            <div class="invoice-brand">
+              <img src="/images/logo1.png" alt="Royal Palace" />
+              <div>
+                <h1>Royal Palace</h1>
+                <p>Premium event management · Ranchi, Jharkhand</p>
+              </div>
+            </div>
+            <div class="invoice-meta">
+              <h2>Booking invoice</h2>
+              <div class="invoice-number">RP-{String(data.booking.id).padStart(5, '0')}</div>
+              <span class:list={['badge', statusClass[data.booking.status] ?? 'badge-muted']}>
+                {data.booking.status}
+              </span>
+            </div>
+          </div>
+
+          <div class="invoice-info-grid">
+            <div><span>Booking ID</span><strong>#{data.booking.id}</strong></div>
+            <div><span>Created</span><strong>{formatDateTime(data.booking.created_at)}</strong></div>
+            <div><span>Event date</span><strong>{formatDate(data.booking.event_date)}</strong></div>
+            <div><span>Event type</span><strong>{data.booking.event_type}</strong></div>
+          </div>
+
+          <div class="invoice-card">
+            <h3>Customer details</h3>
+            <div class="invoice-customer">
+              <div><span>Name</span><strong>{data.customer.name}</strong></div>
+              <div><span>Phone</span><strong>{data.customer.phone || '—'}</strong></div>
+              <div><span>Email</span><strong>{data.customer.email || '—'}</strong></div>
+              <div><span>Guests</span><strong>{data.booking.total_guest}</strong></div>
+            </div>
+            {data.customer.address && <p class="invoice-address">{data.customer.address}</p>}
+          </div>
+
+          <div class="invoice-card">
+            <h3>Booking breakdown</h3>
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th style="width:26%;">Category</th>
+                    <th>Details</th>
+                    <th style="text-align:right;">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.lines.map((line) => (
+                    <tr>
+                      <td><strong>{line.label}</strong></td>
+                      <td>{line.detail}</td>
+                      <td class="money" style="text-align:right;">{formatMoney(line.amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {data.booking.special_request && (
+              <div class="invoice-note">
+                <strong>Special requests:</strong> {data.booking.special_request}
+              </div>
+            )}
+          </div>
+
+          <div class="invoice-total">
+            <span>Total amount</span>
+            <strong>{formatMoney(data.booking.total_amount)}</strong>
+          </div>
+          <p class="invoice-disclaimer">
+            This invoice includes all selected venues, catering, furnishings and services. Prices were verified against our
+            live catalogue at the time of booking.
+          </p>
+
+          <div class="invoice-signatures">
+            <div><span></span><p>Customer signature</p></div>
+            <div><span></span><p>Authorised signature</p></div>
+          </div>
+        </div>
+
+        <div class="invoice-actions no-print">
+          <button type="button" class="btn btn-primary" data-print>
+            <Icon name="print" size={16} /> Print / save as PDF
+          </button>
+          <a href="/" class="btn btn-secondary"><Icon name="home" size={16} /> Back to home</a>
+          {data.booking.status === 'pending' && (
+            <span class="muted-box" style="padding:10px 14px;">
+              Our team will call you to confirm this booking.
+            </span>
+          )}
+        </div>
+      </div>
+    </section>
+
+    <script>
+      document.querySelector('[data-print]')?.addEventListener('click', () => window.print());
+    </script>
+  </BaseLayout>
+) : null}

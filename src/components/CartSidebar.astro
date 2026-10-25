@@ -1,0 +1,39 @@
+---
+import Icon from './Icon.astro';
+---
+
+<div class="cart-backdrop" data-cart-backdrop data-close-cart></div>
+<aside class="cart-sidebar" id="cartSidebar" aria-label="Event cart" aria-hidden="true">
+  <div class="cart-sidebar-header">
+    <h3><Icon name="cart" size={17} /> Your event cart</h3>
+    <button type="button" class="cart-close" data-close-cart aria-label="Close cart">
+      <Icon name="x" size={16} />
+    </button>
+  </div>
+
+  <div class="cart-sidebar-body" id="cartSidebarBody" data-cart-body>
+    <div class="cart-empty">
+      <Icon name="cart" size={40} />
+      <p>Your cart is empty</p>
+      <small>Browse halls, rooms and catering to build your event.</small>
+    </div>
+  </div>
+
+  <div class="cart-sidebar-footer" id="cartSidebarFooter" data-cart-footer hidden>
+    <div class="cart-summary-row">
+      <span>Estimated total</span>
+      <strong data-cart-total>₹0</strong>
+    </div>
+    <div class="cart-actions">
+      <a href="/booking/overview" class="btn btn-primary btn-block">
+        <Icon name="check-circle" size={16} /> Proceed to checkout
+      </a>
+      <a href="/cart" class="btn btn-secondary btn-block">
+        <Icon name="receipt" size={16} /> View full cart
+      </a>
+    </div>
+    <button type="button" class="btn-clear" data-clear-cart>
+      <Icon name="trash" size={13} /> Clear cart
+    </button>
+  </div>
+</aside>

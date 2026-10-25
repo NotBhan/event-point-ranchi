@@ -1,0 +1,133 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Icon from '../../../components/Icon.astro';
+import NotFound from '../../../components/NotFound.astro';
+import { formatMoney, imageUrl } from '../../../core/http';
+import type { PackageDetail } from '../service';
+import '../catering.css';
+
+interface Props {
+  data?: PackageDetail;
+  notFound?: boolean;
+}
+
+const { data, notFound = false } = Astro.props;
+---
+
+{notFound || !data ? (
+  <NotFound />
+) : (
+  <BaseLayout title={`${data.package.name} | Royal Palace Catering`} description={data.package.description}>
+    <div
+      data-catering-detail
+      data-id={data.package.id}
+      data-name={data.package.name}
+      data-price={data.package.price_paise}
+    >
+      <section class:list={['page-hero', { 'with-image': Boolean(data.package.image) }]}>
+        {data.package.image && <img class="page-hero-media" src={imageUrl(data.package.image)} alt="" />}
+        <div class="container">
+          {data.package.badge && <span class="eyebrow">{data.package.badge}</span>}
+          <h1>{data.package.name}</h1>
+          <p>{data.package.description}</p>
+          <div class="pill-line mt-6">
+            {data.package.bannerFeatures.map((feature) => (
+              <span class="badge" style="background:rgba(255,255,255,0.12);border-color:rgba(255,255,255,0.24);color:#fff;">
+                {feature}
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <div class="container detail-layout">
+        <div class="detail-main">
+          <section class="detail-block">
+            <div class="section-head">
+              <span class="eyebrow">Guest pricing</span>
+              <h2>Select your guest tier</h2>
+              <p>Pick a tier or enter an exact plate count — the per-plate rate updates automatically.</p>
+            </div>
+
+            <div class="pricing-grid">
+              {data.guestPricing.map((tier) => (
+                <button
+                  type="button"
+                  class="price-card"
+                  data-tier
+                  data-guest={tier.guest_count}
+                  data-price={tier.price_per_plate_paise}
+                >
+                  <h3>{tier.guest_count} guests</h3>
+                  <div class="plate-price">{formatMoney(tier.price_per_plate_paise)}</div>
+                  <span class="plate-unit">per plate</span>
+                </button>
+              ))}
+            </div>
+
+            <div class="plate-stepper">
+              <div>
+                <strong>Custom plate count</strong>
+                <small>Adjust for an exact headcount between tiers.</small>
+              </div>
+              <div class="plate-stepper-controls">
+                <button type="button" class="stepper-btn" data-guest-step="-50">−50</button>
+                <button type="button" class="stepper-btn" data-guest-step="-10">−10</button>
+                <input type="number" min="1" max="10000" value="100" data-guest-input class="stepper-input" aria-label="Plate count" />
+                <button type="button" class="stepper-btn" data-guest-step="10">+10</button>
+                <button type="button" class="stepper-btn" data-guest-step="50">+50</button>
+              </div>
+            </div>
+          </section>
+
+          {data.sections.map((section) => (
+            <section class="detail-block menu-section">
+              <div class="menu-section-head">
+                <div>
+                  <span class="eyebrow">Menu section</span>
+                  <h2>{section.title}</h2>
+                </div>
+                <div class="menu-section-badges">
+                  <span class="badge">Max {section.maxSelection}</span>
+                  <span class="badge badge-gold" data-section-count={section.title}>0 / {section.maxSelection} selected</span>
+                </div>
+              </div>
+
+              {section.categories.map((category) => (
+                <div class="option-group">
+                  <h3 class="option-group-title">{category.title}</h3>
+                  <div class="menu-grid">
+                    {category.items.map((item) => (
+                      <label class="menu-item-tile">
+                        <input
+                          type="checkbox"
+                          data-menu-checkbox
+                          data-section={section.title}
+                          data-max={section.maxSelection}
+                          data-item={item.name}
+                        />
+                        <span>{item.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </section>
+          ))}
+        </div>
+
+        <aside class="detail-aside">
+          <div class="summary-card" data-event-summary></div>
+          <div class="muted-box mt-6">
+            <Icon name="info" size={15} />
+            <span style="margin-left:8px;">Menu choices are saved with your booking so the kitchen team can prepare exactly what you picked.</span>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <script>
+      import '../../../client/catering-detail';
+    </script>
+  </BaseLayout>
+)}

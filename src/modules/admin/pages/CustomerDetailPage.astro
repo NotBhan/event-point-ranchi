@@ -1,0 +1,98 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { formatDate, formatDateTime, formatMoney } from '../../../core/http';
+
+interface Props {
+  data?: {
+    customer: {
+      id: number;
+      name: string;
+      phone: string;
+      email: string | null;
+      address: string | null;
+      created_at: string;
+      username: string | null;
+    };
+    bookings: Array<{
+      id: number;
+      event_date: string | null;
+      event_type: string;
+      total_amount: number;
+      status: string;
+      created_at: string;
+    }>;
+  };
+  notFound?: boolean;
+}
+
+const { data, notFound = false } = Astro.props;
+
+const statusClass: Record<string, string> = {
+  draft: 'badge-muted',
+  pending: 'badge-warning',
+  confirmed: 'badge-success',
+  cancelled: 'badge-danger',
+};
+---
+
+{notFound || !data ? (
+  <AdminLayout title="Customer not found">
+    <div class="admin-panel">
+      <div class="admin-empty">
+        Customer not found. <a href="/admin/customers" style="color:var(--gold-ink);font-weight:600;">Back to customers</a>
+      </div>
+    </div>
+  </AdminLayout>
+) : (
+  <AdminLayout title={data.customer.name} description={`Customer since ${formatDate(data.customer.created_at)}`}>
+    <div class="admin-toolbar">
+      <a href="/admin/customers" class="btn btn-secondary btn-sm">← All customers</a>
+    </div>
+
+    <div class="admin-grid-2">
+      <div class="admin-panel">
+        <div class="admin-panel-head"><div><h2>Contact details</h2></div></div>
+        <div class="admin-panel-body">
+          <div class="summary-row"><div class="summary-left"><small>Name</small><h4>{data.customer.name}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Phone</small><h4>{data.customer.phone}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Email</small><h4>{data.customer.email || '—'}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Address</small><h4>{data.customer.address || '—'}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Account</small><h4>{data.customer.username ?? 'Guest checkout'}</h4></div></div>
+        </div>
+      </div>
+
+      <div class="admin-panel">
+        <div class="admin-panel-head">
+          <div><h2>Booking history</h2><p>{data.bookings.length} reservations</p></div>
+        </div>
+        <div class="admin-panel-body flush">
+          {data.bookings.length === 0 ? (
+            <div class="admin-empty">No bookings yet.</div>
+          ) : (
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr><th>#</th><th>Event</th><th>Total</th><th>Status</th><th></th></tr>
+                </thead>
+                <tbody>
+                  {data.bookings.map((booking) => (
+                    <tr>
+                      <td><strong>#{booking.id}</strong></td>
+                      <td>
+                        {booking.event_type}
+                        <div class="text-xs text-muted">{formatDate(booking.event_date)} · created {formatDateTime(booking.created_at)}</div>
+                      </td>
+                      <td class="money">{formatMoney(booking.total_amount)}</td>
+                      <td><span class:list={['badge', statusClass[booking.status] ?? 'badge-muted']}>{booking.status}</span></td>
+                      <td><a href={`/admin/bookings/${booking.id}`} class="btn btn-ghost btn-sm">Open</a></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  </AdminLayout>
+)}

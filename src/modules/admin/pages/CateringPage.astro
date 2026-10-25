@@ -1,0 +1,96 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { formatMoney, imageUrl } from '../../../core/http';
+import type { listCateringAdmin } from '../service';
+
+interface Props {
+  packages: ReturnType<typeof listCateringAdmin>;
+}
+
+const { packages } = Astro.props;
+const csrf = Astro.locals.csrf;
+---
+
+<AdminLayout title="Catering packages" description={`${packages.length} menus with pricing tiers and item lists.`}>
+  <div class="admin-panel">
+    <div class="admin-panel-head">
+      <div>
+        <h2>Menus</h2>
+        <p>Each package holds guest pricing tiers, menu sections and selectable items.</p>
+      </div>
+      <a href="/admin/catering/new" class="btn btn-primary btn-sm">Add package</a>
+    </div>
+
+    <div class="admin-panel-body flush">
+      {packages.length === 0 ? (
+        <div class="admin-empty">No packages yet. <a href="/admin/catering/new" style="color:var(--gold-ink);font-weight:600;">Create the first menu</a>.</div>
+      ) : (
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Package</th>
+                <th>Base price</th>
+                <th>Menu</th>
+                <th>Visibility</th>
+                <th style="text-align:right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {packages.map((pkg) => (
+                <tr>
+                  <td>
+                    <div style="display:flex;align-items:center;gap:12px;">
+                      {pkg.image ? (
+                        <img class="admin-thumb" src={imageUrl(pkg.image)} alt="" />
+                      ) : (
+                        <span class="admin-thumb" style="display:flex;align-items:center;justify-content:center;color:var(--muted);">—</span>
+                      )}
+                      <div>
+                        <a href={`/admin/catering/${pkg.id}`} style="font-weight:600;color:var(--ink);">{pkg.name}</a>
+                        <div class="text-xs text-muted">/{pkg.slug}{pkg.badge ? ` · ${pkg.badge}` : ''}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="money">{formatMoney(pkg.price_paise)} <span class="text-xs text-muted">/ plate</span></td>
+                  <td>{pkg.section_count} sections · {pkg.item_count} items</td>
+                  <td>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                      <span class:list={['badge', pkg.is_active ? 'badge-success' : 'badge-muted']}>{pkg.is_active ? 'live' : 'hidden'}</span>
+                      {pkg.show_on_home === 1 && <span class="badge badge-gold">homepage</span>}
+                    </div>
+                  </td>
+                  <td>
+                    <div class="admin-row-actions">
+                      <a href={`/admin/catering/${pkg.id}`} class="btn btn-secondary btn-sm">Edit</a>
+                      <form method="POST" action="/admin/catering/action">
+                        <input type="hidden" name="_csrf" value={csrf} />
+                        <input type="hidden" name="id" value={pkg.id} />
+                        <input type="hidden" name="action" value="toggle" />
+                        <button type="submit" class="btn btn-secondary btn-sm">{pkg.is_active ? 'Hide' : 'Publish'}</button>
+                      </form>
+                      <form method="POST" action="/admin/catering/action">
+                        <input type="hidden" name="_csrf" value={csrf} />
+                        <input type="hidden" name="id" value={pkg.id} />
+                        <input type="hidden" name="action" value="toggle_home" />
+                        <button type="submit" class="btn btn-secondary btn-sm">{pkg.show_on_home === 1 ? 'Unfeature' : 'Feature'}</button>
+                      </form>
+                      <form method="POST" action="/admin/catering/action">
+                        <input type="hidden" name="_csrf" value={csrf} />
+                        <input type="hidden" name="id" value={pkg.id} />
+                        <input type="hidden" name="action" value="delete" />
+                        <button type="submit" class="icon-btn danger" data-confirm={`Delete "${pkg.name}" and its menu?`} aria-label="Delete package">
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                        </button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  </div>
+</AdminLayout>

@@ -1,0 +1,102 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { formatDate, formatMoney } from '../../../core/http';
+import type { listBookings } from '../service';
+
+interface Props {
+  bookings: ReturnType<typeof listBookings>;
+  status: string;
+  query: string;
+}
+
+const { bookings, status, query } = Astro.props;
+const csrf = Astro.locals.csrf;
+
+const statusClass: Record<string, string> = {
+  draft: 'badge-muted',
+  pending: 'badge-warning',
+  confirmed: 'badge-success',
+  cancelled: 'badge-danger',
+};
+
+const tabs = [
+  ['all', 'All'],
+  ['pending', 'Pending'],
+  ['confirmed', 'Confirmed'],
+  ['cancelled', 'Cancelled'],
+  ['draft', 'Draft'],
+];
+---
+
+<AdminLayout title="Bookings" description={`${bookings.length} reservation${bookings.length === 1 ? '' : 's'} matching your filters.`}>
+  <div class="admin-panel">
+    <div class="admin-panel-head">
+      <form method="GET" action="/admin/bookings" class="admin-toolbar">
+        <input class="input" type="search" name="q" value={query} placeholder="Search name, phone, event…" />
+        <select class="select" name="status" data-auto-submit>
+          {tabs.map(([value, label]) => (
+            <option value={value} selected={status === value}>{label}</option>
+          ))}
+        </select>
+        <button type="submit" class="btn btn-secondary btn-sm">Filter</button>
+      </form>
+      <div class="admin-subnav">
+        {tabs.map(([value, label]) => (
+          <a href={`/admin/bookings?status=${value}`} class:list={{ active: status === value }}>{label}</a>
+        ))}
+      </div>
+    </div>
+
+    <div class="admin-panel-body flush">
+      {bookings.length === 0 ? (
+        <div class="admin-empty">No bookings match these filters.</div>
+      ) : (
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Customer</th>
+                <th>Event</th>
+                <th>Guests</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th style="text-align:right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bookings.map((booking) => (
+                <tr>
+                  <td><strong>#{booking.id}</strong></td>
+                  <td>
+                    {booking.customer}
+                    <div class="text-xs text-muted">{booking.phone}</div>
+                  </td>
+                  <td>
+                    {booking.event_type}
+                    <div class="text-xs text-muted">{formatDate(booking.event_date)}</div>
+                  </td>
+                  <td>{booking.total_guest}</td>
+                  <td class="money">{formatMoney(booking.total_amount)}</td>
+                  <td><span class:list={['badge', statusClass[booking.status] ?? 'badge-muted']}>{booking.status}</span></td>
+                  <td>
+                    <div class="admin-row-actions">
+                      <a href={`/admin/bookings/${booking.id}`} class="btn btn-secondary btn-sm">Open</a>
+                      <form method="POST" action={`/admin/bookings/${booking.id}`}>
+                        <input type="hidden" name="_csrf" value={csrf} />
+                        <input type="hidden" name="action" value="delete" />
+                        <button type="submit" class="icon-btn danger" data-confirm={`Delete booking #${booking.id}? This cannot be undone.`} aria-label="Delete booking">
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                        </button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  </div>
+</AdminLayout>

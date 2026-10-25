@@ -1,0 +1,89 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Icon from '../../../components/Icon.astro';
+
+const values = [
+  { icon: 'sparkles', title: 'Designed in-house', body: 'Stage concepts, florals and lighting are created by our own design studio, never outsourced at the last minute.' },
+  { icon: 'utensils', title: 'Kitchen, not caterer', body: 'Our kitchen brigade cooks on site so every course reaches the table hot and exactly as tasted.' },
+  { icon: 'users', title: 'One accountable planner', body: 'The planner who walks you through the venue stays with you from the first site visit to the final farewell.' },
+  { icon: 'shield', title: 'Transparent pricing', body: 'Every quotation is itemised — venue, rooms, menu, décor and services with no hidden line items.' },
+];
+
+const milestones = [
+  ['2011', 'Royal Palace opens its first banquet hall in Ranchi with a 250-guest capacity.'],
+  ['2016', 'The kitchen goes in-house and the first seasonal menu programme launches.'],
+  ['2020', 'Two new venues open — the Crystal Palace Hall and the Heritage Regal Pavilion.'],
+  ['2026', 'Four signature venues, 50+ room categories and a full in-house production team.'],
+];
+---
+
+<BaseLayout title="About us | Royal Palace" description="Fifteen years of hosting weddings, receptions and corporate events in Ranchi.">
+  <section class="page-hero">
+    <div class="container">
+      <span class="eyebrow">Our story</span>
+      <h1>Fifteen years of celebrations, crafted under one roof.</h1>
+      <p>What began as a single banquet hall in Ranchi is now a full event house — venues, rooms, catering and production managed by one team.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="split">
+        <div class="split-media">
+          <img src="/images/archive/runnyrem-LfqmND-hym8-unsplash.jpg" alt="Royal Palace celebration" loading="lazy" />
+        </div>
+        <div>
+          <span class="eyebrow">Why families return</span>
+          <h2>We handle the details that usually get lost between vendors.</h2>
+          <p class="lead mt-3">
+            Most celebrations fail on coordination, not on décor. Because our venues, kitchen and production crew
+            work as one team, nothing gets handed off — the person who designs your stage also briefs the lighting
+            operator and the service captain.
+          </p>
+          <div class="grid-2 mt-8">
+            {values.map((value) => (
+              <div class="feature-tile">
+                <div class="tile-icon"><Icon name={value.icon} size={19} /></div>
+                <h3>{value.title}</h3>
+                <p>{value.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-warm">
+    <div class="container">
+      <div class="section-head">
+        <span class="eyebrow">Milestones</span>
+        <h2>How we grew</h2>
+      </div>
+      <div class="grid-4">
+        {milestones.map(([year, body]) => (
+          <div class="process-card">
+            <span class="step-index">{year}</span>
+            <p>{body}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="contact-strip">
+        <div>
+          <span class="eyebrow" style="color:var(--gold-bright);">Visit us</span>
+          <h2>See the venues in person.</h2>
+          <p>Walk the ballroom, taste the menu and meet your planner. Site visits run daily between 10:00 and 19:00.</p>
+        </div>
+        <div class="contact-actions">
+          <a href="/contact" class="btn btn-gold btn-lg">Book a site visit</a>
+          <a href="/halls" class="btn btn-secondary btn-lg">Explore venues</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

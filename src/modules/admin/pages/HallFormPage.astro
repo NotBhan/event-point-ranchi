@@ -1,0 +1,127 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { imageUrl } from '../../../core/http';
+
+interface Props {
+  hall: Record<string, unknown> | null;
+  id: number | null;
+}
+
+const { hall, id } = Astro.props;
+const csrf = Astro.locals.csrf;
+
+const value = (key: string, fallback = '') => String(hall?.[key] ?? fallback);
+const n = (key: string, fallback = 0) => Number(hall?.[key] ?? fallback);
+const checked = (key: string, fallback = false) => (hall ? Boolean(Number(hall[key])) : fallback);
+const priceRupees = hall ? (n('price_paise') / 100).toString() : '';
+const banner = value('banner_image');
+---
+
+<AdminLayout
+  title={id ? `Edit ${value('name', 'hall')}` : 'Add a hall'}
+  description="Changes go live immediately on the public site."
+>
+  <div class="admin-toolbar">
+    <a href="/admin/halls" class="btn btn-secondary btn-sm">← All halls</a>
+  </div>
+
+  <form method="POST" action={id ? `/admin/halls/${id}` : '/admin/halls/new'} class="admin-grid-3" enctype="multipart/form-data">
+    <input type="hidden" name="_csrf" value={csrf} />
+
+    <div class="admin-panel" style="grid-column: span 2;">
+      <div class="admin-panel-head"><div><h2>Venue details</h2></div></div>
+      <div class="admin-panel-body">
+        <div class="admin-form-grid">
+          <div class="admin-form-grid" style="grid-template-columns:2fr 1fr;">
+            <div class="field">
+              <label for="name">Hall name *</label>
+              <input class="input" id="name" name="name" required value={value('name')} placeholder="Royal Kohinoor Grand Ballroom" />
+            </div>
+            <div class="field">
+              <label for="slug">URL slug</label>
+              <input class="input" id="slug" name="slug" value={value('slug')} placeholder="royal-kohinoor-ballroom" />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="description">Description</label>
+            <textarea class="textarea" id="description" name="description" rows="4">{value('description')}</textarea>
+          </div>
+
+          <div class="admin-form-grid" style="grid-template-columns:repeat(3,1fr);">
+            <div class="field">
+              <label for="price">Price per event (₹) *</label>
+              <input class="input" id="price" name="price" required value={priceRupees} placeholder="250000" inputmode="decimal" />
+            </div>
+            <div class="field">
+              <label for="capacity">Guest capacity</label>
+              <input class="input" id="capacity" name="capacity" type="number" min="0" value={n('capacity')} />
+            </div>
+            <div class="field">
+              <label for="parking_capacity">Parking bays</label>
+              <input class="input" id="parking_capacity" name="parking_capacity" type="number" min="0" value={n('parking_capacity')} />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="location">Location within the property</label>
+            <input class="input" id="location" name="location" value={value('location')} placeholder="North Wing, Level 1" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:20px;">
+      <div class="admin-panel">
+        <div class="admin-panel-head"><div><h2>Media</h2></div></div>
+        <div class="admin-panel-body">
+          <div class="admin-form-grid">
+            <div class="field">
+              <label for="image">Card image</label>
+              {value('image') && <img class="admin-thumb" style="width:100%;height:130px;object-fit:cover;" src={imageUrl(value('image'))} alt="" />}
+              <input class="input" type="file" id="image" name="image" accept="image/*" />
+              <input type="hidden" name="image_path" value={value('image')} />
+              <span class="hint" data-file-name>Upload replaces the current image.</span>
+            </div>
+            <div class="field">
+              <label for="banner_image">Banner image</label>
+              {banner && <img class="admin-thumb" style="width:100%;height:130px;object-fit:cover;" src={imageUrl(banner)} alt="" />}
+              <input class="input" type="file" id="banner_image" name="banner_image" accept="image/*" />
+              <input type="hidden" name="banner_path" value={banner} />
+              <span class="hint" data-file-name>Shown behind the venue hero.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-panel">
+        <div class="admin-panel-head"><div><h2>Visibility</h2></div></div>
+        <div class="admin-panel-body">
+          <div class="admin-form-grid">
+            <label class="switch"><input type="checkbox" name="is_active" checked={checked('is_active', true)} /> Published on the website</label>
+            <label class="switch"><input type="checkbox" name="is_featured" checked={checked('is_featured')} /> Feature on the homepage</label>
+            <label class="switch"><input type="checkbox" name="show_badge" checked={checked('show_badge')} /> Show “Signature venue” badge</label>
+            <label class="switch"><input type="checkbox" name="is_ac" checked={checked('is_ac', true)} /> Air conditioned</label>
+            <label class="switch"><input type="checkbox" name="is_wifi" checked={checked('is_wifi', true)} /> High-speed Wi-Fi</label>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;">
+        <button type="submit" class="btn btn-primary btn-block">{id ? 'Save changes' : 'Create hall'}</button>
+      </div>
+
+      {id && (
+        <div class="admin-panel">
+          <div class="admin-panel-body">
+            <form method="POST" action={`/admin/halls/${id}/delete`}>
+              <input type="hidden" name="_csrf" value={csrf} />
+              <button type="submit" class="btn btn-danger-soft btn-block" data-confirm="Delete this hall permanently?">Delete hall</button>
+            </form>
+            <p class="text-xs text-muted mt-3">Bookings linked to this hall are removed with it.</p>
+          </div>
+        </div>
+      )}
+    </div>
+  </form>
+</AdminLayout>

@@ -1,0 +1,56 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Icon from '../../../components/Icon.astro';
+import '../accounts.css';
+
+interface Props {
+  error: string | null;
+  next: string;
+  username: string;
+}
+
+const { error, next, username } = Astro.props;
+const csrf = Astro.locals.csrf;
+---
+
+<BaseLayout title="Log in | Royal Palace" noCart>
+  <section class="auth-page">
+    <div class="auth-card">
+      <div class="auth-head">
+        <span class="eyebrow">Customer login</span>
+        <h1>Welcome back</h1>
+        <p>Sign in to review bookings, quotes and your event cart.</p>
+      </div>
+
+      {error && (
+        <div class="alert alert-error mb-6">
+          <Icon name="alert" size={16} />
+          <span>{error}</span>
+        </div>
+      )}
+
+      <form method="POST" action="/login" class="form-grid">
+        <input type="hidden" name="_csrf" value={csrf} />
+        <input type="hidden" name="next" value={next} />
+
+        <div class="field">
+          <label for="username">Username or email</label>
+          <input class="input" id="username" name="username" required autofocus value={username} placeholder="rohit_sharma" />
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <input class="input" id="password" name="password" type="password" required placeholder="••••••••" />
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-lg btn-block">
+          <Icon name="logout" size={16} /> Sign in
+        </button>
+      </form>
+
+      <p class="auth-foot">
+        New to Royal Palace? <a href={`/register${next ? `?next=${encodeURIComponent(next)}` : ''}`}>Create an account</a>
+      </p>
+    </div>
+  </section>
+</BaseLayout>

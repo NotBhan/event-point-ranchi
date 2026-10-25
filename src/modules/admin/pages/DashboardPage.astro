@@ -1,0 +1,174 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import Icon from '../../../components/Icon.astro';
+import { formatDate, formatDateTime, formatMoney } from '../../../core/http';
+import type { loadDashboard } from '../service';
+
+interface Props {
+  counts: ReturnType<typeof loadDashboard>['counts'];
+  recentBookings: ReturnType<typeof loadDashboard>['recentBookings'];
+  upcoming: ReturnType<typeof loadDashboard>['upcoming'];
+  topHalls: ReturnType<typeof loadDashboard>['topHalls'];
+}
+
+const { counts, recentBookings, upcoming, topHalls } = Astro.props;
+
+const statusClass: Record<string, string> = {
+  draft: 'badge-muted',
+  pending: 'badge-warning',
+  confirmed: 'badge-success',
+  cancelled: 'badge-danger',
+};
+
+const stats = [
+  { label: 'Total bookings', value: counts.bookings, icon: 'ticket', hint: `${counts.pending} awaiting confirmation` },
+  { label: 'Pipeline value', value: formatMoney(counts.revenue), icon: 'receipt', hint: 'Pending + confirmed bookings' },
+  { label: 'Active venues', value: counts.halls, icon: 'building', hint: `${counts.rooms} room categories` },
+  { label: 'Customers', value: counts.customers, icon: 'users', hint: `${counts.inquiries} new inquiries` },
+];
+---
+
+<AdminLayout title="Dashboard" description="Today's snapshot of bookings, revenue and inquiries.">
+  <div class="admin-stats">
+    {stats.map((stat) => (
+      <div class="stat-card">
+        <div class="stat-top">
+          <span class="stat-icon"><Icon name={stat.icon} size={17} /></span>
+        </div>
+        <strong>{stat.value}</strong>
+        <span>{stat.label}</span>
+        <small>{stat.hint}</small>
+      </div>
+    ))}
+  </div>
+
+  <div class="admin-grid-2">
+    <div class="admin-panel">
+      <div class="admin-panel-head">
+        <div>
+          <h2>Recent bookings</h2>
+          <p>Latest eight reservations</p>
+        </div>
+        <a href="/admin/bookings" class="btn btn-secondary btn-sm">View all</a>
+      </div>
+      <div class="admin-panel-body flush">
+        {recentBookings.length === 0 ? (
+          <div class="admin-empty">No bookings yet.</div>
+        ) : (
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Customer</th>
+                  <th>Event</th>
+                  <th>Total</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentBookings.map((booking) => (
+                  <tr>
+                    <td><a href={`/admin/bookings/${booking.id}`} style="font-weight:600;color:var(--ink);">#{booking.id}</a></td>
+                    <td>{booking.customer}</td>
+                    <td>
+                      {booking.event_type}
+                      <div class="text-xs text-muted">{formatDate(booking.event_date)}</div>
+                    </td>
+                    <td class="money">{formatMoney(booking.total_amount)}</td>
+                    <td><span class:list={['badge', statusClass[booking.status] ?? 'badge-muted']}>{booking.status}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:20px;">
+      <div class="admin-panel">
+        <div class="admin-panel-head">
+          <div>
+            <h2>Upcoming events</h2>
+            <p>Next confirmed and pending dates</p>
+          </div>
+        </div>
+        <div class="admin-panel-body">
+          {upcoming.length === 0 ? (
+            <div class="admin-empty">No upcoming events scheduled.</div>
+          ) : (
+            <div style="display:flex;flex-direction:column;gap:12px;">
+              {upcoming.map((event) => (
+                <a href={`/admin/bookings/${event.id}`} class="other-venue" style="padding:10px 0;">
+                  <span>
+                    <strong>{event.event_type}</strong>
+                    <small>{event.customer} · {event.total_guest} guests</small>
+                  </span>
+                  <span style="text-align:right;">
+                    <span class="text-mono" style="font-size:12px;color:var(--ink);">{formatDate(event.event_date)}</span>
+                    <div class:list={['badge', statusClass[event.status] ?? 'badge-muted']} style="margin-top:4px;">{event.status}</div>
+                  </span>
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div class="admin-panel">
+        <div class="admin-panel-head">
+          <div>
+            <h2>Venue performance</h2>
+            <p>Revenue by hall</p>
+          </div>
+        </div>
+        <div class="admin-panel-body">
+          {topHalls.length === 0 ? (
+            <div class="admin-empty">No hall bookings yet.</div>
+          ) : (
+            <div style="display:flex;flex-direction:column;gap:12px;">
+              {topHalls.map((hall) => (
+                <div class="flex-between" style="gap:12px;">
+                  <div>
+                    <div style="font-size:13px;color:var(--ink-2);font-weight:500;">{hall.name}</div>
+                    <div class="text-xs text-muted">{hall.bookings} bookings</div>
+                  </div>
+                  <span class="money">{formatMoney(hall.revenue)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="admin-panel">
+    <div class="admin-panel-head">
+      <div>
+        <h2>Latest activity</h2>
+        <p>Most recent booking activity (created dates)</p>
+      </div>
+    </div>
+    <div class="admin-panel-body flush">
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr><th>Created</th><th>Booking</th><th>Customer</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            {recentBookings.slice(0, 5).map((booking) => (
+              <tr>
+                <td class="text-mono text-xs">{formatDateTime(booking.created_at)}</td>
+                <td><a href={`/admin/bookings/${booking.id}`} style="color:var(--ink);font-weight:600;">#{booking.id}</a></td>
+                <td>{booking.customer}</td>
+                <td><span class:list={['badge', statusClass[booking.status] ?? 'badge-muted']}>{booking.status}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</AdminLayout>

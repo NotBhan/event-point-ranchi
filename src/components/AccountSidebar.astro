@@ -1,0 +1,46 @@
+---
+import { site } from '../core/config';
+import Icon from './Icon.astro';
+
+interface Props {
+  user: { firstName: string; email: string };
+  active: 'profile' | 'bookings';
+  isAdmin?: boolean;
+}
+
+const { user, active, isAdmin = false } = Astro.props;
+const csrf = Astro.locals.csrf;
+const initials = user.firstName.slice(0, 1).toUpperCase() || 'R';
+---
+
+<aside class="account-sidebar">
+  <div class="account-user">
+    <span class="avatar">{initials}</span>
+    <div>
+      <strong>{user.firstName}</strong>
+      <span>{user.email || 'No email set'}</span>
+    </div>
+  </div>
+
+  <nav class="account-nav">
+    <a href="/profile" class:list={{ active: active === 'profile' }}>
+      <Icon name="user" size={15} /> My profile
+    </a>
+    <a href="/my-bookings" class:list={{ active: active === 'bookings' }}>
+      <Icon name="calendar" size={15} /> My bookings
+    </a>
+    <a href="/cart"><Icon name="cart" size={15} /> Event cart</a>
+    {isAdmin && <a href="/admin"><Icon name="dashboard" size={15} /> Admin console</a>}
+    <div class="user-menu-divider"></div>
+    <form method="POST" action="/logout">
+      <input type="hidden" name="_csrf" value={csrf} />
+      <button type="submit" class="account-nav-link logout">
+        <Icon name="logout" size={15} /> Log out
+      </button>
+    </form>
+  </nav>
+
+  <div class="muted-box mt-4" style="font-size:12px;">
+    {site.phone} · {site.email}
+  </div>
+</aside>

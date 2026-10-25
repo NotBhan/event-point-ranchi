@@ -1,0 +1,47 @@
+/* ---------- Auth pages ---------- */
+.auth-page {
+  min-height: 78vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 72px 20px;
+  background:
+    radial-gradient(900px 420px at 15% -10%, var(--gold-soft), transparent 60%),
+    var(--canvas-warm);
+}
+.auth-card {
+  width: min(100%, 480px);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  padding: 36px;
+  box-shadow: var(--shadow-md);
+}
+.auth-head { margin-bottom: 24px; }
+.auth-head h1 { font-size: 1.75rem; letter-spacing: -0.025em; }
+.auth-head p { margin-top: 6px; font-size: 13.5px; color: var(--body); }
+.auth-foot { margin-top: 22px; text-align: center; font-size: 13px; color: var(--body); }
+.auth-foot a { color: var(--gold-ink); font-weight: 600; }
+.auth-foot a:hover { text-decoration: underline; }
+
+/* Account sidebar logout button */
+.account-nav button.account-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  font-size: 13px;
+  color: var(--ink-2);
+  text-align: left;
+}
+.account-nav button.account-nav-link:hover { background: var(--canvas-warm); }
+.account-nav button.account-nav-link.logout { color: var(--danger); }
+.account-nav form { margin: 0; }
+
+@media (max-width: 560px) {
+  .auth-card { padding: 26px 20px; }
+}

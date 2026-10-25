@@ -1,0 +1,49 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import HallCard from '../../../components/HallCard.astro';
+import Icon from '../../../components/Icon.astro';
+import { imageUrl } from '../../../core/http';
+import type { loadHallsPage } from '../service';
+
+interface Props {
+  data: ReturnType<typeof loadHallsPage>;
+}
+
+const { data } = Astro.props;
+const { settings, halls } = data;
+---
+
+<BaseLayout title="Banquet Halls | Royal Palace" description={settings.hero_subtitle}>
+  <section class:list={['page-hero', { 'with-image': Boolean(settings.hero_image) }]}>
+    {settings.hero_image && <img class="page-hero-media" src={imageUrl(settings.hero_image)} alt="" />}
+    <div class="container">
+      {settings.hero_badge && <span class="eyebrow">{settings.hero_badge}</span>}
+      <h1>{settings.hero_title}</h1>
+      <p>{settings.hero_subtitle}</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head" style="display:flex;justify-content:space-between;align-items:flex-end;gap:20px;max-width:none;">
+        <div>
+          <h2>{halls.length} venues available</h2>
+          <p>Every hall includes climate control, in-house catering and a dedicated event planner.</p>
+        </div>
+        <a href="/catering" class="btn btn-secondary">Add catering <Icon name="arrow-right" size={15} /></a>
+      </div>
+
+      {halls.length === 0 ? (
+        <div class="empty-state">
+          <div class="empty-icon"><Icon name="building" size={24} /></div>
+          <h3>No banquet halls available</h3>
+          <p>Please check back shortly — our team is updating the venue list.</p>
+        </div>
+      ) : (
+        <div class="card-grid">
+          {halls.map((hall) => <HallCard hall={hall} availability={hall.booked_dates} showAvailability />)}
+        </div>
+      )}
+    </div>
+  </section>
+</BaseLayout>

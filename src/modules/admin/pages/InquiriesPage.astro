@@ -1,0 +1,105 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { formatDate, formatDateTime } from '../../../core/http';
+import type { listInquiries } from '../service';
+
+interface Props {
+  inquiries: ReturnType<typeof listInquiries>;
+  status: string;
+}
+
+const { inquiries, status } = Astro.props;
+const csrf = Astro.locals.csrf;
+
+const statusClass: Record<string, string> = {
+  new: 'badge-warning',
+  contacted: 'badge-info',
+  closed: 'badge-muted',
+};
+
+const tabs = [
+  ['all', 'All'],
+  ['new', 'New'],
+  ['contacted', 'Contacted'],
+  ['closed', 'Closed'],
+];
+---
+
+<AdminLayout title="Inquiries" description={`${inquiries.length} enquiries from the contact form.`}>
+  <div class="admin-panel">
+    <div class="admin-panel-head">
+      <div><h2>Contact enquiries</h2><p>Call customers, then mark them contacted or closed.</p></div>
+      <div class="admin-subnav">
+        {tabs.map(([value, label]) => (
+          <a href={`/admin/inquiries?status=${value}`} class:list={{ active: status === value }}>{label}</a>
+        ))}
+      </div>
+    </div>
+
+    <div class="admin-panel-body flush">
+      {inquiries.length === 0 ? (
+        <div class="admin-empty">No inquiries in this view.</div>
+      ) : (
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Received</th>
+                <th>Customer</th>
+                <th>Event</th>
+                <th>Message</th>
+                <th>Status</th>
+                <th style="text-align:right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {inquiries.map((inquiry) => (
+                <tr>
+                  <td class="text-xs">{formatDateTime(inquiry.created_at)}</td>
+                  <td>
+                    <strong>{inquiry.name}</strong>
+                    <div class="text-xs text-muted">{inquiry.phone}</div>
+                    <div class="text-xs text-muted">{inquiry.email}</div>
+                  </td>
+                  <td>
+                    {inquiry.event_type || '—'}
+                    <div class="text-xs text-muted">
+                      {inquiry.event_date ? formatDate(inquiry.event_date) : 'No date'}
+                      {inquiry.guest_count ? ` · ${inquiry.guest_count} guests` : ''}
+                    </div>
+                  </td>
+                  <td style="max-width:320px;">
+                    <span class="text-sm">{inquiry.message || '—'}</span>
+                  </td>
+                  <td><span class:list={['badge', statusClass[inquiry.status] ?? 'badge-muted']}>{inquiry.status}</span></td>
+                  <td>
+                    <div class="admin-row-actions">
+                      <form method="POST" action={`/admin/inquiries?status=${status}`}>
+                        <input type="hidden" name="_csrf" value={csrf} />
+                        <input type="hidden" name="action" value="update_status" />
+                        <input type="hidden" name="id" value={inquiry.id} />
+                        <select class="select" name="status" data-auto-submit style="min-height:34px;padding:6px 30px 6px 10px;font-size:12.5px;">
+                          {['new', 'contacted', 'closed'].map((value) => (
+                            <option value={value} selected={inquiry.status === value}>{value}</option>
+                          ))}
+                        </select>
+                      </form>
+                      <form method="POST" action={`/admin/inquiries?status=${status}`}>
+                        <input type="hidden" name="_csrf" value={csrf} />
+                        <input type="hidden" name="action" value="delete" />
+                        <input type="hidden" name="id" value={inquiry.id} />
+                        <button type="submit" class="icon-btn danger" data-confirm="Delete this inquiry?" aria-label="Delete inquiry">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                        </button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  </div>
+</AdminLayout>

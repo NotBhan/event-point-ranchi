@@ -1,0 +1,22 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Event cart | Royal Palace" noCart>
+  <section class="section-sm">
+    <div class="container">
+      <div class="section-head" style="margin-bottom:24px;">
+        <span class="eyebrow">Your selection</span>
+        <h1 class="display-md">Event cart</h1>
+        <p>Everything you have shortlisted, in one place. Prices are verified again when you submit the booking.</p>
+      </div>
+      <div data-cart-page>
+        <div class="muted-box">Loading your cart…</div>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    import '../../../client/cart-page';
+  </script>
+</BaseLayout>

@@ -1,0 +1,78 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Icon from '../../../components/Icon.astro';
+import '../accounts.css';
+
+interface Props {
+  error: string | null;
+  next: string;
+  values: { name: string; username: string; email: string; phone: string };
+}
+
+const { error, next, values } = Astro.props;
+const csrf = Astro.locals.csrf;
+---
+
+<BaseLayout title="Create account | Royal Palace" noCart>
+  <section class="auth-page">
+    <div class="auth-card">
+      <div class="auth-head">
+        <span class="eyebrow">Create account</span>
+        <h1>Join Royal Palace</h1>
+        <p>Track bookings, revisit quotes and check out faster next time.</p>
+      </div>
+
+      {error && (
+        <div class="alert alert-error mb-6">
+          <Icon name="alert" size={16} />
+          <span>{error}</span>
+        </div>
+      )}
+
+      <form method="POST" action="/register" class="form-grid">
+        <input type="hidden" name="_csrf" value={csrf} />
+        <input type="hidden" name="next" value={next} />
+
+        <div class="field">
+          <label for="name">Full name *</label>
+          <input class="input" id="name" name="name" required value={values.name} placeholder="Aarav Sharma" />
+        </div>
+
+        <div class="form-grid cols-2">
+          <div class="field">
+            <label for="username">Username *</label>
+            <input class="input" id="username" name="username" required value={values.username} placeholder="aarav_sharma" />
+          </div>
+          <div class="field">
+            <label for="phone">Phone number</label>
+            <input class="input" id="phone" name="phone" inputmode="tel" value={values.phone} placeholder="9876543210" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="email">Email address</label>
+          <input class="input" id="email" name="email" type="email" value={values.email} placeholder="you@example.com" />
+        </div>
+
+        <div class="form-grid cols-2">
+          <div class="field">
+            <label for="password">Password *</label>
+            <input class="input" id="password" name="password" type="password" required placeholder="Minimum 6 characters" />
+          </div>
+          <div class="field">
+            <label for="confirm_password">Confirm password *</label>
+            <input class="input" id="confirm_password" name="confirm_password" type="password" required placeholder="Repeat password" />
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-lg btn-block">
+          <Icon name="user" size={16} /> Create account
+        </button>
+      </form>
+
+      <p class="auth-foot">
+        Already have an account? <a href={`/login${next ? `?next=${encodeURIComponent(next)}` : ''}`}>Sign in</a>
+      </p>
+    </div>
+  </section>
+</BaseLayout>

@@ -1,0 +1,94 @@
+---
+import { formatMoney, imageUrl } from '../core/http';
+
+interface Props {
+  hall: {
+    id: number;
+    name: string;
+    slug: string;
+    description: string;
+    image: string | null;
+    price_paise: number;
+    capacity: number;
+    location: string;
+    is_ac: number;
+    is_wifi: number;
+    parking_capacity: number;
+    show_badge: number;
+  };
+  availability?: string | null;
+  showAvailability?: boolean;
+}
+
+const { hall, availability = null, showAvailability = false } = Astro.props;
+---
+
+<article class="hall-card">
+  <div class="hall-card-media">
+    {hall.image ? (
+      <img src={imageUrl(hall.image)} alt={hall.name} loading="lazy" />
+    ) : (
+      <div class="media-fallback">
+        <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16"/><path d="M15 9h4a1 1 0 0 1 1 1v11"/><path d="M2 21h20"/></svg>
+      </div>
+    )}
+    {hall.show_badge === 1 && <span class="badge badge-gold">Signature venue</span>}
+  </div>
+
+  <div class="hall-card-body">
+    <h3>{hall.name}</h3>
+    <p class="description">{hall.description}</p>
+
+    <div class="hall-card-facts">
+      <span>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M17 5a3.5 3.5 0 0 1 0 6.5"/><path d="M18.5 14.5A6.5 6.5 0 0 1 22 20"/></svg>
+        {hall.capacity} guests
+      </span>
+      <span>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        {hall.location || 'On-site'}
+      </span>
+      {hall.parking_capacity > 0 && (
+        <span>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 17V7h3.5a3 3 0 0 1 0 6H9"/></svg>
+          {hall.parking_capacity} parking
+        </span>
+      )}
+    </div>
+
+    {showAvailability && (
+      availability ? (
+        <div class="availability-note busy">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" style="flex-shrink:0;margin-top:2px;"><path d="M10.3 3.8 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.8a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+          <span><strong>Unavailable:</strong> {availability}</span>
+        </div>
+      ) : (
+        <div class="availability-note free">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" style="flex-shrink:0;margin-top:2px;"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>
+          <span>Open on all upcoming dates</span>
+        </div>
+      )
+    )}
+
+    <div class="hall-card-foot">
+      <div>
+        <div class="price price-lg">{formatMoney(hall.price_paise)}</div>
+        <div class="text-xs text-muted">per event</div>
+      </div>
+      <div class="hall-card-actions">
+        <button
+          type="button"
+          class="btn btn-primary btn-sm"
+          data-add-hall
+          data-id={hall.id}
+          data-name={hall.name}
+          data-price={hall.price_paise}
+          data-capacity={hall.capacity}
+        >
+          Select hall
+        </button>
+        <a href={`/halls/${hall.slug}`} class="btn btn-secondary btn-sm">Details</a>
+      </div>
+    </div>
+  </div>
+</article>
