@@ -15,7 +15,7 @@ function appSecret(): string {
     warnedAboutSecret = true;
     console.warn('[auth] APP_SECRET is not set. Using an insecure development secret.');
   }
-  return 'royal-palace-development-secret';
+  return 'event-point-development-secret';
 }
 
 function secureCookies(): boolean {

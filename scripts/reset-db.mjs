@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path';
 
 const dataDir = resolve(process.cwd(), process.env.DATA_DIR || './data');
 
-for (const file of ['royal-palace.db', 'royal-palace.db-wal', 'royal-palace.db-shm']) {
+for (const file of ['event-point.db', 'event-point.db-wal', 'event-point.db-shm']) {
   rmSync(join(dataDir, file), { force: true });
 }
 

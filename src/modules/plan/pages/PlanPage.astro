@@ -1,0 +1,475 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Icon from '../../../components/Icon.astro';
+import type { PlanCatalogue } from '../service';
+
+interface Props {
+  catalogue: PlanCatalogue;
+  csrf: string;
+  eventTypes: readonly string[];
+  budgetRanges: readonly string[];
+  preferredContactMethods: readonly string[];
+  today: string;
+}
+
+const { catalogue, csrf, eventTypes, budgetRanges, preferredContactMethods, today } = Astro.props;
+
+const steps = [
+  ['1', 'Event details'],
+  ['2', 'Mandap'],
+  ['3', 'Stage'],
+  ['4', 'Equipment'],
+  ['5', 'Accommodation'],
+  ['6', 'Styling'],
+  ['7', 'Budget & contact'],
+  ['8', 'Review'],
+];
+
+const lightingOptions = [
+  'Warm fairy lights',
+  'Crystal chandeliers',
+  'LED uplighting',
+  'Natural daylight',
+  'Not sure yet',
+];
+
+const floralOptions = [
+  'Maroon & ivory',
+  'Pastel blush',
+  'All white',
+  'Jewel tones',
+  'Marigold',
+  'Mixed seasonal',
+  'Not sure yet',
+];
+
+const catalogueJson = JSON.stringify(catalogue).replace(/</g, '\\u003c');
+const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + category.items.length, 0);
+---
+
+<BaseLayout
+  title="Plan Your Event | Event Point Ranchi"
+  description="Build your wedding mandap, stage, furniture and equipment requirements and send a quotation enquiry to Event Point Ranchi."
+>
+  <section class="page-hero plan-hero">
+    <div class="container">
+      <span class="eyebrow">Event requirements</span>
+      <h1>Build your event requirements.</h1>
+      <p>
+        Choose your mandap, stage, furniture and equipment, tell us about accommodation and share
+        your contact details. Our Ranchi team reviews everything before preparing a quotation.
+      </p>
+      <div class="plan-hero-note">
+        <Icon name="info" size={17} />
+        <span>This is an enquiry, not an automatic booking. Dates and stock are confirmed only after our team responds.</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section plan-section">
+    <div class="container plan-shell" id="planShell">
+      <nav class="plan-progress" aria-label="Enquiry progress">
+        <ol>
+          {steps.map(([number, label], index) => (
+            <li>
+              <button type="button" data-plan-step-link={number} aria-current={index === 0 ? 'step' : undefined}>
+                <span>{number}</span>
+                <small>{label}</small>
+              </button>
+            </li>
+          ))}
+        </ol>
+        <p class="plan-progress-text" data-plan-progress-text aria-live="polite">Step 1 of 8 — Event details</p>
+      </nav>
+
+      <div class="plan-layout">
+        <form class="plan-form panel" id="planForm" data-csrf={csrf} data-today={today} novalidate>
+          <div class="plan-error" data-plan-error role="alert" tabindex="-1" hidden></div>
+
+          <section class="plan-step" data-plan-step="1" aria-labelledby="plan-step-1-title">
+            <header class="plan-step-head">
+              <span class="plan-step-kicker">Step 1 of 8</span>
+              <h2 id="plan-step-1-title">Event details</h2>
+              <p>Give us the essentials first. You can change everything later in this form.</p>
+            </header>
+
+            <div class="form-grid cols-2">
+              <div class="field">
+                <label for="eventType">Event type *</label>
+                <select class="select" id="eventType" name="eventType" required>
+                  <option value="">Select an event type</option>
+                  {eventTypes.map((type) => <option value={type}>{type}</option>)}
+                </select>
+              </div>
+              <div class="field">
+                <label for="guestCount">Estimated guest count *</label>
+                <input class="input" id="guestCount" name="guestCount" type="number" min="1" max="100000" step="1" inputmode="numeric" placeholder="e.g. 250" required />
+              </div>
+              <div class="field">
+                <label for="eventDate">Event date *</label>
+                <input class="input" id="eventDate" name="eventDate" type="date" min={today} required />
+              </div>
+              <div class="field">
+                <label for="endDate">End date <span class="label-optional">(if multi-day)</span></label>
+                <input class="input" id="endDate" name="endDate" type="date" min={today} />
+              </div>
+              <div class="field">
+                <label for="eventTime">Start time <span class="label-optional">(optional)</span></label>
+                <input class="input" id="eventTime" name="eventTime" type="time" />
+              </div>
+              <div class="field">
+                <label for="venueLocation">Venue or location in Ranchi *</label>
+                <input class="input" id="venueLocation" name="venueLocation" type="text" placeholder="e.g. Harmu Ground, Ranchi" required />
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="eventDescription">Tell us about the event <span class="label-optional">(optional)</span></label>
+              <textarea class="textarea" id="eventDescription" name="eventDescription" rows="4" placeholder="Ceremony timings, family traditions, approximate layout, anything we should know…"></textarea>
+            </div>
+          </section>
+
+          <section class="plan-step" data-plan-step="2" aria-labelledby="plan-step-2-title" hidden>
+            <header class="plan-step-head">
+              <span class="plan-step-kicker">Step 2 of 8</span>
+              <h2 id="plan-step-2-title">Mandap selection</h2>
+              <p>Select a mandap or skip this step. Standard dimensions are shown for reference.</p>
+            </header>
+
+            <div class="field">
+              <label for="mandapId">Mandap</label>
+              <select class="select" id="mandapId" name="mandapId">
+                <option value="">Skip — no mandap selected</option>
+                {catalogue.mandaps.map((mandap) => (
+                  <option
+                    value={mandap.id}
+                    data-standard={`${mandap.length_ft} × ${mandap.width_ft} × ${mandap.height_ft} ${mandap.dimension_unit}`}
+                  >
+                    {mandap.name} — {mandap.length_ft} × {mandap.width_ft} × {mandap.height_ft} {mandap.dimension_unit}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div class="plan-selection-preview" data-mandap-preview></div>
+
+            <div class="dimension-panel">
+              <div class="dimension-panel-head">
+                <Icon name="edit" size={16} />
+                <div>
+                  <strong>Custom mandap dimensions</strong>
+                  <span>Optional — enter all three in feet, or leave blank for the standard size.</span>
+                </div>
+              </div>
+              <div class="form-grid cols-3">
+                <div class="field">
+                  <label for="mandapLength">Length (ft)</label>
+                  <input class="input" id="mandapLength" name="mandapLength" type="number" min="1" step="0.5" inputmode="decimal" data-custom-dim="mandap" />
+                </div>
+                <div class="field">
+                  <label for="mandapWidth">Width (ft)</label>
+                  <input class="input" id="mandapWidth" name="mandapWidth" type="number" min="1" step="0.5" inputmode="decimal" data-custom-dim="mandap" />
+                </div>
+                <div class="field">
+                  <label for="mandapHeight">Height (ft)</label>
+                  <input class="input" id="mandapHeight" name="mandapHeight" type="number" min="1" step="0.5" inputmode="decimal" data-custom-dim="mandap" />
+                </div>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="mandapNotes">Mandap layout notes <span class="label-optional">(optional)</span></label>
+              <textarea class="textarea" id="mandapNotes" name="mandapNotes" rows="3" placeholder="Entrance width, venue restrictions, seating around the mandap…"></textarea>
+            </div>
+          </section>
+
+          <section class="plan-step" data-plan-step="3" aria-labelledby="plan-step-3-title" hidden>
+            <header class="plan-step-head">
+              <span class="plan-step-kicker">Step 3 of 8</span>
+              <h2 id="plan-step-3-title">Stage selection</h2>
+              <p>Choose a reception or ceremony stage, or skip if the mandap covers your setup.</p>
+            </header>
+
+            <div class="field">
+              <label for="stageId">Stage design</label>
+              <select class="select" id="stageId" name="stageId">
+                <option value="">Skip — no stage selected</option>
+                {catalogue.stages.map((stage) => (
+                  <option
+                    value={stage.id}
+                    data-standard={`${stage.length_ft} × ${stage.width_ft} × ${stage.height_ft} ${stage.dimension_unit}`}
+                  >
+                    {stage.name} — {stage.length_ft} × {stage.width_ft} × {stage.height_ft} {stage.dimension_unit}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div class="plan-selection-preview" data-stage-preview></div>
+
+            <div class="dimension-panel">
+              <div class="dimension-panel-head">
+                <Icon name="edit" size={16} />
+                <div>
+                  <strong>Custom stage dimensions</strong>
+                  <span>Optional — enter all three in feet, or leave blank for the standard size.</span>
+                </div>
+              </div>
+              <div class="form-grid cols-3">
+                <div class="field">
+                  <label for="stageLength">Length (ft)</label>
+                  <input class="input" id="stageLength" name="stageLength" type="number" min="1" step="0.5" inputmode="decimal" data-custom-dim="stage" />
+                </div>
+                <div class="field">
+                  <label for="stageWidth">Width (ft)</label>
+                  <input class="input" id="stageWidth" name="stageWidth" type="number" min="1" step="0.5" inputmode="decimal" data-custom-dim="stage" />
+                </div>
+                <div class="field">
+                  <label for="stageHeight">Height (ft)</label>
+                  <input class="input" id="stageHeight" name="stageHeight" type="number" min="1" step="0.5" inputmode="decimal" data-custom-dim="stage" />
+                </div>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="stageNotes">Decoration notes <span class="label-optional">(optional)</span></label>
+              <textarea class="textarea" id="stageNotes" name="stageNotes" rows="3" placeholder="Backdrop style, flowers, lighting, entrance choreography…"></textarea>
+            </div>
+          </section>
+
+          <section class="plan-step" data-plan-step="4" aria-labelledby="plan-step-4-title" hidden>
+            <header class="plan-step-head">
+              <span class="plan-step-kicker">Step 4 of 8</span>
+              <h2 id="plan-step-4-title">Furniture &amp; equipment</h2>
+              <p>Adjust quantities or add items from the catalogue. {equipmentCount} items are available.</p>
+            </header>
+
+            <div class="equipment-planner">
+              <div class="equipment-planner-head">
+                <div>
+                  <h3>Your equipment list</h3>
+                  <p data-plan-equipment-status aria-live="polite">No equipment selected yet.</p>
+                </div>
+                <button type="button" class="btn btn-primary btn-sm" data-open-equipment-drawer aria-expanded="false" aria-controls="equipmentDrawer">
+                  <Icon name="plus" size={15} /> Add items
+                </button>
+              </div>
+
+              <div class="plan-equipment-list" data-equipment-selected-list></div>
+
+              <div class="equipment-drawer" id="equipmentDrawer" data-equipment-drawer hidden>
+                <div class="equipment-drawer-head">
+                  <div>
+                    <h3>Add furniture &amp; equipment</h3>
+                    <p>Browse by category. Items are added with their default quantity.</p>
+                  </div>
+                  <button type="button" class="icon-btn" data-close-equipment-drawer aria-label="Close equipment drawer">
+                    <Icon name="x" size={16} />
+                  </button>
+                </div>
+                <div class="equipment-drawer-tabs" data-equipment-tabs role="tablist" aria-label="Equipment categories"></div>
+                <div class="equipment-drawer-list" data-equipment-drawer-list></div>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="equipmentNotes">Equipment notes <span class="label-optional">(optional)</span></label>
+              <textarea class="textarea" id="equipmentNotes" name="equipmentNotes" rows="3" placeholder="Delivery timing, setup restrictions, colour preferences…"></textarea>
+            </div>
+          </section>
+
+          <section class="plan-step" data-plan-step="5" aria-labelledby="plan-step-5-title" hidden>
+            <header class="plan-step-head">
+              <span class="plan-step-kicker">Step 5 of 8</span>
+              <h2 id="plan-step-5-title">Accommodation requirements</h2>
+              <p>We coordinate guest rooms on request. No rooms are reserved through this enquiry.</p>
+            </header>
+
+            <fieldset class="field-group">
+              <legend>Do you require rooms? *</legend>
+              <div class="option-row">
+                <label class="option-card">
+                  <input type="radio" name="requiresRooms" value="yes" required />
+                  <span><strong>Yes</strong><small>We need help arranging rooms</small></span>
+                </label>
+                <label class="option-card">
+                  <input type="radio" name="requiresRooms" value="no" />
+                  <span><strong>No</strong><small>Guests will arrange their own stay</small></span>
+                </label>
+              </div>
+            </fieldset>
+
+            <div class="form-grid cols-2" data-room-count-field hidden>
+              <div class="field">
+                <label for="roomCount">Number of rooms required *</label>
+                <input class="input" id="roomCount" name="roomCount" type="number" min="1" max="500" step="1" inputmode="numeric" placeholder="e.g. 20" data-room-count-input />
+                <span class="hint">We will confirm availability and share options separately.</span>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="accommodationNotes">Accommodation notes <span class="label-optional">(optional)</span></label>
+              <textarea class="textarea" id="accommodationNotes" name="accommodationNotes" rows="3" placeholder="Number of nights, guest mix, location preference…"></textarea>
+            </div>
+          </section>
+
+          <section class="plan-step" data-plan-step="6" aria-labelledby="plan-step-6-title" hidden>
+            <header class="plan-step-head">
+              <span class="plan-step-kicker">Step 6 of 8</span>
+              <h2 id="plan-step-6-title">Photography &amp; additional styling</h2>
+              <p>Tell us how the event should look and feel. These details feed the quotation.</p>
+            </header>
+
+            <div class="form-grid cols-2">
+              <div class="field">
+                <label for="lighting">Lighting</label>
+                <select class="select" id="lighting" name="lighting">
+                  {lightingOptions.map((option) => <option value={option}>{option}</option>)}
+                </select>
+              </div>
+              <div class="field">
+                <label for="floralPalette">Floral palette</label>
+                <select class="select" id="floralPalette" name="floralPalette">
+                  {floralOptions.map((option) => <option value={option}>{option}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="specialInstructions">Special instructions <span class="label-optional">(optional)</span></label>
+              <textarea class="textarea" id="specialInstructions" name="specialInstructions" rows="4" placeholder="Photography priorities, family seating, ritual timings, accessibility needs…"></textarea>
+            </div>
+          </section>
+
+          <section class="plan-step" data-plan-step="7" aria-labelledby="plan-step-7-title" hidden>
+            <header class="plan-step-head">
+              <span class="plan-step-kicker">Step 7 of 8</span>
+              <h2 id="plan-step-7-title">Budget &amp; contact</h2>
+              <p>We use these details only to prepare and share your quotation.</p>
+            </header>
+
+            <div class="field">
+              <label for="budgetRange">Approximate budget range (INR) *</label>
+              <select class="select" id="budgetRange" name="budgetRange" required>
+                <option value="">Select a budget range</option>
+                {budgetRanges.map((range) => <option value={range}>{range}</option>)}
+              </select>
+            </div>
+
+            <div class="form-grid cols-2">
+              <div class="field">
+                <label for="customerName">Full name *</label>
+                <input class="input" id="customerName" name="customerName" type="text" autocomplete="name" required placeholder="Your full name" />
+              </div>
+              <div class="field">
+                <label for="customerPhone">Mobile number *</label>
+                <input class="input" id="customerPhone" name="customerPhone" type="tel" inputmode="tel" autocomplete="tel" pattern="[6-9][0-9]{9}" maxlength="10" required placeholder="10-digit Indian mobile number" />
+                <span class="hint">Enter 10 digits, for example 9876543210.</span>
+              </div>
+              <div class="field">
+                <label for="customerEmail">Email <span class="label-optional">(optional)</span></label>
+                <input class="input" id="customerEmail" name="customerEmail" type="email" autocomplete="email" placeholder="you@example.com" />
+              </div>
+              <div class="field">
+                <label for="preferredContact">Preferred contact method *</label>
+                <select class="select" id="preferredContact" name="preferredContact" required>
+                  <option value="">Select a method</option>
+                  {preferredContactMethods.map((method) => <option value={method}>{method}</option>)}
+                </select>
+              </div>
+            </div>
+          </section>
+
+          <section class="plan-step" data-plan-step="8" aria-labelledby="plan-step-8-title" hidden>
+            <header class="plan-step-head">
+              <span class="plan-step-kicker">Step 8 of 8</span>
+              <h2 id="plan-step-8-title">Review &amp; submit</h2>
+              <p>Check every section, then send the enquiry to our Ranchi planning team.</p>
+            </header>
+
+            <div class="plan-review" data-plan-review></div>
+
+            <label class="checkbox-row plan-consent">
+              <input type="checkbox" name="consent" required />
+              <span>
+                I understand this is an enquiry for a quotation. It does not confirm a booking, block
+                a date or reserve equipment until Event Point confirms availability in writing.
+              </span>
+            </label>
+
+            <div class="plan-submit-row">
+              <button type="submit" class="btn btn-primary btn-lg" data-plan-submit>
+                <Icon name="mail" size={16} /> Submit quotation enquiry
+              </button>
+              <a href="/contact" class="btn btn-secondary">Need help? Contact us</a>
+            </div>
+          </section>
+
+          <div class="plan-nav">
+            <button type="button" class="btn btn-secondary" data-plan-prev hidden>Back</button>
+            <span class="plan-nav-spacer"></span>
+            <button type="button" class="btn btn-primary" data-plan-next>Continue</button>
+          </div>
+        </form>
+
+        <aside class="plan-aside">
+          <div class="plan-aside-card">
+            <span class="eyebrow">What happens next</span>
+            <ol class="plan-next-steps">
+              <li><strong>We review</strong><span>Our team checks dates, dimensions and stock.</span></li>
+              <li><strong>We call or message</strong><span>We clarify anything missing before quoting.</span></li>
+              <li><strong>You receive a quotation</strong><span>Itemised, transparent and valid for a stated period.</span></li>
+              <li><strong>You confirm in writing</strong><span>Only then are dates and equipment reserved.</span></li>
+            </ol>
+          </div>
+
+          <div class="plan-aside-card plan-aside-summary">
+            <h3>Your requirements</h3>
+            <div data-plan-live-summary></div>
+            <a href="/equipment" class="text-link">Browse equipment</a>
+          </div>
+
+          <div class="plan-aside-card plan-aside-contact">
+            <h3>Prefer to talk?</h3>
+            <p>Call our studio for a same-day conversation about your dates and venue.</p>
+            <a href="tel:+919876543210" class="btn btn-secondary btn-block">+91 98765 43210</a>
+            <a href="https://wa.me/919876543210" class="btn btn-primary btn-block" target="_blank" rel="noopener">WhatsApp us</a>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <section class="section-sm plan-receipt-section" data-plan-receipt hidden aria-live="polite">
+    <div class="container">
+      <div class="plan-receipt">
+        <span class="receipt-icon"><Icon name="check-circle" size={34} /></span>
+        <span class="eyebrow">Enquiry received</span>
+        <h2>Thank you — your requirements are with our team.</h2>
+        <p>
+          This is a quotation enquiry, not a confirmed booking. Keep your reference code handy; our
+          team will contact you using your preferred method after reviewing dates, dimensions and
+          availability.
+        </p>
+        <div class="receipt-reference">
+          <span>Reference code</span>
+          <strong data-receipt-reference>—</strong>
+        </div>
+        <div class="receipt-actions">
+          <a href="/" class="btn btn-primary">Back to home</a>
+          <a href="/gallery" class="btn btn-secondary">Browse the gallery</a>
+        </div>
+        <p class="receipt-note">
+          <Icon name="info" size={15} />
+          Nothing has been charged and no date has been held. Event Point Ranchi will confirm all
+          details in writing.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <script type="application/json" id="planCatalogue" set:html={catalogueJson}></script>
+  <script>
+    import '../../../client/plan-wizard';
+  </script>
+</BaseLayout>

@@ -3,8 +3,8 @@ import { loadPageSettings } from '../halls/service';
 
 export function loadGalleryPage() {
   const settings = loadPageSettings('gallery', {
-    hero_title: 'Moments From Royal Palace',
-    hero_subtitle: 'A look inside the celebrations we have hosted.',
+    hero_title: 'Moments At Event Point',
+    hero_subtitle: 'Mandap details, stage settings and celebrations styled by our Ranchi team.',
     hero_badge: 'The collection',
     hero_image: null,
   });

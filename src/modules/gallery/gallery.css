@@ -20,5 +20,5 @@
   transition: all 0.15s var(--ease);
 }
 .filter-btn:hover { border-color: var(--ink); color: var(--ink); }
-.filter-btn.active { background: var(--ink); border-color: var(--ink); color: #fff; }
+.filter-btn.active { background: var(--brand-maroon); border-color: var(--brand-maroon); color: #fff; }
 .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }

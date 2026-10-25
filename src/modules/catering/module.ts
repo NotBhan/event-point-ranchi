@@ -6,8 +6,7 @@ import { loadCateringPage, loadPackageDetail } from './service';
 export default defineModule({
   id: 'catering',
   label: 'Catering',
-  order: 50,
-  nav: [{ label: 'Catering', href: '/catering', order: 50 }],
+  order: 84,
   routes: [
     {
       path: '/catering',

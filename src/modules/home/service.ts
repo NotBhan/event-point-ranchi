@@ -1,118 +1,151 @@
 import { all, one } from '../../core/db';
+import { site } from '../../core/config';
 
-export interface HomeFeature {
+export interface HomeMandap {
+  id: number;
+  name: string;
+  slug: string;
+  description: string;
+  image: string | null;
+  category: string;
+  length_ft: number;
+  width_ft: number;
+  height_ft: number;
+  dimension_unit: string;
+  material_specs: string;
+}
+
+export interface HomeStage {
+  id: number;
+  name: string;
+  slug: string;
+  description: string;
+  image: string | null;
+  style_category: string;
+  length_ft: number;
+  width_ft: number;
+  height_ft: number;
+  dimension_unit: string;
+  decoration_notes: string;
+}
+
+export interface HomeEquipmentItem {
+  id: number;
+  name: string;
+  slug: string;
+  description: string;
+  image: string | null;
+  unit: string;
+  specifications: string;
+  min_quantity: number;
+  default_quantity: number;
+  category: string;
+  category_slug: string;
+  category_icon: string;
+}
+
+export interface HomeEquipmentCategory {
+  id: number;
+  name: string;
+  slug: string;
   icon: string;
+  items: HomeEquipmentItem[];
+  itemCount: number;
+}
+
+export interface HomeGalleryItem {
+  id: number;
   title: string;
-  description: string;
-}
-
-export interface HomeHall {
-  id: number;
-  name: string;
-  slug: string;
-  description: string;
-  image: string | null;
-  price_paise: number;
-  capacity: number;
-  location: string;
-  parking_capacity: number;
-  is_ac: number;
-  is_wifi: number;
-  show_badge: number;
-}
-
-export interface HomeRoom {
-  id: number;
-  name: string;
-  price_paise: number;
-  capacity: number;
-  image: string | null;
-  description: string;
-  features: string[];
-}
-
-export interface HomePackage {
-  id: number;
-  name: string;
-  slug: string;
-  image: string | null;
-  price_paise: number;
-  description: string;
-  badge: string;
-  features: string[];
+  image: string;
+  category: string;
+  categorySlug: string;
 }
 
 export interface HomeData {
-  hero: { title: string; description: string; image: string | null };
-  features: HomeFeature[];
-  halls: HomeHall[];
-  rooms: HomeRoom[];
-  packages: HomePackage[];
+  heroImage: string | null;
+  mandaps: HomeMandap[];
+  stages: HomeStage[];
+  equipment: HomeEquipmentCategory[];
+  galleryCategories: Array<{ id: number; name: string; slug: string }>;
+  galleryItems: HomeGalleryItem[];
+  stats: { mandaps: number; stages: number; equipment: number; gallery: number };
   contact: { address: string; phone: string; email: string };
-  stats: { halls: number; rooms: number; packages: number; events: number };
 }
 
 export function loadHomePage(): HomeData {
-  const hero = one<{ hero_title: string; hero_description: string; hero_image: string | null }>(
-    'SELECT hero_title, hero_description, hero_image FROM homepage WHERE id = 1',
+  const mandaps = all<HomeMandap>(
+    `SELECT id, name, slug, description, image, category, length_ft, width_ft, height_ft,
+            dimension_unit, material_specs
+     FROM mandaps WHERE is_active = 1 ORDER BY sort, id LIMIT 3`,
   );
 
-  const features = all<HomeFeature>(
-    'SELECT icon, title, description FROM homepage_features ORDER BY sort, id',
+  const stages = all<HomeStage>(
+    `SELECT id, name, slug, description, image, style_category, length_ft, width_ft, height_ft,
+            dimension_unit, decoration_notes
+     FROM stages WHERE is_active = 1 ORDER BY sort, id LIMIT 3`,
   );
 
-  const halls = all<HomeHall>(
-    'SELECT id, name, slug, description, image, price_paise, capacity, location, parking_capacity, is_ac, is_wifi, show_badge FROM halls WHERE is_active = 1 ORDER BY is_featured DESC, price_paise DESC LIMIT 3',
+  const categoryRows = all<{ id: number; name: string; slug: string; icon: string }>(
+    'SELECT id, name, slug, icon FROM equipment_categories WHERE is_active = 1 ORDER BY sort, id',
   );
 
-  const rooms = all<Omit<HomeRoom, 'features'>>(
-    'SELECT id, name, price_paise, capacity, image, description FROM rooms WHERE is_active = 1 ORDER BY price_paise DESC LIMIT 3',
-  );
-  const roomFeatureRows = all<{ room_id: number; name: string }>(
-    'SELECT room_id, name FROM room_features ORDER BY id',
+  const itemRows = all<HomeEquipmentItem & { category_id: number }>(
+    `SELECT ei.id, ei.category_id, ei.name, ei.slug, ei.description, ei.image, ei.unit,
+            ei.specifications, ei.min_quantity, ei.default_quantity,
+            ec.name AS category, ec.slug AS category_slug, ec.icon AS category_icon
+     FROM equipment_items ei
+     JOIN equipment_categories ec ON ec.id = ei.category_id
+     WHERE ei.is_active = 1 AND ec.is_active = 1
+     ORDER BY ec.sort, ec.id, ei.sort, ei.id`,
   );
 
-  const packages = all<Omit<HomePackage, 'features'>>(
-    'SELECT id, name, slug, image, price_paise, description, badge FROM catering_packages WHERE is_active = 1 AND show_on_home = 1 ORDER BY id LIMIT 3',
+  const equipment = categoryRows.map((category) => {
+    const items = itemRows.filter((item) => item.category_id === category.id);
+    return {
+      ...category,
+      items: items.slice(0, 3),
+      itemCount: items.length,
+    };
+  });
+
+  const galleryCategories = all<{ id: number; name: string; slug: string }>(
+    'SELECT id, name, slug FROM gallery_categories WHERE is_active = 1 ORDER BY sort, id',
   );
-  const packageFeatureRows = all<{ package_id: number; name: string }>(
-    'SELECT package_id, name FROM catering_features ORDER BY id',
+
+  const galleryItems = all<HomeGalleryItem>(
+    `SELECT gi.id, gi.title, gi.image, gc.name AS category, gc.slug AS categorySlug
+     FROM gallery_items gi
+     JOIN gallery_categories gc ON gc.id = gi.category_id
+     WHERE gi.is_active = 1 AND gc.is_active = 1
+     ORDER BY gi.id LIMIT 8`,
   );
+
+  const counts =
+    one<{ mandaps: number; stages: number; equipment: number; gallery: number }>(
+      `SELECT
+         (SELECT COUNT(*) FROM mandaps WHERE is_active = 1) AS mandaps,
+         (SELECT COUNT(*) FROM stages WHERE is_active = 1) AS stages,
+         (SELECT COUNT(*) FROM equipment_items WHERE is_active = 1) AS equipment,
+         (SELECT COUNT(*) FROM gallery_items WHERE is_active = 1) AS gallery`,
+    ) ?? { mandaps: 0, stages: 0, equipment: 0, gallery: 0 };
 
   const contact = one<{ address: string; phone: string; email: string }>(
     'SELECT address, phone, email FROM contact_info WHERE id = 1',
   );
 
-  const counts = one<{ halls: number; rooms: number; packages: number; events: number }>(
-    `SELECT
-       (SELECT COUNT(*) FROM halls WHERE is_active = 1) AS halls,
-       (SELECT COUNT(*) FROM rooms WHERE is_active = 1) AS rooms,
-       (SELECT COUNT(*) FROM catering_packages WHERE is_active = 1) AS packages,
-       (SELECT COUNT(*) FROM bookings WHERE status IN ('pending', 'confirmed')) AS events`,
-  );
-
   return {
-    hero: {
-      title: hero?.hero_title ?? 'Luxury celebrations, effortlessly planned',
-      description: hero?.hero_description ?? '',
-      image: hero?.hero_image ?? null,
-    },
-    features,
-    halls,
-    rooms: rooms.map((room) => ({
-      ...room,
-      features: roomFeatureRows.filter((row) => row.room_id === room.id).map((row) => row.name),
-    })),
-    packages: packages.map((pkg) => ({
-      ...pkg,
-      features: packageFeatureRows.filter((row) => row.package_id === pkg.id).map((row) => row.name),
-    })),
-    contact: contact ?? { address: 'Ranchi, Jharkhand', phone: '+91 98765 43210', email: 'info@royalpalace.com' },
+    heroImage: mandaps[0]?.image ?? '/images/archive/frames-for-your-heart-zSG-kd-L6vw-unsplash.jpg',
+    mandaps,
+    stages,
+    equipment,
+    galleryCategories,
+    galleryItems,
     stats: {
-      halls: Number(counts?.halls ?? 0),
-      rooms: Number(counts?.rooms ?? 0),
-      packages: Number(counts?.packages ?? 0),
-      events: Number(counts?.events ?? 0),
+      mandaps: Number(counts.mandaps),
+      stages: Number(counts.stages),
+      equipment: Number(counts.equipment),
+      gallery: Number(counts.gallery),
     },
+    contact: contact ?? { address: site.address, phone: site.phone, email: site.email },
   };
 }

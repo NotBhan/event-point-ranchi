@@ -12,9 +12,9 @@ export interface ContactInfo {
 export function loadContactInfo(): ContactInfo {
   return (
     one<ContactInfo>('SELECT address, phone, email FROM contact_info WHERE id = 1') ?? {
-      address: 'Ranchi, Jharkhand',
+      address: 'Event Point, Main Road, Ranchi, Jharkhand 834001, India',
       phone: '+91 98765 43210',
-      email: 'info@royalpalace.com',
+      email: 'info@eventpointranchi.com',
     }
   );
 }

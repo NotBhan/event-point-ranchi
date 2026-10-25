@@ -1,0 +1,116 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import MandapCard from '../../../components/MandapCard.astro';
+import Icon from '../../../components/Icon.astro';
+import type { MandapsPageData } from '../service';
+
+interface Props {
+  data: MandapsPageData;
+}
+
+const { data } = Astro.props;
+const { mandaps, categories, category, query } = data;
+
+function filterHref(nextCategory: string): string {
+  const params = new URLSearchParams();
+  if (nextCategory) params.set('category', nextCategory);
+  if (query) params.set('q', query);
+  const serialized = params.toString();
+  return serialized ? `/mandaps?${serialized}` : '/mandaps';
+}
+---
+
+<BaseLayout
+  title="Wedding Mandaps in Ranchi | Event Point"
+  description="Explore traditional, floral and contemporary wedding mandap designs with standard and custom dimensions from Event Point Ranchi."
+>
+  <section class="page-hero with-image">
+    <img class="page-hero-media" src="/images/archive/runnyrem-LfqmND-hym8-unsplash.jpg" alt="" />
+    <div class="container">
+      <span class="eyebrow" style="color:var(--gold-bright);">Mandap collection</span>
+      <h1>Wedding mandaps, designed around your ceremony.</h1>
+      <p>
+        Every mandap has clear standard dimensions, honest material specifications and the option to
+        request a custom size. Add your favourites to an event requirement for a tailored quotation.
+      </p>
+      <div class="hero-chip-row">
+        <span><Icon name="archway" size={14} /> 6 signature concepts</span>
+        <span><Icon name="edit" size={14} /> Custom L × W × H</span>
+        <span><Icon name="shield" size={14} /> Enquiry, not instant booking</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="catalogue-toolbar">
+        <div class="filter-bar" aria-label="Filter mandaps by category">
+          <a
+            href={filterHref('')}
+            class:list={['filter-btn', { active: category === '' }]}
+            aria-current={category === '' ? 'page' : undefined}
+          >
+            All mandaps
+          </a>
+          {categories.map((item) => (
+            <a
+              href={filterHref(item)}
+              class:list={['filter-btn', { active: category === item }]}
+              aria-current={category === item ? 'page' : undefined}
+            >
+              {item}
+            </a>
+          ))}
+        </div>
+
+        <form method="GET" action="/mandaps" class="catalogue-search" role="search">
+          {category && <input type="hidden" name="category" value={category} />}
+          <label class="sr-only" for="mandap-search">Search mandaps</label>
+          <input
+            class="input"
+            id="mandap-search"
+            name="q"
+            type="search"
+            value={query}
+            placeholder="Search by name or material"
+          />
+          <button type="submit" class="btn btn-primary" aria-label="Search mandaps">
+            <Icon name="search" size={16} /> Search
+          </button>
+        </form>
+      </div>
+
+      <div class="results-meta">
+        <span>{mandaps.length} mandap{mandaps.length === 1 ? '' : 's'} found</span>
+        {(category || query) && (
+          <a href="/mandaps" class="text-link">Clear filters</a>
+        )}
+      </div>
+
+      {mandaps.length === 0 ? (
+        <div class="empty-state">
+          <div class="empty-icon"><Icon name="search" size={24} /></div>
+          <h3>No mandaps match this search</h3>
+          <p>Try another category or clear the search. Our team can also design a fully custom mandap.</p>
+          <div class="section-actions">
+            <a href="/mandaps" class="btn btn-secondary">View all mandaps</a>
+            <a href="/plan" class="btn btn-primary">Build your requirements</a>
+          </div>
+        </div>
+      ) : (
+        <div class="catalogue-grid catalogue-grid-mandaps">
+          {mandaps.map((mandap) => <MandapCard mandap={mandap} />)}
+        </div>
+      )}
+
+      <div class="catalogue-note">
+        <Icon name="info" size={17} />
+        <p>
+          Sizes shown are standard installation footprints. Final dimensions depend on your venue,
+          seating plan and local permissions. Add custom measurements to your requirement and our
+          team will confirm feasibility before quoting.
+        </p>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

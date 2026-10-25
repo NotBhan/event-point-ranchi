@@ -1,0 +1,65 @@
+---
+import Icon from './Icon.astro';
+import { imageUrl } from '../core/http';
+
+interface Props {
+  stage: {
+    id: number;
+    name: string;
+    slug: string;
+    description: string;
+    image: string | null;
+    style_category: string;
+    length_ft: number;
+    width_ft: number;
+    height_ft: number;
+    dimension_unit: string;
+  };
+}
+
+const { stage } = Astro.props;
+const dimensions = `${stage.length_ft} × ${stage.width_ft} × ${stage.height_ft} ${stage.dimension_unit}`;
+---
+
+<article class="catalogue-card">
+  <a class="catalogue-media" href={`/stages/${stage.slug}`} aria-label={`View ${stage.name}`}>
+    {stage.image ? (
+      <img src={imageUrl(stage.image)} alt={stage.name} loading="lazy" />
+    ) : (
+      <div class="catalogue-media-fallback"><Icon name="theater" size={40} /></div>
+    )}
+    <span class="catalogue-badge">{stage.style_category}</span>
+  </a>
+
+  <div class="catalogue-body">
+    <h3><a href={`/stages/${stage.slug}`}>{stage.name}</a></h3>
+    <p class="catalogue-description">{stage.description}</p>
+
+    <div class="dimension-strip">
+      <Icon name="theater" size={15} />
+      <span>Standard stage</span>
+      <strong>{dimensions}</strong>
+    </div>
+
+    <div class="catalogue-foot">
+      <a href={`/stages/${stage.slug}`} class="btn btn-secondary btn-sm">View details</a>
+      <button
+        type="button"
+        class="btn btn-primary btn-sm"
+        data-add-stage
+        data-id={stage.id}
+        data-slug={stage.slug}
+        data-name={stage.name}
+        data-category={stage.style_category}
+        data-image={stage.image ?? ''}
+        data-length={stage.length_ft}
+        data-width={stage.width_ft}
+        data-height={stage.height_ft}
+        data-unit={stage.dimension_unit}
+        aria-pressed="false"
+      >
+        Add to Requirements
+      </button>
+    </div>
+  </div>
+</article>

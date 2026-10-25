@@ -1,0 +1,113 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { formatDate, formatDateTime } from '../../../core/http';
+import type { listEventEnquiries } from '../service';
+
+interface Props {
+  enquiries: ReturnType<typeof listEventEnquiries>;
+  status: string;
+  query: string;
+}
+
+const { enquiries, status, query } = Astro.props;
+
+const statusClass: Record<string, string> = {
+  new: 'badge-warning',
+  reviewing: 'badge-info',
+  quoted: 'badge-gold',
+  confirmed: 'badge-success',
+  archived: 'badge-muted',
+};
+
+const tabs = [
+  ['all', 'All'],
+  ['new', 'New'],
+  ['reviewing', 'Reviewing'],
+  ['quoted', 'Quoted'],
+  ['confirmed', 'Confirmed'],
+  ['archived', 'Archived'],
+];
+---
+
+<AdminLayout
+  title="Event Enquiries"
+  description={`${enquiries.length} quotation enquir${enquiries.length === 1 ? 'y' : 'ies'} matching your filters.`}
+>
+  <div class="admin-panel">
+    <div class="admin-panel-head">
+      <form method="GET" action="/admin/enquiries" class="admin-toolbar">
+        <input class="input" type="search" name="q" value={query} placeholder="Search reference, name, phone, venue…" />
+        {status !== 'all' && <input type="hidden" name="status" value={status} />}
+        <button type="submit" class="btn btn-secondary btn-sm">Search</button>
+      </form>
+      <div class="admin-subnav">
+        {tabs.map(([value, label]) => (
+          <a href={`/admin/enquiries?status=${value}`} class:list={{ active: status === value }}>{label}</a>
+        ))}
+      </div>
+    </div>
+
+    <div class="admin-panel-body flush">
+      {enquiries.length === 0 ? (
+        <div class="admin-empty">No event enquiries in this view.</div>
+      ) : (
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Reference</th>
+                <th>Customer</th>
+                <th>Event</th>
+                <th>Venue</th>
+                <th>Rooms</th>
+                <th>Status</th>
+                <th>Received</th>
+                <th style="text-align:right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {enquiries.map((enquiry) => (
+                <tr>
+                  <td>
+                    <strong>{enquiry.reference_code}</strong>
+                    <div class="text-xs text-muted">#{enquiry.id}</div>
+                  </td>
+                  <td>
+                    <strong>{enquiry.customer_name}</strong>
+                    <div class="text-xs text-muted">{enquiry.customer_phone}</div>
+                    {enquiry.customer_email && <div class="text-xs text-muted">{enquiry.customer_email}</div>}
+                  </td>
+                  <td>
+                    {enquiry.event_type}
+                    <div class="text-xs text-muted">
+                      {formatDate(enquiry.event_date)}
+                      {enquiry.end_date ? ` – ${formatDate(enquiry.end_date)}` : ''}
+                    </div>
+                    <div class="text-xs text-muted">{enquiry.guest_count} guests</div>
+                  </td>
+                  <td style="max-width:220px;">{enquiry.venue_location}</td>
+                  <td>
+                    {enquiry.requires_rooms === 1 ? (
+                      <span><strong>{enquiry.room_count}</strong><div class="text-xs text-muted">rooms requested</div></span>
+                    ) : (
+                      <span class="text-xs text-muted">Not required</span>
+                    )}
+                  </td>
+                  <td>
+                    <span class:list={['badge', statusClass[enquiry.status] ?? 'badge-muted']}>{enquiry.status}</span>
+                  </td>
+                  <td class="text-xs">{formatDateTime(enquiry.created_at)}</td>
+                  <td>
+                    <div class="admin-row-actions">
+                      <a href={`/admin/enquiries/${enquiry.id}`} class="btn btn-secondary btn-sm">Open</a>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  </div>
+</AdminLayout>

@@ -337,3 +337,125 @@ CREATE TABLE IF NOT EXISTS page_settings (
   hero_badge    TEXT NOT NULL DEFAULT '',
   hero_image    TEXT
 );
+
+CREATE TABLE IF NOT EXISTS mandaps (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  name            TEXT NOT NULL,
+  slug            TEXT NOT NULL UNIQUE,
+  description     TEXT NOT NULL DEFAULT '',
+  image           TEXT,
+  category        TEXT NOT NULL DEFAULT 'Traditional Royal',
+  length_ft       REAL NOT NULL DEFAULT 16,
+  width_ft        REAL NOT NULL DEFAULT 16,
+  height_ft       REAL NOT NULL DEFAULT 12,
+  dimension_unit  TEXT NOT NULL DEFAULT 'ft',
+  material_specs  TEXT NOT NULL DEFAULT '',
+  sort            INTEGER NOT NULL DEFAULT 0,
+  is_active       INTEGER NOT NULL DEFAULT 1,
+  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_mandaps_active ON mandaps(is_active);
+CREATE INDEX IF NOT EXISTS idx_mandaps_category ON mandaps(category);
+
+CREATE TABLE IF NOT EXISTS mandap_gallery (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  mandap_id INTEGER NOT NULL REFERENCES mandaps(id) ON DELETE CASCADE,
+  image     TEXT NOT NULL,
+  sort      INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_mandap_gallery_mandap ON mandap_gallery(mandap_id);
+
+CREATE TABLE IF NOT EXISTS stages (
+  id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+  name               TEXT NOT NULL,
+  slug               TEXT NOT NULL UNIQUE,
+  description        TEXT NOT NULL DEFAULT '',
+  image              TEXT,
+  style_category     TEXT NOT NULL DEFAULT 'Royal Reception',
+  length_ft          REAL NOT NULL DEFAULT 24,
+  width_ft           REAL NOT NULL DEFAULT 16,
+  height_ft          REAL NOT NULL DEFAULT 14,
+  dimension_unit     TEXT NOT NULL DEFAULT 'ft',
+  decoration_notes   TEXT NOT NULL DEFAULT '',
+  sort               INTEGER NOT NULL DEFAULT 0,
+  is_active          INTEGER NOT NULL DEFAULT 1,
+  created_at         TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_stages_active ON stages(is_active);
+CREATE INDEX IF NOT EXISTS idx_stages_category ON stages(style_category);
+
+CREATE TABLE IF NOT EXISTS stage_gallery (
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  stage_id INTEGER NOT NULL REFERENCES stages(id) ON DELETE CASCADE,
+  image    TEXT NOT NULL,
+  sort     INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_stage_gallery_stage ON stage_gallery(stage_id);
+
+CREATE TABLE IF NOT EXISTS equipment_categories (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  name      TEXT NOT NULL,
+  slug      TEXT NOT NULL UNIQUE,
+  icon      TEXT NOT NULL DEFAULT 'chair',
+  sort      INTEGER NOT NULL DEFAULT 0,
+  is_active INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS equipment_items (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  category_id      INTEGER NOT NULL REFERENCES equipment_categories(id) ON DELETE CASCADE,
+  name             TEXT NOT NULL,
+  slug             TEXT NOT NULL UNIQUE,
+  description      TEXT NOT NULL DEFAULT '',
+  image            TEXT,
+  unit             TEXT NOT NULL DEFAULT 'piece',
+  specifications   TEXT NOT NULL DEFAULT '',
+  min_quantity     INTEGER NOT NULL DEFAULT 1,
+  default_quantity INTEGER NOT NULL DEFAULT 10,
+  is_active        INTEGER NOT NULL DEFAULT 1,
+  sort             INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_equipment_items_category ON equipment_items(category_id);
+CREATE INDEX IF NOT EXISTS idx_equipment_items_active ON equipment_items(is_active);
+
+CREATE TABLE IF NOT EXISTS event_enquiries (
+  id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+  reference_code       TEXT NOT NULL UNIQUE,
+  customer_name        TEXT NOT NULL,
+  customer_phone       TEXT NOT NULL,
+  customer_email       TEXT,
+  event_type           TEXT NOT NULL,
+  event_date           TEXT NOT NULL,
+  end_date             TEXT,
+  event_time           TEXT,
+  venue_location       TEXT NOT NULL,
+  guest_count          INTEGER NOT NULL DEFAULT 100,
+  budget_range         TEXT NOT NULL DEFAULT '',
+  requires_rooms       INTEGER NOT NULL DEFAULT 0,
+  room_count           INTEGER NOT NULL DEFAULT 0,
+  accommodation_notes  TEXT NOT NULL DEFAULT '',
+  decoration_notes     TEXT NOT NULL DEFAULT '',
+  preferred_contact    TEXT NOT NULL DEFAULT 'Phone',
+  status               TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'reviewing', 'quoted', 'confirmed', 'archived')),
+  created_at           TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_event_enquiries_status ON event_enquiries(status);
+CREATE INDEX IF NOT EXISTS idx_event_enquiries_date ON event_enquiries(event_date);
+CREATE INDEX IF NOT EXISTS idx_event_enquiries_reference ON event_enquiries(reference_code);
+
+CREATE TABLE IF NOT EXISTS enquiry_line_items (
+  id                          INTEGER PRIMARY KEY AUTOINCREMENT,
+  enquiry_id                  INTEGER NOT NULL REFERENCES event_enquiries(id) ON DELETE CASCADE,
+  item_type                   TEXT NOT NULL,
+  catalogue_item_id           INTEGER,
+  item_name_snapshot          TEXT NOT NULL,
+  quantity                    INTEGER NOT NULL DEFAULT 1,
+  standard_dimensions_snapshot TEXT NOT NULL DEFAULT '',
+  requested_length_ft         REAL,
+  requested_width_ft          REAL,
+  requested_height_ft         REAL,
+  specifications              TEXT NOT NULL DEFAULT '',
+  notes                       TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_enquiry_line_items_enquiry ON enquiry_line_items(enquiry_id);
+

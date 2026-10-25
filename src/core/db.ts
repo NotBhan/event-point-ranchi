@@ -23,7 +23,7 @@ export function getDb(): DatabaseSync {
   if (database) return database;
 
   mkdirSync(dataDir(), { recursive: true });
-  const db = new DatabaseSync(join(dataDir(), 'royal-palace.db'));
+  const db = new DatabaseSync(join(dataDir(), 'event-point.db'));
   db.exec(schemaSql);
 
   const row = db.prepare('SELECT COUNT(*) AS count FROM users').get() as { count: number };
