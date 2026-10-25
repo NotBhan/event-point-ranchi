@@ -1,25 +1,10 @@
-import { one } from '../../core/db';
-import { badRequest, json } from '../../core/http';
+import { badRequest, json, redirect } from '../../core/http';
 import { BookingError, createBooking, loadBookingForViewer } from './service';
 import { defineModule } from '../../core/define-module';
 import BookingOverviewPage from './pages/BookingOverviewPage.astro';
 import QuotationPage from './pages/QuotationPage.astro';
 import type { PageContext } from '../../core/types';
 import type { CartPayload } from './types';
-
-function prefillForUser(userId: number | undefined) {
-  if (!userId) return {};
-  const customer = one<{ name: string; phone: string; email: string; address: string }>(
-    'SELECT name, phone, email, address FROM customers WHERE user_id = ?',
-    [userId],
-  );
-  return {
-    name: customer?.name ?? '',
-    phone: customer?.phone ?? '',
-    email: customer?.email ?? '',
-    address: customer?.address ?? '',
-  };
-}
 
 async function createBookingApi(ctx: PageContext): Promise<Response> {
   let payload: CartPayload;
@@ -46,12 +31,7 @@ export default defineModule({
     {
       path: '/booking/overview',
       component: BookingOverviewPage,
-      handle: (ctx) => ({
-        props: {
-          csrf: ctx.csrf,
-          prefill: prefillForUser(ctx.auth.user?.id),
-        },
-      }),
+      handle: () => redirect('/plan'),
     },
     {
       path: '/booking/:id/quotation',

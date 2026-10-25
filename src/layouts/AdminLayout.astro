@@ -28,12 +28,12 @@ const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow" />
-    <title>{title} · Royal Palace Admin</title>
-    <link rel="icon" type="image/png" href="/images/logo1.png" />
+    <title>{title} · Event Point Admin</title>
+    <link rel="icon" type="image/svg+xml" href={site.logo} />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
   </head>
@@ -41,9 +41,9 @@ const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path
     <div class="admin-shell" id="adminShell">
       <aside class="admin-sidebar">
         <div class="admin-brand">
-          <img src="/images/logo1.png" alt="Royal Palace" />
+          <img src={site.logo} alt={site.name} />
           <div>
-            <strong>Royal Palace</strong>
+            <strong>{site.name}</strong>
             <span>Admin console</span>
           </div>
         </div>

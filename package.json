@@ -1,9 +1,9 @@
 {
-  "name": "royal-palace-astro",
-  "version": "1.0.0",
+  "name": "event-point-astro",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "Astro port of the Royal Palace event management system, built as removable feature modules.",
+  "description": "Event Point Ranchi — wedding mandap, stage design, furniture and event equipment planning, built as removable Astro feature modules.",
   "engines": {
     "node": ">=22.5"
   },

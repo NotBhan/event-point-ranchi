@@ -1,0 +1,65 @@
+---
+import Icon from './Icon.astro';
+import { imageUrl } from '../core/http';
+
+interface Props {
+  mandap: {
+    id: number;
+    name: string;
+    slug: string;
+    description: string;
+    image: string | null;
+    category: string;
+    length_ft: number;
+    width_ft: number;
+    height_ft: number;
+    dimension_unit: string;
+  };
+}
+
+const { mandap } = Astro.props;
+const dimensions = `${mandap.length_ft} × ${mandap.width_ft} × ${mandap.height_ft} ${mandap.dimension_unit}`;
+---
+
+<article class="catalogue-card">
+  <a class="catalogue-media" href={`/mandaps/${mandap.slug}`} aria-label={`View ${mandap.name}`}>
+    {mandap.image ? (
+      <img src={imageUrl(mandap.image)} alt={mandap.name} loading="lazy" />
+    ) : (
+      <div class="catalogue-media-fallback"><Icon name="archway" size={40} /></div>
+    )}
+    <span class="catalogue-badge">{mandap.category}</span>
+  </a>
+
+  <div class="catalogue-body">
+    <h3><a href={`/mandaps/${mandap.slug}`}>{mandap.name}</a></h3>
+    <p class="catalogue-description">{mandap.description}</p>
+
+    <div class="dimension-strip">
+      <Icon name="archway" size={15} />
+      <span>Standard size</span>
+      <strong>{dimensions}</strong>
+    </div>
+
+    <div class="catalogue-foot">
+      <a href={`/mandaps/${mandap.slug}`} class="btn btn-secondary btn-sm">View details</a>
+      <button
+        type="button"
+        class="btn btn-primary btn-sm"
+        data-add-mandap
+        data-id={mandap.id}
+        data-slug={mandap.slug}
+        data-name={mandap.name}
+        data-category={mandap.category}
+        data-image={mandap.image ?? ''}
+        data-length={mandap.length_ft}
+        data-width={mandap.width_ft}
+        data-height={mandap.height_ft}
+        data-unit={mandap.dimension_unit}
+        aria-pressed="false"
+      >
+        Add to Requirements
+      </button>
+    </div>
+  </div>
+</article>

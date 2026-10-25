@@ -1,0 +1,176 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Icon from '../../../components/Icon.astro';
+import { imageUrl } from '../../../core/http';
+import type { MandapRow } from '../service';
+
+interface Props {
+  data?: MandapRow & { gallery: string[] };
+  notFound?: boolean;
+}
+
+const { data, notFound = false } = Astro.props;
+const mandap = data;
+const specItems = mandap?.material_specs
+  .split('·')
+  .map((item) => item.trim())
+  .filter(Boolean) ?? [];
+const images = mandap ? [mandap.image, ...mandap.gallery].filter((image): image is string => Boolean(image)) : [];
+const dimensions = mandap ? `${mandap.length_ft} × ${mandap.width_ft} × ${mandap.height_ft} ${mandap.dimension_unit}` : '';
+---
+
+<BaseLayout
+  title={mandap ? `${mandap.name} | Wedding Mandap in Ranchi | Event Point` : 'Mandap not found | Event Point'}
+  description={mandap?.description ?? 'This mandap could not be found.'}
+>
+  {notFound || !mandap ? (
+    <section class="section">
+      <div class="container">
+        <div class="empty-state">
+          <div class="empty-icon"><Icon name="archway" size={24} /></div>
+          <h3>Mandap not found</h3>
+          <p>This design may have been renamed. Browse the full mandap collection instead.</p>
+          <div class="section-actions"><a href="/mandaps" class="btn btn-primary">Back to mandaps</a></div>
+        </div>
+      </div>
+    </section>
+  ) : (
+    <>
+      <nav class="breadcrumb container" aria-label="Breadcrumb">
+        <a href="/">Home</a><Icon name="chevron-right" size={12} />
+        <a href="/mandaps">Mandaps</a><Icon name="chevron-right" size={12} />
+        <span aria-current="page">{mandap.name}</span>
+      </nav>
+
+      <section class="detail-hero">
+        <div class="container detail-hero-grid">
+          <div class="detail-media">
+            <img src={imageUrl(mandap.image)} alt={mandap.name} />
+            <span class="catalogue-badge">{mandap.category}</span>
+          </div>
+          <div class="detail-intro">
+            <span class="eyebrow">Mandap design</span>
+            <h1>{mandap.name}</h1>
+            <p class="detail-lead">{mandap.description}</p>
+
+            <div class="detail-highlights">
+              <div>
+                <span>Standard footprint</span>
+                <strong>{dimensions}</strong>
+              </div>
+              <div>
+                <span>Design family</span>
+                <strong>{mandap.category}</strong>
+              </div>
+            </div>
+
+            <div class="detail-actions">
+              <a href="#configure" class="btn btn-primary btn-lg">Configure &amp; add</a>
+              <a href={`https://wa.me/919876543210?text=${encodeURIComponent(`Hello Event Point, I am interested in the ${mandap.name} mandap.`)}`} class="btn btn-secondary btn-lg" target="_blank" rel="noopener">
+                Ask on WhatsApp
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container detail-layout">
+          <div class="detail-main">
+            <div class="content-block">
+              <h2>Materials &amp; finish</h2>
+              <ul class="spec-list">
+                {specItems.map((item) => (
+                  <li><Icon name="check-circle" size={15} /> {item}</li>
+                ))}
+              </ul>
+            </div>
+
+            {images.length > 1 && (
+              <div class="content-block">
+                <h2>Gallery</h2>
+                <div class="detail-gallery">
+                  {images.map((image, index) => (
+                    <button
+                      type="button"
+                      class="detail-gallery-item"
+                      data-lightbox
+                      data-src={imageUrl(image)}
+                      data-caption={`${mandap.name} — view ${index + 1}`}
+                      aria-label={`View ${mandap.name} image ${index + 1}`}
+                    >
+                      <img src={imageUrl(image)} alt={`${mandap.name} detail ${index + 1}`} loading="lazy" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <aside class="detail-aside" id="configure">
+            <div class="panel requirement-panel" data-requirement-form>
+              <div class="panel-head">
+                <div>
+                  <h2>Add to requirements</h2>
+                  <p>Standard size: {dimensions}. Leave custom fields blank to use it.</p>
+                </div>
+              </div>
+
+              <div class="dimension-panel">
+                <div class="dimension-panel-head">
+                  <Icon name="edit" size={16} />
+                  <div>
+                    <strong>Request custom dimensions</strong>
+                    <span>Optional — in feet</span>
+                  </div>
+                </div>
+                <div class="form-grid cols-3">
+                  <div class="field">
+                    <label for="mandap-length">Length (ft)</label>
+                    <input class="input" id="mandap-length" type="number" min="1" step="0.5" inputmode="decimal" placeholder={String(mandap.length_ft)} data-dim-length />
+                  </div>
+                  <div class="field">
+                    <label for="mandap-width">Width (ft)</label>
+                    <input class="input" id="mandap-width" type="number" min="1" step="0.5" inputmode="decimal" placeholder={String(mandap.width_ft)} data-dim-width />
+                  </div>
+                  <div class="field">
+                    <label for="mandap-height">Height (ft)</label>
+                    <input class="input" id="mandap-height" type="number" min="1" step="0.5" inputmode="decimal" placeholder={String(mandap.height_ft)} data-dim-height />
+                  </div>
+                </div>
+              </div>
+
+              <div class="field">
+                <label for="mandap-note">Layout notes (optional)</label>
+                <textarea class="textarea" id="mandap-note" rows="3" placeholder="Venue restrictions, entrance width, seating changes…" data-dimension-note></textarea>
+              </div>
+
+              <button
+                type="button"
+                class="btn btn-primary btn-block btn-lg"
+                data-add-mandap
+                data-id={mandap.id}
+                data-slug={mandap.slug}
+                data-name={mandap.name}
+                data-category={mandap.category}
+                data-image={mandap.image ?? ''}
+                data-length={mandap.length_ft}
+                data-width={mandap.width_ft}
+                data-height={mandap.height_ft}
+                data-unit={mandap.dimension_unit}
+                aria-pressed="false"
+              >
+                Add to Requirements
+              </button>
+
+              <a href="/plan" class="btn btn-secondary btn-block">Review all requirements</a>
+              <p class="requirement-disclaimer">
+                Submitting requirements is an enquiry for a quotation. It does not block a date or confirm a booking.
+              </p>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </>
+  )}
+</BaseLayout>

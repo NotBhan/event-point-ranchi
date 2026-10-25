@@ -18,15 +18,15 @@ export function seedDatabase(db: DatabaseSync): void {
   try {
     insert(
       `INSERT INTO users (username, email, password_hash, first_name, role) VALUES (?, ?, ?, ?, ?)`,
-      ['admin', 'admin@royalpalace.com', hashPassword('Admin@Royal2026!'), 'Root', 'developer'],
+      ['admin', 'admin@eventpointranchi.com', hashPassword('Admin@Royal2026!'), 'Root', 'developer'],
     );
     insert(
       `INSERT INTO users (username, email, password_hash, first_name, role) VALUES (?, ?, ?, ?, ?)`,
-      ['superadmin', 'superadmin@royalpalace.com', hashPassword('Super@Royal2026!'), 'Vikramaditya', 'superadmin'],
+      ['superadmin', 'superadmin@eventpointranchi.com', hashPassword('Super@Royal2026!'), 'Vikramaditya', 'superadmin'],
     );
     insert(
       `INSERT INTO users (username, email, password_hash, first_name, role) VALUES (?, ?, ?, ?, ?)`,
-      ['event_manager', 'manager@royalpalace.com', hashPassword('Manager@Royal2026!'), 'Rajesh', 'admin'],
+      ['event_manager', 'manager@eventpointranchi.com', hashPassword('Manager@Royal2026!'), 'Rajesh', 'admin'],
     );
     const customerSeed = [
       ['rohit_sharma', 'Rohit Sharma', 'rohit.sharma@example.com', '9876543210', 'Flat 402, Sea Green Heights, Worli, Mumbai'],
@@ -425,10 +425,10 @@ export function seedDatabase(db: DatabaseSync): void {
     }
 
     const galleryCategories = [
-      ['Weddings', 'weddings'],
-      ['Receptions', 'receptions'],
-      ['Corporate', 'corporate'],
-      ['Celebrations', 'celebrations'],
+      ['Wedding Mandaps', 'wedding-mandaps'],
+      ['Stage Designs', 'stage-designs'],
+      ['Furniture & Décor', 'furniture-decor'],
+      ['Real Celebrations', 'real-celebrations'],
     ] as const;
     const galleryCategoryIds: number[] = [];
     for (const [name, slug] of galleryCategories) {
@@ -442,16 +442,16 @@ export function seedDatabase(db: DatabaseSync): void {
     }
 
     const galleryItems = [
-      [0, 'The Grand Kohinoor Ballroom', '/images/archive/visualsofdana-T5pL6ciEn-I-unsplash.jpg'],
-      [0, 'Floral Mandap Elegance', '/images/archive/runnyrem-LfqmND-hym8-unsplash.jpg'],
-      [0, 'Golden Hour Vows', '/images/archive/fernando-alvarez-rodriguez-M7GddPqJowg-unsplash.jpg'],
-      [1, 'Crystal Palace Reception', '/images/archive/gerson-repreza-CepDpEiALqM-unsplash.jpg'],
-      [1, 'Heritage Courtyard Evening', '/images/archive/vojtech-bruzek-Yrxr3bsPdS0-unsplash.jpg'],
-      [2, 'Leadership Summit Stage', '/images/archive/bilderboken-rlwE8f8anOc-unsplash.jpg'],
-      [2, 'Executive Networking Lounge', '/images/archive/linus-mimietz-p3UWyaujtQo-unsplash.jpg'],
-      [3, 'Garden Sangeet Night', '/images/archive/valeriia-bugaiova-_pPHgeHz1uk-unsplash.jpg'],
-      [3, 'Royal Table Setting', '/images/archive/manuel-moreno-DGa0LQ0yDPc-unsplash.jpg'],
-      [3, 'Dessert Boutique Display', '/images/archive/sara-dubler-Koei_7yYtIo-unsplash.jpg'],
+      [0, 'Royal Rajputana Carved Mandap', '/images/archive/frames-for-your-heart-zSG-kd-L6vw-unsplash.jpg'],
+      [0, 'Floating Floral Dome Mandap', '/images/archive/runnyrem-LfqmND-hym8-unsplash.jpg'],
+      [0, 'Temple Pillar Ceremony', '/images/archive/christian-lambert-vmIWr0NnpCQ-unsplash.jpg'],
+      [1, 'Modern LED Horizon Stage', '/images/archive/bilderboken-rlwE8f8anOc-unsplash.jpg'],
+      [1, 'Grand Mughal Backdrop', '/images/archive/gerson-repreza-CepDpEiALqM-unsplash.jpg'],
+      [1, 'Minimalist Geometric Floral Stage', '/images/archive/linus-mimietz-p3UWyaujtQo-unsplash.jpg'],
+      [2, 'Maharaja Lounge Setting', '/images/archive/visualsofdana-T5pL6ciEn-I-unsplash.jpg'],
+      [2, 'Royal Table Styling', '/images/archive/manuel-moreno-DGa0LQ0yDPc-unsplash.jpg'],
+      [3, 'Garden Sangeet Evening', '/images/archive/valeriia-bugaiova-_pPHgeHz1uk-unsplash.jpg'],
+      [3, 'Reception Under the Stars', '/images/archive/point3d-commercial-imaging-ltd-oxeCZrodz78-unsplash.jpg'],
     ] as const;
     for (const [categoryIndex, title, image] of galleryItems) {
       insert(`INSERT INTO gallery_items (category_id, title, image) VALUES (?, ?, ?)`, [
@@ -464,17 +464,17 @@ export function seedDatabase(db: DatabaseSync): void {
     insert(
       `INSERT INTO homepage (id, hero_title, hero_description, hero_image) VALUES (1, ?, ?, ?)`,
       [
-        'Where Your Grandest Celebrations Become Royal Memories',
-        'Four signature venues, bridal suites, in-house catering and a planning team that handles every detail — all under one roof in Ranchi.',
-        '/images/archive/fernando-alvarez-rodriguez-M7GddPqJowg-unsplash.jpg',
+        "Create the Wedding Setup You've Always Imagined.",
+        'Royal mandaps, statement stage designs, furniture and event equipment — planned, delivered and styled by one Ranchi team. Share your vision and receive a considered quotation.',
+        '/images/archive/frames-for-your-heart-zSG-kd-L6vw-unsplash.jpg',
       ],
     );
 
     const homeFeatures = [
-      ['building', 'Four Signature Venues', 'From an 800-guest ballroom to an open-air garden lawn.'],
-      ['utensils', 'In-House Catering', 'Menus built with you, prepared fresh by our kitchen brigade.'],
-      ['sparkles', 'Signature Décor', 'Stage, floral and lighting concepts designed in-house.'],
-      ['shield', 'One Dedicated Planner', 'A single point of contact from first visit to final farewell.'],
+      ['archway', 'Signature Mandaps', 'Carved, floral and contemporary mandap concepts built to your dimensions.'],
+      ['theater', 'Stage Design Studio', 'Reception and ceremony stages styled around your palette and venue.'],
+      ['chair', 'Furniture & Equipment', 'Chairs, tables, lounge seating, lighting and event essentials in one place.'],
+      ['shield', 'One Planning Team', 'A single Ranchi-based coordinator from first enquiry to final setup.'],
     ] as const;
     homeFeatures.forEach(([icon, title, description], index) => {
       insert(
@@ -484,16 +484,16 @@ export function seedDatabase(db: DatabaseSync): void {
     });
 
     insert(`INSERT INTO contact_info (id, address, phone, email) VALUES (1, ?, ?, ?)`, [
-      'Royal Palace Event Management, Kanke Road, Ranchi, Jharkhand 834008',
+      'Event Point, Main Road, Ranchi, Jharkhand 834001, India',
       '+91 98765 43210',
-      'info@royalpalace.com',
+      'info@eventpointranchi.com',
     ]);
 
     const pages = [
-      ['halls', 'Our Premium Banquet Halls', 'Discover the perfect venue for weddings, receptions and corporate celebrations.', 'LUXURY VENUES', '/images/archive/visualsofdana-T5pL6ciEn-I-unsplash.jpg'],
-      ['rooms', 'Rooms & Bridal Suites', 'Comfortable, premium stays for your family and guests.', 'LUXURY STAY', '/images/archive/sasha-kaunas-TAgGZWz6Qg8-unsplash.jpg'],
-      ['catering', 'Catering Packages', 'Select the perfect menu for your event, prepared fresh by our kitchen.', 'CURATED MENUS', '/images/archive/manuel-moreno-DGa0LQ0yDPc-unsplash.jpg'],
-      ['gallery', 'Moments From Royal Palace', 'A look inside the celebrations we have hosted.', 'THE COLLECTION', '/images/archive/runnyrem-LfqmND-hym8-unsplash.jpg'],
+      ['mandaps', 'Wedding Mandaps, Designed Around You', 'Explore traditional, floral and contemporary mandap concepts with clear standard dimensions.', 'MANDAP COLLECTION', '/images/archive/runnyrem-LfqmND-hym8-unsplash.jpg'],
+      ['stages', 'Reception & Ceremony Stages', 'Statement backdrops, layered florals and lighting designed for photographs and guest sightlines.', 'STAGE DESIGNS', '/images/archive/bilderboken-rlwE8f8anOc-unsplash.jpg'],
+      ['equipment', 'Furniture & Event Equipment', 'Build a practical equipment list with quantities, finishes and specifications.', 'EQUIPMENT CATALOGUE', '/images/archive/manuel-moreno-DGa0LQ0yDPc-unsplash.jpg'],
+      ['gallery', 'Moments At Event Point', 'Mandap details, stage settings and celebrations styled by our Ranchi team.', 'THE COLLECTION', '/images/archive/visualsofdana-T5pL6ciEn-I-unsplash.jpg'],
     ] as const;
     for (const [key, title, subtitle, badge, image] of pages) {
       insert(
@@ -756,6 +756,744 @@ export function seedDatabase(db: DatabaseSync): void {
         'Annual dealer meet for 120 guests. Need stage, AV and lunch.',
       ],
     );
+
+    /* ==================== Event Point catalogue ==================== */
+
+    const mandapSeed = [
+      {
+        name: 'Royal Rajputana Carved Mandap',
+        slug: 'royal-rajputana-carved-mandap',
+        description:
+          'Hand-carved Shekhawati arches, brass inlay and deep maroon drapes create a stately backdrop for traditional pheras and family portraits.',
+        image: '/images/archive/frames-for-your-heart-zSG-kd-L6vw-unsplash.jpg',
+        category: 'Traditional Royal',
+        length: 20,
+        width: 20,
+        height: 14,
+        specs:
+          'Carved MDF and timber arch frames · Antique brass pillars · Maroon and ivory silk drapes · Hand-painted motifs · Raised platform included',
+        gallery: [
+          '/images/archive/christian-lambert-vmIWr0NnpCQ-unsplash.jpg',
+          '/images/archive/visualsofdana-T5pL6ciEn-I-unsplash.jpg',
+        ],
+      },
+      {
+        name: 'Floating Floral Dome Mandap',
+        slug: 'floating-floral-dome-mandap',
+        description:
+          'A suspended dome of fresh and preserved florals above a circular platform, designed to feel airy from every guest sightline.',
+        image: '/images/archive/runnyrem-LfqmND-hym8-unsplash.jpg',
+        category: 'Floral Ethereal',
+        length: 18,
+        width: 18,
+        height: 15,
+        specs:
+          'Suspended floral dome · Circular wooden platform · Pastel roses, orchids and baby’s breath · Concealed warm lighting · Shear drape curtains',
+        gallery: [
+          '/images/archive/valeriia-bugaiova-_pPHgeHz1uk-unsplash.jpg',
+          '/images/archive/frames-for-your-heart-zSG-kd-L6vw-unsplash.jpg',
+        ],
+      },
+      {
+        name: 'Temple Pillar Mandap',
+        slug: 'temple-pillar-mandap',
+        description:
+          'South Indian temple-inspired pillars in warm ivory and gold, with a carved ceiling panel and a low, intimate seating plan.',
+        image: '/images/archive/christian-lambert-vmIWr0NnpCQ-unsplash.jpg',
+        category: 'Temple Heritage',
+        length: 16,
+        width: 16,
+        height: 12,
+        specs:
+          'Four carved temple pillars · Ivory and gold palette · Brass hanging lamps · Marigold garland accents · Low seating platforms',
+        gallery: [
+          '/images/archive/runnyrem-LfqmND-hym8-unsplash.jpg',
+          '/images/archive/manuel-moreno-DGa0LQ0yDPc-unsplash.jpg',
+        ],
+      },
+      {
+        name: 'Contemporary Glass & Gold Mandap',
+        slug: 'contemporary-glass-gold-mandap',
+        description:
+          'Clean geometric lines, fluted glass panels and brushed-gold framing for couples who want a modern, editorial ceremony setting.',
+        image: '/images/archive/bilderboken-rlwE8f8anOc-unsplash.jpg',
+        category: 'Contemporary Luxe',
+        length: 22,
+        width: 16,
+        height: 14,
+        specs:
+          'Fluted glass panels · Brushed-gold metal frame · Mirror-finish platform · White and champagne florals · Dimmable pinspot lighting',
+        gallery: [
+          '/images/archive/linus-mimietz-p3UWyaujtQo-unsplash.jpg',
+          '/images/archive/point3d-commercial-imaging-ltd-oxeCZrodz78-unsplash.jpg',
+        ],
+      },
+      {
+        name: 'Lotus Blossom Mandap',
+        slug: 'lotus-blossom-mandap',
+        description:
+          'Layered lotus-inspired petals in blush and ivory frame the couple, with a low floral base and soft candlelight.',
+        image: '/images/archive/valeriia-bugaiova-_pPHgeHz1uk-unsplash.jpg',
+        category: 'Floral Ethereal',
+        length: 18,
+        width: 18,
+        height: 13,
+        specs:
+          'Lotus-petal arch structure · Blush and ivory florals · Candle and diya cluster · Low circular platform · Optional petal aisle',
+        gallery: [
+          '/images/archive/runnyrem-LfqmND-hym8-unsplash.jpg',
+          '/images/archive/visualsofdana-T5pL6ciEn-I-unsplash.jpg',
+        ],
+      },
+      {
+        name: 'Pastel Floral Canopy Mandap',
+        slug: 'pastel-floral-canopy-mandap',
+        description:
+          'A soft canopy of pastel blooms, hanging fabric and fairy lights that suits daytime lawns and intimate courtyard ceremonies.',
+        image: '/images/archive/visualsofdana-T5pL6ciEn-I-unsplash.jpg',
+        category: 'Floral Ethereal',
+        length: 16,
+        width: 16,
+        height: 12,
+        specs:
+          'Pastel floral canopy · Hanging fabric panels · Warm fairy lights · Lightweight timber frame · Indoor or lawn installation',
+        gallery: [
+          '/images/archive/frames-for-your-heart-zSG-kd-L6vw-unsplash.jpg',
+          '/images/archive/valeriia-bugaiova-_pPHgeHz1uk-unsplash.jpg',
+        ],
+      },
+    ];
+
+    const mandapIds: number[] = [];
+    for (const [index, mandap] of mandapSeed.entries()) {
+      const id = insert(
+        `INSERT INTO mandaps (name, slug, description, image, category, length_ft, width_ft, height_ft, material_specs, sort)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          mandap.name,
+          mandap.slug,
+          mandap.description,
+          mandap.image,
+          mandap.category,
+          mandap.length,
+          mandap.width,
+          mandap.height,
+          mandap.specs,
+          index + 1,
+        ],
+      );
+      mandapIds.push(id);
+      mandap.gallery.forEach((image, galleryIndex) => {
+        insert('INSERT INTO mandap_gallery (mandap_id, image, sort) VALUES (?, ?, ?)', [
+          id,
+          image,
+          galleryIndex + 1,
+        ]);
+      });
+    }
+
+    const stageSeed = [
+      {
+        name: 'Majestic Royal Reception Stage',
+        slug: 'majestic-royal-reception-stage',
+        description:
+          'Tiered royal staging with carved panels, velvet drapes and a central throne setting for receptions and grand entrances.',
+        image: '/images/archive/bilderboken-rlwE8f8anOc-unsplash.jpg',
+        category: 'Royal Reception',
+        length: 28,
+        width: 18,
+        height: 15,
+        notes:
+          'Three-level platform · Carved side panels · Deep maroon velvet · Gold throne chairs · Warm wash lighting · Fresh floral edge',
+        gallery: [
+          '/images/archive/gerson-repreza-CepDpEiALqM-unsplash.jpg',
+          '/images/archive/point3d-commercial-imaging-ltd-oxeCZrodz78-unsplash.jpg',
+        ],
+      },
+      {
+        name: 'Minimalist Geometric Floral Stage',
+        slug: 'minimalist-geometric-floral-stage',
+        description:
+          'Architectural white panels softened with single-variety florals — a calm, contemporary stage that photographs beautifully.',
+        image: '/images/archive/linus-mimietz-p3UWyaujtQo-unsplash.jpg',
+        category: 'Modern Minimal',
+        length: 24,
+        width: 16,
+        height: 14,
+        notes:
+          'Matte white geometric backdrop · Monochrome floral clusters · Low platform · Concealed uplighting · Optional acrylic lectern',
+        gallery: [
+          '/images/archive/bilderboken-rlwE8f8anOc-unsplash.jpg',
+          '/images/archive/runnyrem-LfqmND-hym8-unsplash.jpg',
+        ],
+      },
+      {
+        name: 'Grand Mughal Backdrop Stage',
+        slug: 'grand-mughal-backdrop-stage',
+        description:
+          'Jali screens, scalloped arches and jewel-toned drapes for a reception that feels rooted in Mughal courtly design.',
+        image: '/images/archive/gerson-repreza-CepDpEiALqM-unsplash.jpg',
+        category: 'Mughal Heritage',
+        length: 30,
+        width: 20,
+        height: 16,
+        notes:
+          'Hand-finished jali panels · Scalloped arch framing · Jewel-tone drapes · Brass lanterns · Raised carpeted platform · Floral garlands',
+        gallery: [
+          '/images/archive/christian-lambert-vmIWr0NnpCQ-unsplash.jpg',
+          '/images/archive/visualsofdana-T5pL6ciEn-I-unsplash.jpg',
+        ],
+      },
+      {
+        name: 'Modern LED Horizon Stage',
+        slug: 'modern-led-horizon-stage',
+        description:
+          'A wide LED horizon wall with clean lines and programmable lighting for sangeet nights, receptions and corporate celebrations.',
+        image: '/images/archive/point3d-commercial-imaging-ltd-oxeCZrodz78-unsplash.jpg',
+        category: 'Contemporary LED',
+        length: 32,
+        width: 18,
+        height: 14,
+        notes:
+          'P3 LED wall · Programmable content · Truss lighting · Mirror stage top · DJ riser · Cable-managed installation',
+        gallery: [
+          '/images/archive/linus-mimietz-p3UWyaujtQo-unsplash.jpg',
+          '/images/archive/bilderboken-rlwE8f8anOc-unsplash.jpg',
+        ],
+      },
+      {
+        name: 'Botanical Gardenia Stage',
+        slug: 'botanical-gardenia-stage',
+        description:
+          'Lush green foliage, white gardenias and natural textures bring a garden conservatory feel to indoor and lawn venues.',
+        image: '/images/archive/valeriia-bugaiova-_pPHgeHz1uk-unsplash.jpg',
+        category: 'Botanical',
+        length: 26,
+        width: 16,
+        height: 14,
+        notes:
+          'Foliage wall · White gardenia and rose clusters · Natural jute runner · Warm bulb lighting · Timber platform · Potted plant border',
+        gallery: [
+          '/images/archive/runnyrem-LfqmND-hym8-unsplash.jpg',
+          '/images/archive/frames-for-your-heart-zSG-kd-L6vw-unsplash.jpg',
+        ],
+      },
+      {
+        name: 'Regal Ivory & Gold Stage',
+        slug: 'regal-ivory-gold-stage',
+        description:
+          'An ivory and antique-gold stage with layered drapes and classical detailing for engagements and formal receptions.',
+        image: '/images/archive/frames-for-your-heart-zSG-kd-L6vw-unsplash.jpg',
+        category: 'Classic Elegance',
+        length: 26,
+        width: 18,
+        height: 15,
+        notes:
+          'Layered ivory drapes · Antique-gold trim · Classical sofa seating · Candelabra cluster · Fresh white florals · Warm pinspots',
+        gallery: [
+          '/images/archive/visualsofdana-T5pL6ciEn-I-unsplash.jpg',
+          '/images/archive/christian-lambert-vmIWr0NnpCQ-unsplash.jpg',
+        ],
+      },
+    ];
+
+    const stageIds: number[] = [];
+    for (const [index, stage] of stageSeed.entries()) {
+      const id = insert(
+        `INSERT INTO stages (name, slug, description, image, style_category, length_ft, width_ft, height_ft, decoration_notes, sort)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          stage.name,
+          stage.slug,
+          stage.description,
+          stage.image,
+          stage.category,
+          stage.length,
+          stage.width,
+          stage.height,
+          stage.notes,
+          index + 1,
+        ],
+      );
+      stageIds.push(id);
+      stage.gallery.forEach((image, galleryIndex) => {
+        insert('INSERT INTO stage_gallery (stage_id, image, sort) VALUES (?, ?, ?)', [
+          id,
+          image,
+          galleryIndex + 1,
+        ]);
+      });
+    }
+
+    const equipmentSeed = [
+      {
+        name: 'Chairs',
+        slug: 'chairs',
+        icon: 'chair',
+        items: [
+          ['Golden Chiavari Chair', 'golden-chiavari-chair', 'Classic gold-finished Chiavari frame with a comfortable velvet cushion for banquet seating.', 'piece', 'Gold frame · Velvet or satin cushion · Stackable · Indoor use', 50, 250],
+          ['Ivory Padded Banquet Chair', 'ivory-padded-banquet-chair', 'Neutral ivory banquet chair with a padded seat and back for long ceremonies.', 'piece', 'Ivory fabric · Padded back · Powder-coated frame · Stackable', 50, 300],
+          ['Maharaja High-Back Chair', 'maharaja-high-back-chair', 'Statement high-back chair for the couple, elders and formal photo settings.', 'piece', 'Carved frame · Brocade upholstery · High back · Gold finish', 2, 2],
+          ['Rustic Cross-Back Chair', 'rustic-cross-back-chair', 'Natural wood cross-back chair for outdoor, mehendi and garden settings.', 'piece', 'Solid wood · Natural finish · Cross-back · Weather-ready', 25, 100],
+        ],
+      },
+      {
+        name: 'Tables',
+        slug: 'tables',
+        icon: 'table',
+        items: [
+          ['Round 10-Seater Banquet Table', 'round-10-seater-banquet-table', 'Round banquet table with linen and seating for ten guests.', 'table', '72-inch diameter · 10 seats · Floor-length linen · Centrepiece ready', 5, 30],
+          ['Rectangular Buffet Table', 'rectangular-buffet-table', 'Six-foot buffet table with a clean skirt and serving surface.', 'table', '6 ft × 2.5 ft · Skirted · Serving surface · Modular layout', 2, 6],
+          ['Cocktail High-Top Table', 'cocktail-high-top-table', 'High-top cocktail table for receptions and social-hour layouts.', 'table', 'Bar-height · Round or square top · Linen optional · Standing service', 4, 12],
+          ['Brass Accent Side Table', 'brass-accent-side-table', 'Small brass side table for lounge clusters and photo corners.', 'piece', 'Antique brass finish · 18-inch top · Decorative accent', 2, 8],
+        ],
+      },
+      {
+        name: 'Sofas & Lounge Seating',
+        slug: 'sofas-lounge-seating',
+        icon: 'sofa',
+        items: [
+          ['Royal Maharaja Two-Seater Sofa', 'royal-maharaja-two-seater-sofa', 'Carved two-seater sofa with jewel-tone upholstery for stage and lounge settings.', 'set', 'Carved timber frame · Velvet upholstery · Two seats · Gold detailing', 1, 2],
+          ['Ivory Velvet Lounge Sofa', 'ivory-velvet-lounge-sofa', 'Soft ivory velvet sofa that works with both modern and classical palettes.', 'set', 'Ivory velvet · Hardwood frame · Three seats · Cushions included', 1, 3],
+          ['Brass-Frame Lounge Chair', 'brass-frame-lounge-chair', 'Open brass-frame lounge chair for stylish seating clusters.', 'piece', 'Brass frame · Upholstered seat · Lounge height · Indoor use', 2, 8],
+          ['Ottoman & Coffee Table Set', 'ottoman-coffee-table-set', 'Coordinated ottoman and coffee table set for lounge corners.', 'set', 'Ottoman · Coffee table · Matching finish · Modular layout', 1, 4],
+        ],
+      },
+      {
+        name: 'Decorative Furniture',
+        slug: 'decorative-furniture',
+        icon: 'flower',
+        items: [
+          ['Carved Wooden Bridal Bench', 'carved-wooden-bridal-bench', 'Carved bridal bench for getting-ready photographs and mehendi setups.', 'piece', 'Hand-carved wood · Cushioned seat · Gold and ivory finish', 1, 1],
+          ['Floral Swing Jhula', 'floral-swing-jhula', 'Hanging floral jhula for bridal entries, mehendi and photo moments.', 'set', 'Floral canopy · Cushioned seat · Metal frame · Installation included', 1, 1],
+          ['Brass Urli & Diya Stand', 'brass-urli-diya-stand', 'Traditional brass urli with a diya arrangement for entrances and mandap edges.', 'piece', 'Brass finish · Floating florals · Diya cluster · Various sizes', 2, 6],
+          ['Decorative Pheras Screen', 'decorative-pheras-screen', 'Freestanding carved screen used to frame the pheras area or disguise service zones.', 'set', 'Carved panels · Maroon and gold finish · Modular · Freestanding', 1, 4],
+        ],
+      },
+      {
+        name: 'Lighting & Backdrops',
+        slug: 'lighting-backdrops',
+        icon: 'light',
+        items: [
+          ['Warm Fairy Light Canopy', 'warm-fairy-light-canopy', 'Warm-white fairy light canopy for lawns, courtyards and evening celebrations.', 'set', 'Warm white bulbs · Weatherproof cable · Canopy or curtain install', 1, 4],
+          ['Crystal Chandelier Cluster', 'crystal-chandelier-cluster', 'Cluster of crystal chandeliers for reception ceilings and stage highlights.', 'set', 'Crystal finish · Warm bulbs · Rigging included · Indoor use', 1, 3],
+          ['Uplighting & Pinspot Package', 'uplighting-pinspot-package', 'Uplighting and pinspots to shape the room and highlight floral and stage details.', 'set', 'LED uplights · Pinspots · DMX control · Installation included', 1, 1],
+          ['Custom Floral Backdrop Panel', 'custom-floral-backdrop-panel', 'Made-to-size floral backdrop panel for photo walls and reception entrances.', 'panel', '8 ft × 8 ft standard · Fresh or preserved florals · Custom sizing', 1, 2],
+        ],
+      },
+      {
+        name: 'Other Event Essentials',
+        slug: 'other-event-essentials',
+        icon: 'box',
+        items: [
+          ['Mandap Carpet & Aisle Runner', 'mandap-carpet-aisle-runner', 'Carpet and aisle runner sized to your mandap and seating layout.', 'roll', 'Custom length · Non-slip backing · Ivory, maroon or blush', 1, 2],
+          ['Welcome Signage Easel', 'welcome-signage-easel', 'Wooden or brass easel for welcome boards and seating signage.', 'piece', 'Timber or brass · Adjustable height · Signage board optional', 1, 4],
+          ['Shehnai & Dhol Artist Stand', 'shehnai-dhol-artist-stand', 'Performance platform and seating for shehnai, dhol and ceremonial musicians.', 'set', 'Low platform · Artist seating · Power access · Weather cover', 1, 1],
+          ['Guest Umbrella & Fan Station', 'guest-umbrella-fan-station', 'Shade and cooling station for outdoor ceremonies and guest comfort.', 'set', 'Umbrellas · Fans · Attendant stand · Weather-ready', 1, 2],
+        ],
+      },
+    ] as const;
+
+    const equipmentIds: number[] = [];
+    for (const [categoryIndex, category] of equipmentSeed.entries()) {
+      const categoryId = insert(
+        'INSERT INTO equipment_categories (name, slug, icon, sort) VALUES (?, ?, ?, ?)',
+        [category.name, category.slug, category.icon, categoryIndex + 1],
+      );
+      for (const [itemIndex, item] of category.items.entries()) {
+        const [name, slug, description, unit, specifications, minQuantity, defaultQuantity] = item;
+        equipmentIds.push(
+          insert(
+            `INSERT INTO equipment_items
+               (category_id, name, slug, description, unit, specifications, min_quantity, default_quantity, sort)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              categoryId,
+              name,
+              slug,
+              description,
+              unit,
+              specifications,
+              minQuantity,
+              defaultQuantity,
+              itemIndex + 1,
+            ],
+          ),
+        );
+      }
+    }
+
+    interface SampleEnquiry {
+      reference: string;
+      name: string;
+      phone: string;
+      email: string;
+      eventType: string;
+      eventDate: string;
+      endDate: string | null;
+      eventTime: string;
+      venue: string;
+      guests: number;
+      budget: string;
+      requiresRooms: number;
+      roomCount: number;
+      accommodationNotes: string;
+      decorationNotes: string;
+      preferredContact: string;
+      status: string;
+      lines: Array<{
+        type: string;
+        catalogueId: number | null;
+        name: string;
+        quantity: number;
+        dimensions: string;
+        length: number | null;
+        width: number | null;
+        height: number | null;
+        specifications: string;
+        notes: string;
+      }>;
+    }
+
+    const sampleEnquiries: SampleEnquiry[] = [
+      {
+        reference: 'EP-2026-0001',
+        name: 'Ritika Mahto',
+        phone: '9876543211',
+        email: 'ritika.mahto@example.com',
+        eventType: 'Wedding',
+        eventDate: isoDate(42),
+        endDate: isoDate(43),
+        eventTime: '18:30',
+        venue: 'Harmu Ground, Ranchi',
+        guests: 350,
+        budget: '₹7,00,000 – ₹15,00,000',
+        requiresRooms: 1,
+        roomCount: 20,
+        accommodationNotes: 'Need nearby guest rooms for family travelling from Dhanbad and Jamshedpur.',
+        decorationNotes: 'Maroon, ivory and antique gold palette. Evening ceremony with warm lighting.',
+        preferredContact: 'WhatsApp',
+        status: 'new',
+        lines: [
+          {
+            type: 'mandap',
+            catalogueId: mandapIds[0],
+            name: mandapSeed[0].name,
+            quantity: 1,
+            dimensions: '20 ft × 20 ft × 14 ft',
+            length: 22,
+            width: 22,
+            height: 14,
+            specifications: mandapSeed[0].specs,
+            notes: 'Widen to 22 ft to accommodate the family seating.',
+          },
+          {
+            type: 'stage',
+            catalogueId: stageIds[0],
+            name: stageSeed[0].name,
+            quantity: 1,
+            dimensions: '28 ft × 18 ft × 15 ft',
+            length: null,
+            width: null,
+            height: null,
+            specifications: stageSeed[0].notes,
+            notes: '',
+          },
+          {
+            type: 'equipment',
+            catalogueId: equipmentIds[0],
+            name: 'Golden Chiavari Chair',
+            quantity: 300,
+            dimensions: '',
+            length: null,
+            width: null,
+            height: null,
+            specifications: 'Gold frame · Velvet or satin cushion · Stackable · Indoor use',
+            notes: '',
+          },
+          {
+            type: 'equipment',
+            catalogueId: equipmentIds[4],
+            name: 'Round 10-Seater Banquet Table',
+            quantity: 30,
+            dimensions: '',
+            length: null,
+            width: null,
+            height: null,
+            specifications: '72-inch diameter · 10 seats · Floor-length linen · Centrepiece ready',
+            notes: '',
+          },
+        ],
+      },
+      {
+        reference: 'EP-2026-0002',
+        name: 'Abhishek Singh',
+        phone: '9812345670',
+        email: 'abhishek.singh@example.com',
+        eventType: 'Reception',
+        eventDate: isoDate(68),
+        endDate: null,
+        eventTime: '19:00',
+        venue: 'Kanke Road Banquet Lawn, Ranchi',
+        guests: 500,
+        budget: 'Above ₹15,00,000',
+        requiresRooms: 1,
+        roomCount: 30,
+        accommodationNotes: 'Thirty rooms for two nights, preferably within 15 minutes of the venue.',
+        decorationNotes: 'Jewel tones with a Mughal-inspired stage and extensive warm uplighting.',
+        preferredContact: 'Phone',
+        status: 'reviewing',
+        lines: [
+          {
+            type: 'stage',
+            catalogueId: stageIds[2],
+            name: stageSeed[2].name,
+            quantity: 1,
+            dimensions: '30 ft × 20 ft × 16 ft',
+            length: 34,
+            width: 22,
+            height: 16,
+            specifications: stageSeed[2].notes,
+            notes: 'Extend width for a 12-piece band.',
+          },
+          {
+            type: 'equipment',
+            catalogueId: equipmentIds[1],
+            name: 'Ivory Padded Banquet Chair',
+            quantity: 500,
+            dimensions: '',
+            length: null,
+            width: null,
+            height: null,
+            specifications: 'Ivory fabric · Padded back · Powder-coated frame · Stackable',
+            notes: '',
+          },
+          {
+            type: 'equipment',
+            catalogueId: equipmentIds[18],
+            name: 'Crystal Chandelier Cluster',
+            quantity: 6,
+            dimensions: '',
+            length: null,
+            width: null,
+            height: null,
+            specifications: 'Crystal finish · Warm bulbs · Rigging included · Indoor use',
+            notes: 'Suspend along the central walkway.',
+          },
+        ],
+      },
+      {
+        reference: 'EP-2026-0003',
+        name: 'Sneha Kujur',
+        phone: '9823456780',
+        email: 'sneha.kujur@example.com',
+        eventType: 'Engagement',
+        eventDate: isoDate(24),
+        endDate: null,
+        eventTime: '17:00',
+        venue: 'Event Point Studio, Main Road, Ranchi',
+        guests: 180,
+        budget: '₹3,00,000 – ₹7,00,000',
+        requiresRooms: 0,
+        roomCount: 0,
+        accommodationNotes: '',
+        decorationNotes: 'Pastel palette, intimate ceremony, plenty of fresh flowers and soft daylight.',
+        preferredContact: 'Email',
+        status: 'quoted',
+        lines: [
+          {
+            type: 'mandap',
+            catalogueId: mandapIds[5],
+            name: mandapSeed[5].name,
+            quantity: 1,
+            dimensions: '16 ft × 16 ft × 12 ft',
+            length: null,
+            width: null,
+            height: null,
+            specifications: mandapSeed[5].specs,
+            notes: '',
+          },
+          {
+            type: 'stage',
+            catalogueId: stageIds[5],
+            name: stageSeed[5].name,
+            quantity: 1,
+            dimensions: '26 ft × 18 ft × 15 ft',
+            length: null,
+            width: null,
+            height: null,
+            specifications: stageSeed[5].notes,
+            notes: '',
+          },
+          {
+            type: 'equipment',
+            catalogueId: equipmentIds[25],
+            name: 'Warm Fairy Light Canopy',
+            quantity: 2,
+            dimensions: '',
+            length: null,
+            width: null,
+            height: null,
+            specifications: 'Warm white bulbs · Weatherproof cable · Canopy or curtain install',
+            notes: '',
+          },
+        ],
+      },
+      {
+        reference: 'EP-2026-0004',
+        name: 'Pooja Agarwal',
+        phone: '9934567890',
+        email: 'pooja.agarwal@example.com',
+        eventType: 'Wedding',
+        eventDate: isoDate(95),
+        endDate: isoDate(96),
+        eventTime: '11:00',
+        venue: 'Morabadi Ground, Ranchi',
+        guests: 220,
+        budget: '₹3,00,000 – ₹7,00,000',
+        requiresRooms: 0,
+        roomCount: 0,
+        accommodationNotes: '',
+        decorationNotes: 'Daytime temple-inspired ceremony, marigold and brass accents.',
+        preferredContact: 'Phone',
+        status: 'confirmed',
+        lines: [
+          {
+            type: 'mandap',
+            catalogueId: mandapIds[2],
+            name: mandapSeed[2].name,
+            quantity: 1,
+            dimensions: '16 ft × 16 ft × 12 ft',
+            length: null,
+            width: null,
+            height: null,
+            specifications: mandapSeed[2].specs,
+            notes: 'Add extra marigold garlands on the entrance pillars.',
+          },
+          {
+            type: 'equipment',
+            catalogueId: equipmentIds[27],
+            name: 'Shehnai & Dhol Artist Stand',
+            quantity: 1,
+            dimensions: '',
+            length: null,
+            width: null,
+            height: null,
+            specifications: 'Low platform · Artist seating · Power access · Weather cover',
+            notes: '',
+          },
+          {
+            type: 'equipment',
+            catalogueId: equipmentIds[20],
+            name: 'Brass Urli & Diya Stand',
+            quantity: 6,
+            dimensions: '',
+            length: null,
+            width: null,
+            height: null,
+            specifications: 'Brass finish · Floating florals · Diya cluster · Various sizes',
+            notes: '',
+          },
+        ],
+      },
+      {
+        reference: 'EP-2026-0005',
+        name: 'Vikash Prasad',
+        phone: '9765432109',
+        email: '',
+        eventType: 'Sangeet',
+        eventDate: isoDate(10),
+        endDate: null,
+        eventTime: '20:00',
+        venue: 'Lalpur Community Hall, Ranchi',
+        guests: 260,
+        budget: '₹1,00,000 – ₹3,00,000',
+        requiresRooms: 0,
+        roomCount: 0,
+        accommodationNotes: '',
+        decorationNotes: 'LED stage with dance floor and a bright, high-energy lighting brief.',
+        preferredContact: 'WhatsApp',
+        status: 'archived',
+        lines: [
+          {
+            type: 'stage',
+            catalogueId: stageIds[3],
+            name: stageSeed[3].name,
+            quantity: 1,
+            dimensions: '32 ft × 18 ft × 14 ft',
+            length: null,
+            width: null,
+            height: null,
+            specifications: stageSeed[3].notes,
+            notes: 'Content requirements to be shared one week before.',
+          },
+          {
+            type: 'equipment',
+            catalogueId: equipmentIds[24],
+            name: 'Uplighting & Pinspot Package',
+            quantity: 1,
+            dimensions: '',
+            length: null,
+            width: null,
+            height: null,
+            specifications: 'LED uplights · Pinspots · DMX control · Installation included',
+            notes: '',
+          },
+        ],
+      },
+    ];
+
+    for (const enquiry of sampleEnquiries) {
+      const enquiryId = insert(
+        `INSERT INTO event_enquiries
+           (reference_code, customer_name, customer_phone, customer_email, event_type, event_date, end_date,
+            event_time, venue_location, guest_count, budget_range, requires_rooms, room_count,
+            accommodation_notes, decoration_notes, preferred_contact, status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+        [
+          enquiry.reference,
+          enquiry.name,
+          enquiry.phone,
+          enquiry.email || null,
+          enquiry.eventType,
+          enquiry.eventDate,
+          enquiry.endDate,
+          enquiry.eventTime,
+          enquiry.venue,
+          enquiry.guests,
+          enquiry.budget,
+          enquiry.requiresRooms,
+          enquiry.roomCount,
+          enquiry.accommodationNotes,
+          enquiry.decorationNotes,
+          enquiry.preferredContact,
+          enquiry.status,
+        ],
+      );
+
+      for (const line of enquiry.lines) {
+        insert(
+          `INSERT INTO enquiry_line_items
+             (enquiry_id, item_type, catalogue_item_id, item_name_snapshot, quantity,
+              standard_dimensions_snapshot, requested_length_ft, requested_width_ft, requested_height_ft,
+              specifications, notes)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            enquiryId,
+            line.type,
+            line.catalogueId,
+            line.name,
+            line.quantity,
+            line.dimensions,
+            line.length,
+            line.width,
+            line.height,
+            line.specifications,
+            line.notes,
+          ],
+        );
+      }
+    }
 
     db.exec('COMMIT');
   } catch (error) {

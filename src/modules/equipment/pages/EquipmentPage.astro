@@ -1,0 +1,99 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import EquipmentCard from '../../../components/EquipmentCard.astro';
+import Icon from '../../../components/Icon.astro';
+import type { EquipmentPageData } from '../service';
+
+interface Props {
+  data: EquipmentPageData;
+}
+
+const { data } = Astro.props;
+const { categories, groups, category, totalItems } = data;
+
+function categoryHref(slug: string): string {
+  return slug ? `/equipment?category=${encodeURIComponent(slug)}` : '/equipment';
+}
+---
+
+<BaseLayout
+  title="Furniture & Event Equipment in Ranchi | Event Point"
+  description="Browse chairs, tables, lounge seating, decorative furniture, lighting and event essentials with quantities and specifications from Event Point Ranchi."
+>
+  <section class="page-hero with-image">
+    <img class="page-hero-media" src="/images/archive/manuel-moreno-DGa0LQ0yDPc-unsplash.jpg" alt="" />
+    <div class="container">
+      <span class="eyebrow" style="color:var(--gold-bright);">Equipment catalogue</span>
+      <h1>Furniture &amp; event equipment, listed clearly.</h1>
+      <p>
+        Build a practical equipment list with quantities, finishes and specifications. Add items to
+        your requirements, then send the complete brief to our Ranchi planning team.
+      </p>
+      <div class="hero-chip-row">
+        <span><Icon name="chair" size={14} /> 6 categories</span>
+        <span><Icon name="box" size={14} /> Quantity-based</span>
+        <span><Icon name="receipt" size={14} /> Quotation enquiry</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="filter-bar" aria-label="Filter equipment by category">
+        <a
+          href="/equipment"
+          class:list={['filter-btn', { active: category === '' }]}
+          aria-current={category === '' ? 'page' : undefined}
+        >
+          All equipment
+        </a>
+        {categories.map((entry) => (
+          <a
+            href={categoryHref(entry.slug)}
+            class:list={['filter-btn', { active: category === entry.slug }]}
+            aria-current={category === entry.slug ? 'page' : undefined}
+          >
+            <Icon name={entry.icon} size={13} /> {entry.name}
+          </a>
+        ))}
+      </div>
+
+      <div class="results-meta">
+        <span>{totalItems} item{totalItems === 1 ? '' : 's'} across {groups.length} categor{groups.length === 1 ? 'y' : 'ies'}</span>
+        {category && <a href="/equipment" class="text-link">Show all categories</a>}
+      </div>
+
+      {groups.length === 0 ? (
+        <div class="empty-state">
+          <div class="empty-icon"><Icon name="box" size={24} /></div>
+          <h3>No equipment in this category</h3>
+          <p>Browse all categories or tell us what you need — we source additional items on request.</p>
+          <div class="section-actions"><a href="/equipment" class="btn btn-primary">View all equipment</a></div>
+        </div>
+      ) : (
+        groups.map((group) => (
+          <section class="equipment-group" aria-labelledby={`equipment-group-${group.category.id}`}>
+            <div class="equipment-group-head">
+              <span class="equipment-group-icon"><Icon name={group.category.icon} size={20} /></span>
+              <div>
+                <h2 id={`equipment-group-${group.category.id}`}>{group.category.name}</h2>
+                <p>{group.items.length} item{group.items.length === 1 ? '' : 's'} available for your event layout.</p>
+              </div>
+            </div>
+            <div class="equipment-grid">
+              {group.items.map((item) => <EquipmentCard item={item} />)}
+            </div>
+          </section>
+        ))
+      )}
+
+      <div class="catalogue-note">
+        <Icon name="info" size={17} />
+        <p>
+          Quantities are editable before sending an enquiry. Availability is confirmed by our team
+          after reviewing your date, venue and layout — adding items does not reserve stock.
+        </p>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

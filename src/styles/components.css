@@ -19,19 +19,19 @@
 .btn:active { transform: translateY(0); }
 
 .btn-primary {
-  background: var(--ink);
+  background: var(--brand-maroon);
   color: #fff;
-  border-color: var(--ink);
+  border-color: var(--brand-maroon);
   box-shadow: var(--shadow-xs);
 }
-.btn-primary:hover { background: #000; border-color: #000; }
+.btn-primary:hover { background: var(--brand-maroon-dark); border-color: var(--brand-maroon-dark); }
 
 .btn-gold {
-  background: var(--gold);
+  background: var(--gold-deep);
   color: #fff;
-  border-color: var(--gold);
+  border-color: var(--gold-deep);
 }
-.btn-gold:hover { background: #967528; border-color: #967528; }
+.btn-gold:hover { background: #8f7027; border-color: #8f7027; }
 
 .btn-secondary {
   background: var(--surface);
@@ -167,8 +167,8 @@
 .input::placeholder, .textarea::placeholder { color: #a4a7ad; }
 .input:focus, .select:focus, .textarea:focus {
   outline: none;
-  border-color: var(--ink);
-  box-shadow: 0 0 0 3px rgba(23, 23, 23, 0.08);
+  border-color: var(--brand-maroon-light);
+  box-shadow: 0 0 0 3px rgba(140, 29, 51, 0.1);
 }
 .textarea { min-height: 110px; resize: vertical; }
 .select { appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--body) 50%), linear-gradient(135deg, var(--body) 50%, transparent 50%); background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; padding-right: 36px; }

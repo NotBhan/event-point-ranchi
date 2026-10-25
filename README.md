@@ -1,8 +1,12 @@
-# Royal Palace — Astro Event Management System
+# Event Point Ranchi — Wedding Setup Planning (Astro)
 
-An Astro (SSR) port of the Django `event-management-system-2026` project, rebuilt as a set of
-**self-registering feature modules** so that features can be added or removed without touching
-shared code.
+Event Point is a wedding mandap, stage design, furniture and event equipment planning business in
+Ranchi, Jharkhand. This Astro SSR application lets couples browse the catalogue, build a structured
+set of event requirements, and send a quotation enquiry that the operations team manages in the admin
+console.
+
+The application is organised as **self-registering feature modules** so features can be added or
+removed without touching shared code.
 
 ```bash
 npm install
@@ -13,6 +17,16 @@ npm run build        # check + production build
 npm start            # run the built server (needs a build first)
 npm run db:reset     # delete the SQLite file; it is reseeded on the next request
 ```
+
+### Public experience
+
+- `/` — brand homepage with mandap, stage, equipment, gallery and how-it-works sections.
+- `/mandaps`, `/mandaps/:slug` — mandap catalogue with categories, search, dimensions and custom sizing.
+- `/stages`, `/stages/:slug` — stage design catalogue with style filters and decoration notes.
+- `/equipment` — furniture and equipment catalogue with category tabs and quantity selectors.
+- `/plan` — accessible eight-step requirements wizard and quotation enquiry form.
+- `/gallery`, `/contact`, `/policies` — supporting pages.
+- Legacy `/halls`, `/rooms`, `/booking/overview` and `/cart` routes redirect to the new journey.
 
 ### Seeded accounts
 
@@ -53,16 +67,20 @@ src/
 │   └── api-dispatch.ts       # shared JSON API dispatcher
 │
 ├── modules/                  # ← every feature lives here
-│   ├── home/                 # module.ts · service.ts · pages/
-│   ├── halls/
-│   ├── rooms/
+│   ├── home/                 # homepage sections A–J
+│   ├── mandaps/              # catalogue + detail + custom dimensions
+│   ├── stages/               # stage catalogue + detail
+│   ├── equipment/            # furniture & equipment catalogue
+│   ├── plan/                 # 8-step enquiry wizard + /api/enquiries
+│   ├── halls/                # legacy routes redirect to /mandaps
+│   ├── rooms/                # legacy routes redirect to /plan
 │   ├── catering/
-│   ├── cart/
+│   ├── cart/                 # legacy route redirects to /plan
 │   ├── bookings/
 │   ├── accounts/
 │   ├── gallery/
 │   ├── contact/
-│   ├── admin/                # handlers/ · pages/ · service.ts
+│   ├── admin/                # including /admin/enquiries
 │   ├── media/                # serves uploaded files
 │   └── about/
 │
@@ -155,8 +173,13 @@ handle: async (ctx) => {
 - **`node:sqlite`** (built into Node ≥ 22.5) — no native build step, no ORM.
 - Money is stored as **integer paise**; `formatMoney`/`parseMoneyToPaise` handle presentation and parsing,
   so no float rounding errors.
-- `getDb()` creates `data/royal-palace.db`, applies `schema.sql`, and seeds demo content only when the
+- `getDb()` creates `data/event-point.db`, applies `schema.sql`, and seeds demo content only when the
   `users` table is empty. `npm run db:reset` forces a fresh seed.
+- The enquiry workflow writes `event_enquiries` and `enquiry_line_items` inside one transaction. Prices
+  and catalogue details are resolved from the database on the server; browser payloads only propose
+  selections and quantities.
+- Furniture and room inventory is never exposed as a public catalogue. Accommodation is captured as a
+  yes/no requirement, a requested room count and notes, then handled by the operations team.
 - Uploaded images go to `data/uploads/<folder>/` and are served by the `media` module; the DB stores
   `/uploads/...` paths. Seed images live in `public/images/archive/`.
 
@@ -202,17 +225,19 @@ Bugs in the original that were fixed while porting:
 | Public | Admin |
 | --- | --- |
 | `/` homepage | `/admin` dashboard |
-| `/halls`, `/halls/:slug` | `/admin/bookings`, `/admin/bookings/:id` |
-| `/rooms` (and legacy `/room`) | `/admin/halls`, `/admin/halls/new`, `/admin/halls/:id` |
-| `/catering`, `/catering/:slug` | `/admin/rooms`, `/admin/rooms/:id` |
-| `/cart` event cart | `/admin/catering`, `/admin/catering/:id` (menu builder) |
-| `/booking/overview` checkout | `/admin/gallery` (upload/manage) |
-| `/booking/:id/quotation` invoice | `/admin/customers`, `/admin/customers/:id` |
-| `/login`, `/register`, `/logout` | `/admin/inquiries` |
-| `/profile`, `/my-bookings` | `/admin/content` (heroes, feature tiles, contact) |
-| `/about`, `/gallery`, `/contact` | `/admin/login`, `/admin/logout` |
+| `/mandaps`, `/mandaps/:slug` | `/admin/enquiries`, `/admin/enquiries/:id` |
+| `/stages`, `/stages/:slug` | `/admin/bookings`, `/admin/bookings/:id` |
+| `/equipment` | `/admin/halls`, `/admin/halls/new`, `/admin/halls/:id` |
+| `/plan` requirements wizard | `/admin/rooms`, `/admin/rooms/:id` |
+| `/gallery` | `/admin/catering`, `/admin/catering/:id` (menu builder) |
+| `/contact`, `/policies` | `/admin/gallery` (upload/manage) |
+| `/login`, `/register`, `/logout` | `/admin/customers`, `/admin/customers/:id` |
+| `/profile`, `/my-bookings` | `/admin/inquiries` |
+| `/booking/:id/quotation` invoice | `/admin/content` (heroes, feature tiles, contact) |
+| `/halls`, `/rooms`, `/cart`, `/booking/overview` redirect | `/admin/login`, `/admin/logout` |
 
-JSON APIs: `POST /api/bookings` (server-priced booking creation).
+JSON APIs: `POST /api/enquiries` (validated quotation enquiry) and `POST /api/bookings` (legacy
+booking creation).
 
 ## Environment
 

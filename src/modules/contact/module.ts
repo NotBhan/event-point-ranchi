@@ -5,8 +5,8 @@ import { handleContactRequest } from './service';
 export default defineModule({
   id: 'contact',
   label: 'Contact',
-  order: 70,
-  nav: [{ label: 'Contact', href: '/contact', order: 70 }],
+  order: 60,
+  nav: [{ label: 'Contact', href: '/contact', order: 60 }],
   routes: [
     {
       path: '/contact',

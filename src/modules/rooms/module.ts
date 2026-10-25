@@ -1,22 +1,21 @@
 import { defineModule } from '../../core/define-module';
+import { redirect } from '../../core/http';
 import RoomsPage from './pages/RoomsPage.astro';
-import { loadRoomsPage } from './service';
 
 export default defineModule({
   id: 'rooms',
   label: 'Rooms',
-  order: 40,
-  nav: [{ label: 'Rooms', href: '/rooms', order: 40 }],
+  order: 85,
   routes: [
     {
       path: '/rooms',
       component: RoomsPage,
-      handle: () => ({ props: { data: loadRoomsPage() } }),
+      handle: () => redirect('/plan'),
     },
     {
       path: '/room',
       component: RoomsPage,
-      handle: () => ({ props: { data: loadRoomsPage() } }),
+      handle: () => redirect('/plan'),
     },
   ],
 });

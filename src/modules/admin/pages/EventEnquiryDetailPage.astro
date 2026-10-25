@@ -1,0 +1,167 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { formatDate, formatDateTime } from '../../../core/http';
+import { enquiryStatuses } from '../../../core/config';
+import type { loadEventEnquiry } from '../service';
+
+interface Props {
+  data?: ReturnType<typeof loadEventEnquiry>;
+  notFound?: boolean;
+}
+
+const { data, notFound = false } = Astro.props;
+const csrf = Astro.locals.csrf;
+const statusClass: Record<string, string> = {
+  new: 'badge-warning',
+  reviewing: 'badge-info',
+  quoted: 'badge-gold',
+  confirmed: 'badge-success',
+  archived: 'badge-muted',
+};
+
+function requestedDimensions(line: {
+  requested_length_ft: number | null;
+  requested_width_ft: number | null;
+  requested_height_ft: number | null;
+}): string {
+  const values = [line.requested_length_ft, line.requested_width_ft, line.requested_height_ft];
+  if (values.every((value) => value === null)) return 'Standard size';
+  return `${line.requested_length_ft ?? '—'} × ${line.requested_width_ft ?? '—'} × ${line.requested_height_ft ?? '—'} ft`;
+}
+---
+
+{notFound || !data ? (
+  <AdminLayout title="Event enquiry not found">
+    <div class="admin-panel">
+      <div class="admin-empty">
+        This event enquiry does not exist. <a href="/admin/enquiries" style="color:var(--gold-ink);font-weight:600;">Back to enquiries</a>
+      </div>
+    </div>
+  </AdminLayout>
+) : (
+  <AdminLayout
+    title={data.enquiry.reference_code}
+    description={`${data.enquiry.customer_name} · ${data.enquiry.event_type} · ${formatDate(data.enquiry.event_date)}`}
+  >
+    <div class="admin-toolbar">
+      <a href="/admin/enquiries" class="btn btn-secondary btn-sm">← All event enquiries</a>
+      <span class:list={['badge', statusClass[data.enquiry.status] ?? 'badge-muted']}>{data.enquiry.status}</span>
+      <span class="text-xs text-muted">Received {formatDateTime(data.enquiry.created_at)}</span>
+    </div>
+
+    <div class="admin-grid-3">
+      <div class="admin-panel">
+        <div class="admin-panel-head"><div><h2>Event</h2></div></div>
+        <div class="admin-panel-body">
+          <div class="summary-row"><div class="summary-left"><small>Event type</small><h4>{data.enquiry.event_type}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Event date</small><h4>{formatDate(data.enquiry.event_date)}</h4></div></div>
+          {data.enquiry.end_date && (
+            <div class="summary-row"><div class="summary-left"><small>End date</small><h4>{formatDate(data.enquiry.end_date)}</h4></div></div>
+          )}
+          <div class="summary-row"><div class="summary-left"><small>Start time</small><h4>{data.enquiry.event_time || '—'}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Guests</small><h4>{data.enquiry.guest_count}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Budget range</small><h4>{data.enquiry.budget_range || '—'}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Venue</small><h4>{data.enquiry.venue_location}</h4></div></div>
+        </div>
+      </div>
+
+      <div class="admin-panel">
+        <div class="admin-panel-head"><div><h2>Customer</h2></div></div>
+        <div class="admin-panel-body">
+          <div class="summary-row"><div class="summary-left"><small>Name</small><h4>{data.enquiry.customer_name}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Phone</small><h4>{data.enquiry.customer_phone}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Email</small><h4>{data.enquiry.customer_email || '—'}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Preferred contact</small><h4>{data.enquiry.preferred_contact}</h4></div></div>
+        </div>
+      </div>
+
+      <div class="admin-panel">
+        <div class="admin-panel-head"><div><h2>Accommodation</h2></div></div>
+        <div class="admin-panel-body">
+          <div class="summary-row">
+            <div class="summary-left">
+              <small>Rooms required</small>
+              <h4>{data.enquiry.requires_rooms === 1 ? `Yes — ${data.enquiry.room_count} rooms` : 'No'}</h4>
+            </div>
+          </div>
+          <div class="summary-row">
+            <div class="summary-left"><small>Notes</small><h4>{data.enquiry.accommodation_notes || '—'}</h4></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="admin-panel">
+      <div class="admin-panel-head">
+        <div><h2>Requirement line items</h2><p>{data.lines.length} item{data.lines.length === 1 ? '' : 's'} submitted.</p></div>
+      </div>
+      <div class="admin-panel-body flush">
+        {data.lines.length === 0 ? (
+          <div class="admin-empty">No catalogue line items submitted.</div>
+        ) : (
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Item</th>
+                  <th>Qty</th>
+                  <th>Standard dimensions</th>
+                  <th>Requested dimensions</th>
+                  <th>Specifications &amp; notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.lines.map((line) => (
+                  <tr>
+                    <td><span class="badge badge-muted">{line.item_type}</span></td>
+                    <td>
+                      <strong>{line.item_name_snapshot}</strong>
+                      {line.catalogue_item_id && <div class="text-xs text-muted">Catalogue #{line.catalogue_item_id}</div>}
+                    </td>
+                    <td class="money">{line.quantity}</td>
+                    <td class="text-sm">{line.standard_dimensions_snapshot || '—'}</td>
+                    <td class="text-sm">{requestedDimensions(line)}</td>
+                    <td style="max-width:320px;">
+                      {line.specifications && <div class="text-xs">{line.specifications}</div>}
+                      {line.notes && <div class="text-xs text-muted">Note: {line.notes}</div>}
+                      {!line.specifications && !line.notes && '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+
+    <div class="admin-grid-2">
+      <div class="admin-panel">
+        <div class="admin-panel-head"><div><h2>Styling &amp; event notes</h2></div></div>
+        <div class="admin-panel-body">
+          <div class="muted-box" style="white-space:pre-line;">{data.enquiry.decoration_notes || 'No styling notes provided.'}</div>
+        </div>
+      </div>
+
+      <div class="admin-panel">
+        <div class="admin-panel-head"><div><h2>Update status</h2><p>Change the pipeline stage for this enquiry.</p></div></div>
+        <div class="admin-panel-body">
+          <form method="POST" action={`/admin/enquiries/${data.enquiry.id}`} class="form-grid">
+            <input type="hidden" name="_csrf" value={csrf} />
+            <input type="hidden" name="action" value="update_status" />
+            <div class="field">
+              <label for="enquiry-status">Status</label>
+              <select class="select" id="enquiry-status" name="status">
+                {enquiryStatuses.map((status) => (
+                  <option value={status} selected={data.enquiry.status === status}>{status}</option>
+                ))}
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Save status</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </AdminLayout>
+)}

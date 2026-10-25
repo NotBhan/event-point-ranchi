@@ -22,6 +22,8 @@ import {
   customerDetail,
   customersList,
   dashboard,
+  eventEnquiriesList,
+  eventEnquiryDetail,
   inquiriesList,
 } from './handlers/operations';
 import BookingDetailPage from './pages/BookingDetailPage.astro';
@@ -32,6 +34,8 @@ import ContentPage from './pages/ContentPage.astro';
 import CustomerDetailPage from './pages/CustomerDetailPage.astro';
 import CustomersPage from './pages/CustomersPage.astro';
 import DashboardPage from './pages/DashboardPage.astro';
+import EventEnquiriesPage from './pages/EventEnquiriesPage.astro';
+import EventEnquiryDetailPage from './pages/EventEnquiryDetailPage.astro';
 import GalleryAdminPage from './pages/GalleryAdminPage.astro';
 import HallFormPage from './pages/HallFormPage.astro';
 import HallsPage from './pages/HallsPage.astro';
@@ -47,6 +51,7 @@ export default defineModule({
   adminNav: [
     { label: 'Dashboard', href: '/admin', icon: 'dashboard', order: 10 },
     { label: 'Bookings', href: '/admin/bookings', icon: 'ticket', order: 20 },
+    { label: 'Event Enquiries', href: '/admin/enquiries', icon: 'calendar', order: 25 },
     { label: 'Halls', href: '/admin/halls', icon: 'building', order: 30 },
     { label: 'Rooms', href: '/admin/rooms', icon: 'bed', order: 40 },
     { label: 'Catering', href: '/admin/catering', icon: 'utensils', order: 50 },
@@ -62,6 +67,9 @@ export default defineModule({
 
     { path: '/admin/bookings', component: BookingsPage, handle: bookingsList },
     { path: '/admin/bookings/:id', component: BookingDetailPage, handle: bookingDetail },
+
+    { path: '/admin/enquiries', component: EventEnquiriesPage, handle: eventEnquiriesList },
+    { path: '/admin/enquiries/:id', component: EventEnquiryDetailPage, handle: eventEnquiryDetail },
 
     { path: '/admin/halls', component: HallsPage, handle: hallsList },
     { path: '/admin/halls/new', component: HallFormPage, handle: hallForm },

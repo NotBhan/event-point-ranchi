@@ -694,3 +694,93 @@ export function saveContactInfo(form: FormData | null): void {
     getString(form, 'email'),
   ]);
 }
+
+/* ============================ Event enquiries ============================ */
+
+export interface EventEnquiryRow {
+  id: number;
+  reference_code: string;
+  customer_name: string;
+  customer_phone: string;
+  customer_email: string | null;
+  event_type: string;
+  event_date: string;
+  end_date: string | null;
+  event_time: string | null;
+  venue_location: string;
+  guest_count: number;
+  budget_range: string;
+  requires_rooms: number;
+  room_count: number;
+  accommodation_notes: string;
+  decoration_notes: string;
+  preferred_contact: string;
+  status: string;
+  created_at: string;
+}
+
+export interface EnquiryLineItemRow {
+  id: number;
+  enquiry_id: number;
+  item_type: string;
+  catalogue_item_id: number | null;
+  item_name_snapshot: string;
+  quantity: number;
+  standard_dimensions_snapshot: string;
+  requested_length_ft: number | null;
+  requested_width_ft: number | null;
+  requested_height_ft: number | null;
+  specifications: string;
+  notes: string;
+}
+
+export function listEventEnquiries(filters: { status?: string; query?: string } = {}) {
+  const clauses: string[] = [];
+  const params: unknown[] = [];
+
+  if (filters.status && filters.status !== 'all') {
+    clauses.push('status = ?');
+    params.push(filters.status);
+  }
+
+  if (filters.query) {
+    const like = `%${filters.query}%`;
+    clauses.push(
+      '(reference_code LIKE ? OR customer_name LIKE ? OR customer_phone LIKE ? OR event_type LIKE ? OR venue_location LIKE ?)',
+    );
+    params.push(like, like, like, like, like);
+  }
+
+  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+
+  return all<EventEnquiryRow>(
+    `SELECT id, reference_code, customer_name, customer_phone, customer_email, event_type,
+            event_date, end_date, event_time, venue_location, guest_count, budget_range,
+            requires_rooms, room_count, accommodation_notes, decoration_notes, preferred_contact,
+            status, created_at
+     FROM event_enquiries
+     ${where}
+     ORDER BY id DESC LIMIT 200`,
+    params,
+  );
+}
+
+export function loadEventEnquiry(id: number): { enquiry: EventEnquiryRow; lines: EnquiryLineItemRow[] } | null {
+  const enquiry = one<EventEnquiryRow>('SELECT * FROM event_enquiries WHERE id = ?', [id]);
+  if (!enquiry) return null;
+
+  const lines = all<EnquiryLineItemRow>(
+    'SELECT * FROM enquiry_line_items WHERE enquiry_id = ? ORDER BY id',
+    [id],
+  );
+
+  return { enquiry, lines };
+}
+
+export function updateEventEnquiryStatus(id: number, status: string): void {
+  if (!['new', 'reviewing', 'quoted', 'confirmed', 'archived'].includes(status)) {
+    throw new Error('Invalid enquiry status.');
+  }
+  run('UPDATE event_enquiries SET status = ? WHERE id = ?', [status, id]);
+}
+

@@ -1,0 +1,91 @@
+---
+import Icon from './Icon.astro';
+import { imageUrl } from '../core/http';
+
+interface Props {
+  item: {
+    id: number;
+    name: string;
+    slug: string;
+    description: string;
+    image: string | null;
+    unit: string;
+    specifications: string;
+    min_quantity: number;
+    default_quantity: number;
+    category: string;
+    category_slug: string;
+    category_icon: string;
+  };
+}
+
+const { item } = Astro.props;
+const specs = item.specifications
+  .split('·')
+  .map((spec) => spec.trim())
+  .filter(Boolean)
+  .slice(0, 3);
+---
+
+<article class="equipment-card" data-equipment-card>
+  <div class="equipment-media">
+    {item.image ? (
+      <img src={imageUrl(item.image)} alt={item.name} loading="lazy" />
+    ) : (
+      <div class="equipment-icon-fallback">
+        <Icon name={item.category_icon} size={34} />
+      </div>
+    )}
+    <span class="equipment-category-tag">{item.category}</span>
+  </div>
+
+  <div class="equipment-body">
+    <h3>{item.name}</h3>
+    <p>{item.description}</p>
+
+    {specs.length > 0 && (
+      <ul class="equipment-specs">
+        {specs.map((spec) => <li><Icon name="check" size={12} /> {spec}</li>)}
+      </ul>
+    )}
+
+    <div class="equipment-footer">
+      <div class="equipment-qty-row">
+        <label for={`equipment-qty-${item.id}`}>Quantity</label>
+        <div class="qty">
+          <button type="button" data-qty-step="-1" aria-label={`Reduce ${item.name} quantity`}>−</button>
+          <input
+            id={`equipment-qty-${item.id}`}
+            type="number"
+            min={item.min_quantity}
+            step="1"
+            value={item.default_quantity}
+            inputmode="numeric"
+            data-equipment-qty
+            aria-label={`${item.name} quantity in ${item.unit}s`}
+          />
+          <button type="button" data-qty-step="1" aria-label={`Increase ${item.name} quantity`}>+</button>
+        </div>
+        <span>{item.unit}</span>
+      </div>
+
+      <button
+        type="button"
+        class="btn btn-primary btn-sm btn-block"
+        data-add-equipment
+        data-id={item.id}
+        data-slug={item.slug}
+        data-name={item.name}
+        data-category={item.category}
+        data-category-slug={item.category_slug}
+        data-unit={item.unit}
+        data-specifications={item.specifications}
+        data-image={item.image ?? ''}
+        data-min={item.min_quantity}
+        aria-pressed="false"
+      >
+        Add to Requirements
+      </button>
+    </div>
+  </div>
+</article>

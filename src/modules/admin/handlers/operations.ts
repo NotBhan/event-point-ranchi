@@ -10,10 +10,13 @@ import {
   deleteInquiry,
   listBookings,
   listCustomers,
+  listEventEnquiries,
   listInquiries,
   loadCustomerAdmin,
   loadDashboard,
+  loadEventEnquiry,
   updateBookingStatus,
+  updateEventEnquiryStatus,
   updateInquiryStatus,
 } from '../service';
 import { runFormAction } from './shared';
@@ -124,4 +127,43 @@ export function inquiriesList(ctx: PageContext) {
   }
 
   return { props: { inquiries: listInquiries(status), status } };
+}
+
+export function eventEnquiriesList(ctx: PageContext) {
+  const denied = requireAdmin(ctx);
+  if (denied) return denied;
+
+  const status = ctx.url.searchParams.get('status') ?? 'all';
+  const query = ctx.url.searchParams.get('q') ?? '';
+
+  return {
+    props: {
+      enquiries: listEventEnquiries({ status, query }),
+      status,
+      query,
+    },
+  };
+}
+
+export function eventEnquiryDetail(ctx: PageContext) {
+  const denied = requireAdmin(ctx);
+  if (denied) return denied;
+
+  const id = Number(ctx.params.id);
+  if (!Number.isInteger(id) || id <= 0) return { props: { notFound: true }, status: 404 };
+
+  if (ctx.request.method === 'POST') {
+    return runFormAction(
+      ctx,
+      {
+        update_status: () => updateEventEnquiryStatus(id, getString(ctx.form, 'status')),
+      },
+      { redirectTo: `/admin/enquiries/${id}`, successMessage: 'Enquiry status updated.' },
+    );
+  }
+
+  const data = loadEventEnquiry(id);
+  if (!data) return { props: { notFound: true }, status: 404 };
+
+  return { props: { data } };
 }

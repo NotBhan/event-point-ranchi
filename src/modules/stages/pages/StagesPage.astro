@@ -1,0 +1,113 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import StageCard from '../../../components/StageCard.astro';
+import Icon from '../../../components/Icon.astro';
+import type { StagesPageData } from '../service';
+
+interface Props {
+  data: StagesPageData;
+}
+
+const { data } = Astro.props;
+const { stages, categories, category, query } = data;
+
+function filterHref(nextCategory: string): string {
+  const params = new URLSearchParams();
+  if (nextCategory) params.set('style', nextCategory);
+  if (query) params.set('q', query);
+  const serialized = params.toString();
+  return serialized ? `/stages?${serialized}` : '/stages';
+}
+---
+
+<BaseLayout
+  title="Reception & Ceremony Stage Designs in Ranchi | Event Point"
+  description="Explore royal, Mughal, botanical and LED stage designs with standard dimensions and custom sizing from Event Point Ranchi."
+>
+  <section class="page-hero with-image">
+    <img class="page-hero-media" src="/images/archive/bilderboken-rlwE8f8anOc-unsplash.jpg" alt="" />
+    <div class="container">
+      <span class="eyebrow" style="color:var(--gold-bright);">Stage design studio</span>
+      <h1>Stages that frame the moment.</h1>
+      <p>
+        Reception backdrops, ceremony stages and sangeet sets designed around your venue, guest
+        sightlines and photography. Every design lists its standard footprint and styling details.
+      </p>
+      <div class="hero-chip-row">
+        <span><Icon name="theater" size={14} /> 6 distinct styles</span>
+        <span><Icon name="edit" size={14} /> Custom dimensions</span>
+        <span><Icon name="camera" size={14} /> Photo-first layouts</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="catalogue-toolbar">
+        <div class="filter-bar" aria-label="Filter stages by style">
+          <a
+            href={filterHref('')}
+            class:list={['filter-btn', { active: category === '' }]}
+            aria-current={category === '' ? 'page' : undefined}
+          >
+            All styles
+          </a>
+          {categories.map((item) => (
+            <a
+              href={filterHref(item)}
+              class:list={['filter-btn', { active: category === item }]}
+              aria-current={category === item ? 'page' : undefined}
+            >
+              {item}
+            </a>
+          ))}
+        </div>
+
+        <form method="GET" action="/stages" class="catalogue-search" role="search">
+          {category && <input type="hidden" name="style" value={category} />}
+          <label class="sr-only" for="stage-search">Search stage designs</label>
+          <input
+            class="input"
+            id="stage-search"
+            name="q"
+            type="search"
+            value={query}
+            placeholder="Search by style or detail"
+          />
+          <button type="submit" class="btn btn-primary" aria-label="Search stage designs">
+            <Icon name="search" size={16} /> Search
+          </button>
+        </form>
+      </div>
+
+      <div class="results-meta">
+        <span>{stages.length} stage design{stages.length === 1 ? '' : 's'} found</span>
+        {(category || query) && <a href="/stages" class="text-link">Clear filters</a>}
+      </div>
+
+      {stages.length === 0 ? (
+        <div class="empty-state">
+          <div class="empty-icon"><Icon name="theater" size={24} /></div>
+          <h3>No stage designs match this search</h3>
+          <p>Try another style, or tell us your idea and we will design a stage from scratch.</p>
+          <div class="section-actions">
+            <a href="/stages" class="btn btn-secondary">View all stages</a>
+            <a href="/plan" class="btn btn-primary">Build your requirements</a>
+          </div>
+        </div>
+      ) : (
+        <div class="catalogue-grid catalogue-grid-stages">
+          {stages.map((stage) => <StageCard stage={stage} />)}
+        </div>
+      )}
+
+      <div class="catalogue-note">
+        <Icon name="info" size={17} />
+        <p>
+          Stage dimensions describe the built structure, not the full hall footprint. We confirm
+          access, ceiling height and rigging requirements before finalising any design.
+        </p>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

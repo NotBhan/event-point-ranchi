@@ -5,8 +5,8 @@ import { loadGalleryPage } from './service';
 export default defineModule({
   id: 'gallery',
   label: 'Gallery',
-  order: 60,
-  nav: [{ label: 'Gallery', href: '/gallery', order: 60 }],
+  order: 50,
+  nav: [{ label: 'Gallery', href: '/gallery', order: 50 }],
   routes: [
     {
       path: '/gallery',

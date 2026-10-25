@@ -1,30 +1,39 @@
 :root {
   /* Ink & text */
-  --ink: #171717;
-  --ink-2: #2c2b29;
-  --body: #5f636b;
-  --muted: #8a8e96;
+  --ink: #2a1419;
+  --ink-2: #3d2a2e;
+  --body: #65585b;
+  --muted: #8d7f82;
   --on-dark: #ffffff;
-  --on-dark-soft: #b7b3aa;
+  --on-dark-soft: #e8d9d3;
 
   /* Surfaces */
-  --canvas: #ffffff;
-  --canvas-warm: #fbfaf7;
+  --canvas: #faf8f5;
+  --canvas-warm: #faf8f5;
   --surface: #ffffff;
-  --surface-2: #f7f5ef;
-  --surface-3: #f0ece2;
-  --dark: #141312;
-  --dark-2: #1e1c19;
-  --dark-3: #2a2723;
+  --surface-warm: #f5f0e6;
+  --surface-card: #ffffff;
+  --surface-2: #f5f0e6;
+  --surface-3: #efe6d8;
+  --dark: #2e0a12;
+  --dark-2: #3b0d18;
+  --dark-3: #511522;
 
   /* Lines */
-  --line: #e9e5db;
-  --line-strong: #d9d3c5;
-  --line-dark: #34302a;
+  --line: #e9e0d5;
+  --line-strong: #d9cbbb;
+  --line-dark: #57242f;
 
-  /* Brand gold */
+  /* Brand — deep royal maroon */
+  --brand-maroon: #721224;
+  --brand-maroon-dark: #540d1a;
+  --brand-maroon-light: #8c1d33;
+
+  /* Brand — restrained antique gold */
   --gold: #a9862f;
-  --gold-bright: #d4af37;
+  --gold-deep: #a9862f;
+  --gold-antique: #c8a251;
+  --gold-bright: #c8a251;
   --gold-soft: #f7f0dc;
   --gold-ink: #6b5316;
 
@@ -32,9 +41,9 @@
   --success: #15803d;
   --success-soft: #f0fdf4;
   --success-line: #bbf7d0;
-  --danger: #b91c1c;
-  --danger-soft: #fef2f2;
-  --danger-line: #fecaca;
+  --danger: #b01a2e;
+  --danger-soft: #fdf1f2;
+  --danger-line: #f3c3c9;
   --warning: #a16207;
   --warning-soft: #fffbeb;
   --warning-line: #fde68a;
@@ -43,8 +52,9 @@
   --info-line: #bfdbfe;
 
   /* Typography */
+  --font-serif: 'Playfair Display', 'Cormorant Garamond', Georgia, serif;
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-mono: 'Inter', 'Segoe UI', system-ui, sans-serif;
 
   /* Radius */
   --r-xs: 4px;
@@ -69,12 +79,12 @@
   --sp-24: 96px;
 
   /* Depth */
-  --shadow-xs: 0 1px 2px rgba(23, 23, 23, 0.05);
-  --shadow-sm: 0 1px 2px rgba(23, 23, 23, 0.04), 0 4px 12px rgba(23, 23, 23, 0.04);
-  --shadow-md: 0 2px 4px rgba(23, 23, 23, 0.04), 0 12px 32px rgba(23, 23, 23, 0.08);
-  --shadow-lg: 0 8px 24px rgba(23, 23, 23, 0.1), 0 24px 64px rgba(23, 23, 23, 0.12);
+  --shadow-xs: 0 1px 2px rgba(42, 20, 25, 0.05);
+  --shadow-sm: 0 1px 2px rgba(42, 20, 25, 0.04), 0 4px 12px rgba(42, 20, 25, 0.05);
+  --shadow-md: 0 2px 4px rgba(42, 20, 25, 0.05), 0 12px 32px rgba(42, 20, 25, 0.09);
+  --shadow-lg: 0 8px 24px rgba(42, 20, 25, 0.12), 0 24px 64px rgba(42, 20, 25, 0.14);
 
-  --header-height: 72px;
+  --header-height: 76px;
   --container: 1200px;
   --container-narrow: 880px;
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
