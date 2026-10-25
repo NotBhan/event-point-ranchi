@@ -7,8 +7,10 @@ import { seedDatabase } from './seed';
 let database: DatabaseSync | null = null;
 
 export function dataDir(): string {
-  const configured = process.env.DATA_DIR || import.meta.env.DATA_DIR || './data';
-  return resolve(process.cwd(), configured);
+  const configured = process.env.DATA_DIR || import.meta.env.DATA_DIR;
+  if (configured) return resolve(process.cwd(), configured);
+  if (process.env.VERCEL) return '/tmp/data';
+  return resolve(process.cwd(), './data');
 }
 
 export function uploadsDir(): string {
