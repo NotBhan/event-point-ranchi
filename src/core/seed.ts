@@ -2,8 +2,6 @@ import { randomBytes } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import { hashPassword } from './password';
 
-type SqlValue = string | number | null;
-
 function isoDate(daysFromNow: number): string {
   const date = new Date();
   date.setDate(date.getDate() + daysFromNow);
@@ -11,8 +9,13 @@ function isoDate(daysFromNow: number): string {
 }
 
 export function seedDatabase(db: DatabaseSync): void {
-  const insert = (sql: string, params: SqlValue[] = []): number =>
-    Number(db.prepare(sql).run(...params).lastInsertRowid);
+  const insert = (sql: string, params: unknown[] = []): number =>
+    Number(
+      db
+        .prepare(sql)
+        .run(...(params.map((v) => (v === undefined ? null : v)) as never[]))
+        .lastInsertRowid,
+    );
 
   db.exec('BEGIN');
   try {
@@ -1177,7 +1180,7 @@ export function seedDatabase(db: DatabaseSync): void {
         lines: [
           {
             type: 'mandap',
-            catalogueId: mandapIds[0],
+            catalogueId: mandapIds[0] ?? null,
             name: mandapSeed[0].name,
             quantity: 1,
             dimensions: '20 ft × 20 ft × 14 ft',
@@ -1189,7 +1192,7 @@ export function seedDatabase(db: DatabaseSync): void {
           },
           {
             type: 'stage',
-            catalogueId: stageIds[0],
+            catalogueId: stageIds[0] ?? null,
             name: stageSeed[0].name,
             quantity: 1,
             dimensions: '28 ft × 18 ft × 15 ft',
@@ -1201,7 +1204,7 @@ export function seedDatabase(db: DatabaseSync): void {
           },
           {
             type: 'equipment',
-            catalogueId: equipmentIds[0],
+            catalogueId: equipmentIds[0] ?? null,
             name: 'Golden Chiavari Chair',
             quantity: 300,
             dimensions: '',
@@ -1213,7 +1216,7 @@ export function seedDatabase(db: DatabaseSync): void {
           },
           {
             type: 'equipment',
-            catalogueId: equipmentIds[4],
+            catalogueId: equipmentIds[4] ?? null,
             name: 'Round 10-Seater Banquet Table',
             quantity: 30,
             dimensions: '',
@@ -1246,7 +1249,7 @@ export function seedDatabase(db: DatabaseSync): void {
         lines: [
           {
             type: 'stage',
-            catalogueId: stageIds[2],
+            catalogueId: stageIds[2] ?? null,
             name: stageSeed[2].name,
             quantity: 1,
             dimensions: '30 ft × 20 ft × 16 ft',
@@ -1258,7 +1261,7 @@ export function seedDatabase(db: DatabaseSync): void {
           },
           {
             type: 'equipment',
-            catalogueId: equipmentIds[1],
+            catalogueId: equipmentIds[1] ?? null,
             name: 'Ivory Padded Banquet Chair',
             quantity: 500,
             dimensions: '',
@@ -1270,7 +1273,7 @@ export function seedDatabase(db: DatabaseSync): void {
           },
           {
             type: 'equipment',
-            catalogueId: equipmentIds[18],
+            catalogueId: equipmentIds[17] ?? null,
             name: 'Crystal Chandelier Cluster',
             quantity: 6,
             dimensions: '',
@@ -1303,7 +1306,7 @@ export function seedDatabase(db: DatabaseSync): void {
         lines: [
           {
             type: 'mandap',
-            catalogueId: mandapIds[5],
+            catalogueId: mandapIds[5] ?? null,
             name: mandapSeed[5].name,
             quantity: 1,
             dimensions: '16 ft × 16 ft × 12 ft',
@@ -1315,7 +1318,7 @@ export function seedDatabase(db: DatabaseSync): void {
           },
           {
             type: 'stage',
-            catalogueId: stageIds[5],
+            catalogueId: stageIds[5] ?? null,
             name: stageSeed[5].name,
             quantity: 1,
             dimensions: '26 ft × 18 ft × 15 ft',
@@ -1327,7 +1330,7 @@ export function seedDatabase(db: DatabaseSync): void {
           },
           {
             type: 'equipment',
-            catalogueId: equipmentIds[25],
+            catalogueId: equipmentIds[16] ?? null,
             name: 'Warm Fairy Light Canopy',
             quantity: 2,
             dimensions: '',
@@ -1360,7 +1363,7 @@ export function seedDatabase(db: DatabaseSync): void {
         lines: [
           {
             type: 'mandap',
-            catalogueId: mandapIds[2],
+            catalogueId: mandapIds[2] ?? null,
             name: mandapSeed[2].name,
             quantity: 1,
             dimensions: '16 ft × 16 ft × 12 ft',
@@ -1372,7 +1375,7 @@ export function seedDatabase(db: DatabaseSync): void {
           },
           {
             type: 'equipment',
-            catalogueId: equipmentIds[27],
+            catalogueId: equipmentIds[22] ?? null,
             name: 'Shehnai & Dhol Artist Stand',
             quantity: 1,
             dimensions: '',
@@ -1384,7 +1387,7 @@ export function seedDatabase(db: DatabaseSync): void {
           },
           {
             type: 'equipment',
-            catalogueId: equipmentIds[20],
+            catalogueId: equipmentIds[14] ?? null,
             name: 'Brass Urli & Diya Stand',
             quantity: 6,
             dimensions: '',
@@ -1417,7 +1420,7 @@ export function seedDatabase(db: DatabaseSync): void {
         lines: [
           {
             type: 'stage',
-            catalogueId: stageIds[3],
+            catalogueId: stageIds[3] ?? null,
             name: stageSeed[3].name,
             quantity: 1,
             dimensions: '32 ft × 18 ft × 14 ft',
@@ -1429,7 +1432,7 @@ export function seedDatabase(db: DatabaseSync): void {
           },
           {
             type: 'equipment',
-            catalogueId: equipmentIds[24],
+            catalogueId: equipmentIds[18] ?? null,
             name: 'Uplighting & Pinspot Package',
             quantity: 1,
             dimensions: '',
