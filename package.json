@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro check && astro build",
+    "build:vercel": "BUILD_TARGET=vercel npm run build",
     "preview": "node ./dist/server/entry.mjs",
     "start": "node ./dist/server/entry.mjs",
     "check": "astro check",
@@ -17,6 +18,7 @@
   },
   "dependencies": {
     "@astrojs/node": "^11.1.9",
+    "@astrojs/vercel": "^11.0.16",
     "astro": "^7.4.2"
   },
   "devDependencies": {
