@@ -1,0 +1,134 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Icon from '../../../components/Icon.astro';
+import type { ContactInfo } from '../service';
+import '../contact.css';
+
+interface Props {
+  info: ContactInfo;
+  sent: boolean;
+}
+
+const { info, sent } = Astro.props;
+const csrf = Astro.locals.csrf;
+
+const eventOptions = ['Wedding', 'Reception', 'Engagement', 'Birthday', 'Corporate event', 'Conference', 'Other'];
+---
+
+<BaseLayout title="Contact us | Royal Palace" description="Talk to our event consultants about halls, catering and dates.">
+  <section class="page-hero">
+    <div class="container">
+      <span class="eyebrow">Get in touch</span>
+      <h1>Let's plan your celebration.</h1>
+      <p>Tell us your date, guest count and what matters most — we will reply with availability and an itemised estimate.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container contact-layout">
+      <div class="contact-cards">
+        <div class="contact-card">
+          <span class="contact-card-icon"><Icon name="pin" size={18} /></span>
+          <div>
+            <h3>Office address</h3>
+            <p>{info.address}</p>
+          </div>
+        </div>
+        <div class="contact-card">
+          <span class="contact-card-icon"><Icon name="phone" size={18} /></span>
+          <div>
+            <h3>Call us</h3>
+            <p>{info.phone}</p>
+            <small>Open daily, 9:00 – 21:00</small>
+          </div>
+        </div>
+        <div class="contact-card">
+          <span class="contact-card-icon"><Icon name="mail" size={18} /></span>
+          <div>
+            <h3>Email</h3>
+            <p>{info.email}</p>
+            <small>Replies within one working day</small>
+          </div>
+        </div>
+        <div class="contact-card">
+          <span class="contact-card-icon"><Icon name="calendar" size={18} /></span>
+          <div>
+            <h3>Site visits</h3>
+            <p>Daily 10:00 – 19:00</p>
+            <small>Walk the venue before you decide</small>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Send an enquiry</h2>
+            <p>Every field helps us quote accurately.</p>
+          </div>
+        </div>
+
+        {sent && (
+          <div class="alert alert-success mb-6">
+            <Icon name="check-circle" size={16} />
+            <span>Thank you! Your enquiry is with our team — expect a call within one working day.</span>
+          </div>
+        )}
+
+        <form method="POST" action="/contact" class="form-grid">
+          <input type="hidden" name="_csrf" value={csrf} />
+
+          <div class="form-grid cols-2">
+            <div class="field">
+              <label for="name">Full name *</label>
+              <input class="input" id="name" name="name" required placeholder="Aarav Sharma" />
+            </div>
+            <div class="field">
+              <label for="phone">Phone number *</label>
+              <input class="input" id="phone" name="phone" required placeholder="98765 43210" inputmode="tel" />
+            </div>
+          </div>
+
+          <div class="form-grid cols-2">
+            <div class="field">
+              <label for="email">Email address *</label>
+              <input class="input" id="email" name="email" type="email" required placeholder="you@example.com" />
+            </div>
+            <div class="field">
+              <label for="event_type">Event type</label>
+              <select class="select" id="event_type" name="event_type">
+                {eventOptions.map((option) => <option value={option}>{option}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div class="form-grid cols-2">
+            <div class="field">
+              <label for="event_date">Expected event date</label>
+              <input class="input" id="event_date" name="event_date" type="date" />
+            </div>
+            <div class="field">
+              <label for="guest_count">Estimated guests</label>
+              <input class="input" id="guest_count" name="guest_count" type="number" min="1" placeholder="e.g. 400" />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="message">Your requirements</label>
+            <textarea
+              class="textarea"
+              id="message"
+              name="message"
+              rows="5"
+              placeholder="Tell us about décor, menu preferences, rooms needed or any special requests."
+            ></textarea>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-lg">
+            <Icon name="mail" size={16} /> Send enquiry
+          </button>
+        </form>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

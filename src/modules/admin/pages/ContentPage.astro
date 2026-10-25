@@ -1,0 +1,167 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { imageUrl } from '../../../core/http';
+
+interface Props {
+  homepage: { hero_title: string; hero_description: string; hero_image: string | null } | undefined;
+  features: Array<{ id: number; icon: string; title: string; description: string }>;
+  pages: Array<{ key: string; hero_title: string; hero_subtitle: string; hero_badge: string; hero_image: string | null }>;
+  contact: { address: string; phone: string; email: string } | undefined;
+}
+
+const { homepage, features, pages, contact } = Astro.props;
+const csrf = Astro.locals.csrf;
+
+const pageLabels: Record<string, string> = {
+  halls: 'Banquet halls page',
+  rooms: 'Rooms page',
+  catering: 'Catering page',
+  gallery: 'Gallery page',
+};
+---
+
+<AdminLayout title="Site content" description="Homepage hero, page banners and contact details.">
+  <div class="admin-grid-2">
+    <form method="POST" action="/admin/content" class="admin-panel" enctype="multipart/form-data">
+      <input type="hidden" name="_csrf" value={csrf} />
+      <input type="hidden" name="action" value="save_homepage" />
+      <div class="admin-panel-head"><div><h2>Homepage hero</h2></div></div>
+      <div class="admin-panel-body">
+        <div class="admin-form-grid">
+          <div class="field">
+            <label for="hero_title">Headline</label>
+            <input class="input" id="hero_title" name="hero_title" required value={homepage?.hero_title ?? ''} />
+          </div>
+          <div class="field">
+            <label for="hero_description">Subheadline</label>
+            <textarea class="textarea" id="hero_description" name="hero_description" rows="3">{homepage?.hero_description ?? ''}</textarea>
+          </div>
+          <div class="field">
+            <label for="hero_image">Hero image</label>
+            {homepage?.hero_image && <img class="admin-thumb" style="width:100%;height:140px;object-fit:cover;" src={imageUrl(homepage.hero_image)} alt="" />}
+            <input class="input" type="file" id="hero_image" name="hero_image" accept="image/*" />
+            <input type="hidden" name="hero_image_path" value={homepage?.hero_image ?? ''} />
+            <span class="hint" data-file-name>Upload replaces the current image.</span>
+          </div>
+          <button type="submit" class="btn btn-primary">Save homepage</button>
+        </div>
+      </div>
+    </form>
+
+    <form method="POST" action="/admin/content" class="admin-panel">
+      <input type="hidden" name="_csrf" value={csrf} />
+      <input type="hidden" name="action" value="save_contact" />
+      <div class="admin-panel-head"><div><h2>Contact details</h2><p>Shown in the footer and contact page.</p></div></div>
+      <div class="admin-panel-body">
+        <div class="admin-form-grid">
+          <div class="field">
+            <label for="address">Office address</label>
+            <textarea class="textarea" id="address" name="address" rows="2">{contact?.address ?? ''}</textarea>
+          </div>
+          <div class="admin-form-grid" style="grid-template-columns:1fr 1fr;">
+            <div class="field">
+              <label for="phone">Phone</label>
+              <input class="input" id="phone" name="phone" value={contact?.phone ?? ''} />
+            </div>
+            <div class="field">
+              <label for="email">Email</label>
+              <input class="input" id="email" name="email" type="email" value={contact?.email ?? ''} />
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary">Save contact details</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <div class="admin-panel">
+    <div class="admin-panel-head">
+      <div><h2>Homepage feature tiles</h2><p>The “why choose us” grid under the hero.</p></div>
+    </div>
+    <div class="admin-panel-body">
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px;">
+        {features.map((feature) => (
+          <div class="flex-between" style="gap:14px;border-bottom:1px solid var(--line);padding-bottom:10px;">
+            <div>
+              <strong style="font-size:13.5px;">{feature.title}</strong>
+              <div class="text-xs text-muted">{feature.icon} · {feature.description}</div>
+            </div>
+            <form method="POST" action="/admin/content">
+              <input type="hidden" name="_csrf" value={csrf} />
+              <input type="hidden" name="action" value="delete_feature" />
+              <input type="hidden" name="feature_id" value={feature.id} />
+              <button type="submit" class="icon-btn danger" data-confirm="Remove this feature tile?" aria-label="Delete feature">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+              </button>
+            </form>
+          </div>
+        ))}
+        {features.length === 0 && <p class="text-sm text-muted">No feature tiles yet.</p>}
+      </div>
+
+      <form method="POST" action="/admin/content" class="admin-inline-form">
+        <input type="hidden" name="_csrf" value={csrf} />
+        <input type="hidden" name="action" value="add_feature" />
+        <div class="field" style="width:110px;">
+          <label for="icon">Icon</label>
+          <select class="select" id="icon" name="icon">
+            {['building', 'utensils', 'sparkles', 'shield', 'users', 'star', 'camera', 'music', 'flower', 'coffee'].map((icon) => (
+              <option value={icon}>{icon}</option>
+            ))}
+          </select>
+        </div>
+        <div class="field" style="min-width:200px;flex:1;">
+          <label for="title">Title</label>
+          <input class="input" id="title" name="title" placeholder="Four signature venues" required />
+        </div>
+        <div class="field" style="min-width:260px;flex:2;">
+          <label for="description">Description</label>
+          <input class="input" id="description" name="description" placeholder="From an 800-guest ballroom to a garden lawn." />
+        </div>
+        <button type="submit" class="btn btn-secondary btn-sm">Add tile</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="admin-panel">
+    <div class="admin-panel-head">
+      <div><h2>Page banners</h2><p>Hero copy for each listing page.</p></div>
+    </div>
+    <div class="admin-panel-body">
+      <div class="admin-grid-2">
+        {pages.map((page) => (
+          <form method="POST" action="/admin/content" class="admin-panel" enctype="multipart/form-data" style="border-style:dashed;">
+            <input type="hidden" name="_csrf" value={csrf} />
+            <input type="hidden" name="action" value="save_page" />
+            <input type="hidden" name="key" value={page.key} />
+            <div class="admin-panel-head"><div><h2>{pageLabels[page.key] ?? page.key}</h2></div></div>
+            <div class="admin-panel-body">
+              <div class="admin-form-grid">
+                <div class="field">
+                  <label>Title</label>
+                  <input class="input" name="hero_title" value={page.hero_title} />
+                </div>
+                <div class="field">
+                  <label>Subtitle</label>
+                  <input class="input" name="hero_subtitle" value={page.hero_subtitle} />
+                </div>
+                <div class="field">
+                  <label>Badge</label>
+                  <input class="input" name="hero_badge" value={page.hero_badge} />
+                </div>
+                <div class="field">
+                  <label>Banner image</label>
+                  {page.hero_image && <img class="admin-thumb" style="width:100%;height:110px;object-fit:cover;" src={imageUrl(page.hero_image)} alt="" />}
+                  <input class="input" type="file" name="hero_image" accept="image/*" />
+                  <input type="hidden" name="hero_image_path" value="" />
+                  <span class="hint" data-file-name>Upload replaces the current banner.</span>
+                </div>
+                <button type="submit" class="btn btn-secondary btn-sm">Save banner</button>
+              </div>
+            </div>
+          </form>
+        ))}
+      </div>
+    </div>
+  </div>
+</AdminLayout>

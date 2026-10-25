@@ -1,0 +1,67 @@
+/* ---------- Rooms page ---------- */
+.room-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: var(--surface);
+}
+.room-row + .room-row { margin-top: 24px; }
+.room-row.image-right { grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); }
+.room-row.image-right .room-row-media { order: 2; }
+.room-row-media { position: relative; background: var(--surface-2); min-height: 320px; }
+.room-row-media img { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; }
+.room-row-fallback {
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--line-strong);
+}
+.room-row-body { padding: 30px; display: flex; flex-direction: column; gap: 14px; }
+.room-index {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--gold);
+}
+.room-row-body h3 { font-size: 1.3rem; letter-spacing: -0.02em; }
+.room-description { font-size: 13.5px; color: var(--body); line-height: 1.65; }
+.room-features { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px 16px; }
+.room-features li { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
+.room-check {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--success-soft);
+  color: var(--success);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.room-row-facts { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 12.5px; color: var(--body); }
+.room-row-facts span { display: inline-flex; align-items: center; gap: 6px; }
+.room-row-foot {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.room-row.selected { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(169, 134, 47, 0.12); }
+
+@media (max-width: 900px) {
+  .room-row,
+  .room-row.image-right { grid-template-columns: 1fr; }
+  .room-row.image-right .room-row-media { order: 0; }
+  .room-row-media,
+  .room-row-fallback { min-height: 220px; }
+  .room-row-body { padding: 22px; }
+}

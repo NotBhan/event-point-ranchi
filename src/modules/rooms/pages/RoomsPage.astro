@@ -1,0 +1,113 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Icon from '../../../components/Icon.astro';
+import { formatMoney, imageUrl } from '../../../core/http';
+import type { loadRoomsPage } from '../service';
+import '../rooms.css';
+
+interface Props {
+  data: ReturnType<typeof loadRoomsPage>;
+}
+
+const { data } = Astro.props;
+const { settings, rooms } = data;
+---
+
+<BaseLayout title="Rooms & Bridal Suites | Royal Palace" description={settings.hero_subtitle}>
+  <section class:list={['page-hero', { 'with-image': Boolean(settings.hero_image) }]}>
+    {settings.hero_image && <img class="page-hero-media" src={imageUrl(settings.hero_image)} alt="" />}
+    <div class="container">
+      {settings.hero_badge && <span class="eyebrow">{settings.hero_badge}</span>}
+      <h1>{settings.hero_title}</h1>
+      <p>{settings.hero_subtitle}</p>
+    </div>
+  </section>
+
+  <div class="container detail-layout" data-rooms>
+    <div class="detail-main">
+      <div class="section-head">
+        <h2>Choose your rooms</h2>
+        <p>Increase the quantity beside any room type and it is added to your event cart instantly.</p>
+      </div>
+
+      {rooms.length === 0 ? (
+        <div class="empty-state">
+          <div class="empty-icon"><Icon name="bed" size={24} /></div>
+          <h3>No rooms available</h3>
+          <p>Please check again later.</p>
+        </div>
+      ) : (
+        rooms.map((room, index) => (
+          <article
+            class:list={['room-row', index % 2 === 1 ? 'image-right' : '']}
+            data-room-card
+            data-id={room.id}
+            data-name={room.name}
+            data-price={room.price_paise}
+            data-total={room.total_rooms}
+          >
+            <div class="room-row-media">
+              {room.image ? (
+                <img src={imageUrl(room.image)} alt={room.name} loading="lazy" />
+              ) : (
+                <div class="room-row-fallback"><Icon name="bed" size={32} /></div>
+              )}
+              {room.image && (
+                <button
+                  type="button"
+                  class="stage-zoom"
+                  data-lightbox
+                  data-src={imageUrl(room.image)}
+                  data-caption={room.name}
+                  aria-label={`View ${room.name}`}
+                >
+                  <Icon name="eye" size={14} />
+                </button>
+              )}
+            </div>
+
+            <div class="room-row-body">
+              <span class="room-index">{String(index + 1).padStart(2, '0')}</span>
+              <h3>{room.name}</h3>
+              {room.description && <p class="room-description">{room.description}</p>}
+
+              <ul class="room-features">
+                {room.features.map((feature) => (
+                  <li>
+                    <span class="room-check"><Icon name="check" size={11} /></span>
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+
+              <div class="room-row-facts">
+                <span><Icon name="users" size={14} /> Up to {room.capacity} guests</span>
+                <span><Icon name="bed" size={14} /> {room.total_rooms} rooms in this category</span>
+              </div>
+
+              <div class="room-row-foot">
+                <div>
+                  <div class="price price-lg">{formatMoney(room.price_paise)}</div>
+                  <div class="text-xs text-muted">per night</div>
+                </div>
+                <div class="qty">
+                  <button type="button" data-room-minus aria-label="Fewer rooms">−</button>
+                  <span data-room-qty>0</span>
+                  <button type="button" data-room-plus aria-label="More rooms">+</button>
+                </div>
+              </div>
+            </div>
+          </article>
+        ))
+      )}
+    </div>
+
+    <aside class="detail-aside">
+      <div class="summary-card" data-event-summary></div>
+    </aside>
+  </div>
+
+  <script>
+    import '../../../client/rooms';
+  </script>
+</BaseLayout>

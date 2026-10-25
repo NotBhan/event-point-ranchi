@@ -1,0 +1,206 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import HallCard from '../../../components/HallCard.astro';
+import Icon from '../../../components/Icon.astro';
+import { formatMoney, imageUrl } from '../../../core/http';
+import type { HomeData } from '../service';
+
+interface Props {
+  data: HomeData;
+}
+
+const { data } = Astro.props;
+const { hero, features, halls, rooms, packages, contact, stats } = data;
+
+const steps = [
+  ['01', 'First conversation', 'We walk the venue with you and map out guest flow, dates and budget.'],
+  ['02', 'Design & menu', 'Stage concepts, seating plans and a tasting session for your menu selections.'],
+  ['03', 'Production', 'Our team handles décor, catering, staffing, lighting and vendor coordination.'],
+  ['04', 'Event day', 'A dedicated planner stays on site from setup to the final farewell.'],
+];
+---
+
+<BaseLayout title="Royal Palace | Luxury Venues, Catering & Event Management in Ranchi">
+  <section class="hero">
+    {hero.image && <img class="hero-media" src={imageUrl(hero.image)} alt="" />}
+    <div class="container hero-inner">
+      <span class="eyebrow" style="color:var(--gold-bright);">Royal Palace · Ranchi</span>
+      <h1>{hero.title}</h1>
+      <p>{hero.description}</p>
+      <div class="hero-actions">
+        <a href="/halls" class="btn btn-gold btn-lg">
+          Reserve your venue <Icon name="arrow-right" size={16} />
+        </a>
+        <a href="/catering" class="btn btn-secondary btn-lg">Explore catering</a>
+      </div>
+      <div class="hero-meta">
+        <div><strong>{stats.halls}</strong><span>Signature venues</span></div>
+        <div><strong>{stats.rooms}</strong><span>Room categories</span></div>
+        <div><strong>{stats.packages}</strong><span>Catering menus</span></div>
+        <div><strong>15+</strong><span>Years hosting</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head">
+        <span class="eyebrow">Why Royal Palace</span>
+        <h2>One team for the venue, the menu and everything in between.</h2>
+        <p>Plan a full celebration without juggling vendors — halls, rooms, catering and production are all handled in-house.</p>
+      </div>
+      <div class="grid-4">
+        {features.map((feature) => (
+          <div class="feature-tile">
+            <div class="tile-icon"><Icon name={feature.icon} size={20} /></div>
+            <h3>{feature.title}</h3>
+            <p>{feature.description}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-warm">
+    <div class="container">
+      <div class="section-head" style="display:flex;justify-content:space-between;align-items:flex-end;gap:24px;max-width:none;">
+        <div>
+          <span class="eyebrow">Venues</span>
+          <h2>Our premium banquet halls</h2>
+          <p>From an 800-guest grand ballroom to an open-air garden lawn.</p>
+        </div>
+        <a href="/halls" class="btn btn-secondary">View all halls <Icon name="arrow-right" size={15} /></a>
+      </div>
+      <div class="card-grid">
+        {halls.map((hall) => <HallCard hall={hall} />)}
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head" style="display:flex;justify-content:space-between;align-items:flex-end;gap:24px;max-width:none;">
+        <div>
+          <span class="eyebrow">Stay</span>
+          <h2>Rooms for the couple and your guests</h2>
+          <p>Bridal preparation suites, family rooms and executive accommodation on site.</p>
+        </div>
+        <a href="/rooms" class="btn btn-secondary">Browse rooms <Icon name="arrow-right" size={15} /></a>
+      </div>
+      <div class="card-grid">
+        {rooms.map((room) => (
+          <article class="room-tile">
+            <div class="room-tile-media">
+              {room.image && <img src={imageUrl(room.image)} alt={room.name} loading="lazy" />}
+            </div>
+            <div class="room-tile-body">
+              <h3>{room.name}</h3>
+              <p>{room.description}</p>
+              <div class="room-tile-features">
+                {room.features.slice(0, 3).map((feature) => <span>{feature}</span>)}
+              </div>
+              <div class="hall-card-foot">
+                <div>
+                  <div class="price price-lg">{formatMoney(room.price_paise)}</div>
+                  <div class="text-xs text-muted">per night · {room.capacity} guests</div>
+                </div>
+                <button
+                  type="button"
+                  class="btn btn-primary btn-sm"
+                  data-add-room
+                  data-id={room.id}
+                  data-name={room.name}
+                  data-price={room.price_paise}
+                >
+                  Add room
+                </button>
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-warm">
+    <div class="container">
+      <div class="section-head" style="display:flex;justify-content:space-between;align-items:flex-end;gap:24px;max-width:none;">
+        <div>
+          <span class="eyebrow">Catering</span>
+          <h2>Menus built with your family</h2>
+          <p>Choose a package, then pick every course item by item with our kitchen team.</p>
+        </div>
+        <a href="/catering" class="btn btn-secondary">All packages <Icon name="arrow-right" size={15} /></a>
+      </div>
+      <div class="card-grid">
+        {packages.map((pkg) => (
+          <article class="package-card">
+            <div class="package-card-media">
+              {pkg.image && <img src={imageUrl(pkg.image)} alt={pkg.name} loading="lazy" />}
+              {pkg.badge && <span class="badge badge-gold">{pkg.badge}</span>}
+            </div>
+            <div class="package-card-body">
+              <h3>{pkg.name}</h3>
+              <p class="description">{pkg.description}</p>
+              <ul class="feature-list">
+                {pkg.features.slice(0, 3).map((feature) => (
+                  <li>
+                    <Icon name="check" size={14} />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+              <div class="package-card-foot">
+                <div>
+                  <div class="price price-lg">{formatMoney(pkg.price_paise)}</div>
+                  <div class="text-xs text-muted">per plate</div>
+                </div>
+                <a href={`/catering/${pkg.slug}`} class="btn btn-primary btn-sm">View menu</a>
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-dark">
+    <div class="container">
+      <div class="section-head">
+        <span class="eyebrow">How we work</span>
+        <h2>Four steps from first visit to final farewell.</h2>
+        <p>A single planner guides you through every decision and stays with you on event day.</p>
+      </div>
+      <div class="process-grid">
+        {steps.map(([index, title, description]) => (
+          <div class="process-card">
+            <span class="step-index">Step {index}</span>
+            <h3>{title}</h3>
+            <p>{description}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="contact-strip">
+        <div>
+          <span class="eyebrow" style="color:var(--gold-bright);">Let's plan</span>
+          <h2>Tell us about your event.</h2>
+          <p>
+            Sharing your date, guest count and vision is enough to get started. Our team replies within one working day.
+          </p>
+          <p style="margin-top:8px;">
+            <strong style="color:#fff;">{contact.phone}</strong> · <strong style="color:#fff;">{contact.email}</strong>
+          </p>
+        </div>
+        <div class="contact-actions">
+          <a href="/contact" class="btn btn-gold btn-lg">Start an enquiry</a>
+          <a href="/booking/overview" class="btn btn-secondary btn-lg">Review my cart</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

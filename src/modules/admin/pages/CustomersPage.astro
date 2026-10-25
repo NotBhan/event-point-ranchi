@@ -1,0 +1,63 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { formatDate, formatMoney } from '../../../core/http';
+import type { listCustomers } from '../service';
+
+interface Props {
+  customers: ReturnType<typeof listCustomers>;
+  query: string;
+}
+
+const { customers, query } = Astro.props;
+---
+
+<AdminLayout title="Customers" description={`${customers.length} customer records.`}>
+  <div class="admin-panel">
+    <div class="admin-panel-head">
+      <form method="GET" action="/admin/customers" class="admin-toolbar">
+        <input class="input" type="search" name="q" value={query} placeholder="Search name, phone or email…" />
+        <button type="submit" class="btn btn-secondary btn-sm">Search</button>
+        {query && <a href="/admin/customers" class="btn btn-ghost btn-sm">Clear</a>}
+      </form>
+    </div>
+    <div class="admin-panel-body flush">
+      {customers.length === 0 ? (
+        <div class="admin-empty">No customers found.</div>
+      ) : (
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Customer</th>
+                <th>Contact</th>
+                <th>Joined</th>
+                <th>Bookings</th>
+                <th>Lifetime value</th>
+                <th style="text-align:right;"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {customers.map((customer) => (
+                <tr>
+                  <td><a href={`/admin/customers/${customer.id}`} style="font-weight:600;color:var(--ink);">{customer.name}</a></td>
+                  <td>
+                    {customer.phone}
+                    <div class="text-xs text-muted">{customer.email || '—'}</div>
+                  </td>
+                  <td class="text-xs">{formatDate(customer.created_at)}</td>
+                  <td>{customer.booking_count}</td>
+                  <td class="money">{formatMoney(customer.total_spend)}</td>
+                  <td>
+                    <div class="admin-row-actions">
+                      <a href={`/admin/customers/${customer.id}`} class="btn btn-secondary btn-sm">Open</a>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  </div>
+</AdminLayout>

@@ -1,0 +1,136 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { imageUrl } from '../../../core/http';
+import type { listGalleryAdmin } from '../service';
+
+interface Props {
+  categories: ReturnType<typeof listGalleryAdmin>['categories'];
+  items: ReturnType<typeof listGalleryAdmin>['items'];
+}
+
+const { categories, items } = Astro.props;
+const csrf = Astro.locals.csrf;
+---
+
+<AdminLayout title="Gallery" description={`${items.length} images across ${categories.length} categories.`}>
+  <div class="admin-grid-2">
+    <div class="admin-panel">
+      <div class="admin-panel-head"><div><h2>Upload an image</h2><p>JPG, PNG, WEBP or AVIF up to 8 MB.</p></div></div>
+      <div class="admin-panel-body">
+        <form method="POST" action="/admin/gallery" class="admin-form-grid" enctype="multipart/form-data">
+          <input type="hidden" name="_csrf" value={csrf} />
+          <input type="hidden" name="action" value="add_item" />
+
+          <div class="field">
+            <label for="category_id">Category</label>
+            <select class="select" id="category_id" name="category_id" required>
+              {categories.map((category) => (
+                <option value={category.id}>{category.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="title">Caption</label>
+            <input class="input" id="title" name="title" placeholder="Grand ballroom at golden hour" />
+          </div>
+
+          <div class="field">
+            <label for="image">Image *</label>
+            <input class="input" type="file" id="image" name="image" accept="image/*" required />
+            <span class="hint" data-file-name>Choose a photo to upload.</span>
+          </div>
+
+          <div class="field">
+            <label for="image_path">…or paste an existing image path</label>
+            <input class="input" id="image_path" name="image_path" placeholder="/images/archive/example.jpg" />
+          </div>
+
+          <button type="submit" class="btn btn-primary">Add to gallery</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="admin-panel">
+      <div class="admin-panel-head"><div><h2>Categories</h2><p>Filters shown on the public gallery.</p></div></div>
+      <div class="admin-panel-body">
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+          {categories.map((category) => (
+            <div class="flex-between" style="gap:10px;border-bottom:1px solid var(--line);padding-bottom:8px;">
+              <div>
+                <strong style="font-size:13.5px;">{category.name}</strong>
+                <div class="text-xs text-muted">{category.item_count} images</div>
+              </div>
+              <div class="admin-row-actions">
+                <span class:list={['badge', category.is_active ? 'badge-success' : 'badge-muted']}>{category.is_active ? 'live' : 'hidden'}</span>
+                <form method="POST" action="/admin/gallery">
+                  <input type="hidden" name="_csrf" value={csrf} />
+                  <input type="hidden" name="action" value="toggle_category" />
+                  <input type="hidden" name="category_id" value={category.id} />
+                  <button type="submit" class="btn btn-secondary btn-sm">Toggle</button>
+                </form>
+                <form method="POST" action="/admin/gallery">
+                  <input type="hidden" name="_csrf" value={csrf} />
+                  <input type="hidden" name="action" value="delete_category" />
+                  <input type="hidden" name="category_id" value={category.id} />
+                  <button type="submit" class="icon-btn danger" data-confirm={`Delete "${category.name}" and its ${category.item_count} images?`} aria-label="Delete category">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                  </button>
+                </form>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <form method="POST" action="/admin/gallery" class="admin-inline-form">
+          <input type="hidden" name="_csrf" value={csrf} />
+          <input type="hidden" name="action" value="add_category" />
+          <div class="field" style="flex:1;">
+            <label for="category_name">New category</label>
+            <input class="input" id="category_name" name="name" placeholder="Destination weddings" required />
+          </div>
+          <button type="submit" class="btn btn-secondary btn-sm">Add category</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="admin-panel">
+    <div class="admin-panel-head"><div><h2>Images</h2><p>Newest first. Click toggle to hide an image without deleting it.</p></div></div>
+    <div class="admin-panel-body">
+      {items.length === 0 ? (
+        <div class="admin-empty">No images uploaded yet.</div>
+      ) : (
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;">
+          {items.map((item) => (
+            <div style="border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden;background:var(--surface);">
+              <img src={imageUrl(item.image)} alt={item.title} style="width:100%;height:130px;object-fit:cover;" loading="lazy" />
+              <div style="padding:10px 12px;">
+                <div style="font-size:12.5px;color:var(--ink-2);min-height:34px;">{item.title || 'Untitled'}</div>
+                <div class="admin-row-actions" style="margin-top:8px;justify-content:space-between;">
+                  <span class:list={['badge', item.is_active ? 'badge-success' : 'badge-muted']}>{item.is_active ? 'live' : 'hidden'}</span>
+                  <div style="display:flex;gap:6px;">
+                    <form method="POST" action="/admin/gallery">
+                      <input type="hidden" name="_csrf" value={csrf} />
+                      <input type="hidden" name="action" value="toggle_item" />
+                      <input type="hidden" name="item_id" value={item.id} />
+                      <button type="submit" class="btn btn-secondary btn-sm">Toggle</button>
+                    </form>
+                    <form method="POST" action="/admin/gallery">
+                      <input type="hidden" name="_csrf" value={csrf} />
+                      <input type="hidden" name="action" value="delete_item" />
+                      <input type="hidden" name="item_id" value={item.id} />
+                      <button type="submit" class="icon-btn danger" data-confirm="Delete this image?" aria-label="Delete image">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  </div>
+</AdminLayout>

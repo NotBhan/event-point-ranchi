@@ -1,0 +1,112 @@
+---
+import { getDb } from '../core/db';
+import { getNav } from '../core/registry';
+
+const auth = Astro.locals.auth;
+const csrf = Astro.locals.csrf;
+const path = Astro.url.pathname;
+const nav = getNav();
+const halls = getDb()
+  .prepare('SELECT name, slug FROM halls WHERE is_active = 1 ORDER BY name')
+  .all() as Array<{ name: string; slug: string }>;
+
+const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWith(href));
+---
+
+<header class="site-header" id="siteHeader">
+  <div class="container header-inner">
+    <a href="/" class="brand" aria-label="Royal Palace home">
+      <img src="/images/logo1.png" alt="Royal Palace" />
+      <span class="brand-text">
+        <strong>Royal Palace</strong>
+        <span>Event Management</span>
+      </span>
+    </a>
+
+    <nav class="nav-menu" id="primaryNav" aria-label="Primary navigation">
+      {nav.map((item) => (
+        <a href={item.href} class:list={['nav-link', { active: isActive(item.href) }]}>{item.label}</a>
+      ))}
+      <div class="nav-item">
+        <button type="button" class="nav-link" aria-haspopup="true">Venues <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button>
+        <div class="nav-dropdown">
+          <div>
+            <div class="dropdown-label">Signature Venues</div>
+            <div class="dropdown-venues">
+              {halls.map((hall) => (
+                <a class="dropdown-venue" href={`/halls/${hall.slug}`}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg>
+                  {hall.name}
+                </a>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div class="dropdown-label">Plan Your Event</div>
+            <a class="dropdown-service" href="/halls">
+              <span class="service-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>
+              </span>
+              <span><strong>Banquet Halls</strong><small>Compare capacity, pricing and availability</small></span>
+            </a>
+            <a class="dropdown-service" href="/rooms">
+              <span class="service-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2 20v-8a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v8"/><path d="M2 16h20"/><path d="M6 10V6h5v4"/></svg>
+              </span>
+              <span><strong>Bridal & Guest Rooms</strong><small>On-site suites for family and guests</small></span>
+            </a>
+            <a class="dropdown-service" href="/catering">
+              <span class="service-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 3v8a2 2 0 0 0 2 2 2 2 0 0 0 2-2V3"/><path d="M9 13v8"/><path d="M17 3c-1.5 2-2 4-2 6a3 3 0 0 0 3 3V3"/><path d="M18 12v9"/></svg>
+              </span>
+              <span><strong>Catering Packages</strong><small>Build a menu section by section</small></span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <div class="nav-actions">
+      <button type="button" class="cart-link" data-open-cart aria-label="Open event cart">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 2-1.6L21 8H6"/></svg>
+        <span class="cart-label">Cart</span>
+        <span class="cart-count" data-cart-count>0</span>
+      </button>
+
+      {auth.user ? (
+        <div class="user-menu" data-user-menu>
+          <button type="button" class="user-menu-btn" data-user-toggle aria-expanded="false">
+            <span class="avatar" style="width:26px;height:26px;font-size:10px;">{auth.user.firstName.slice(0, 1).toUpperCase()}</span>
+            <span>{auth.user.firstName}</span>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="user-menu-panel">
+            <a href="/profile"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg> My profile</a>
+            <a href="/my-bookings"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg> My bookings</a>
+            {auth.isAdmin && (
+              <a href="/admin"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg> Admin dashboard</a>
+            )}
+            <div class="user-menu-divider"></div>
+            <form method="POST" action="/logout">
+              <input type="hidden" name="_csrf" value={csrf} />
+              <button type="submit" class="user-menu-link danger-link">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+                Log out
+              </button>
+            </form>
+          </div>
+        </div>
+      ) : (
+        <div class="nav-auth">
+          <a href="/login" class="btn btn-ghost btn-sm">Log in</a>
+          <a href="/register" class="btn btn-primary btn-sm btn-register">Register</a>
+        </div>
+      )}
+
+      <button type="button" class="nav-toggle" data-nav-toggle aria-label="Open menu" aria-expanded="false">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="nav-backdrop" data-nav-close></div>
+</header>

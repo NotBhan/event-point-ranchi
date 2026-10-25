@@ -1,0 +1,68 @@
+---
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import CartSidebar from '../components/CartSidebar.astro';
+import Toast from '../components/Toast.astro';
+import { site } from '../core/config';
+import '../styles/tokens.css';
+import '../styles/base.css';
+import '../styles/components.css';
+import '../styles/layout.css';
+import '../styles/cards.css';
+
+interface Props {
+  title?: string;
+  description?: string;
+  noCart?: boolean;
+  bodyClass?: string;
+}
+
+const {
+  title = `${site.name} | Luxury Venues & Event Management`,
+  description = site.shortDescription,
+  noCart = false,
+  bodyClass = '',
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#171717" />
+    <link rel="icon" type="image/png" href="/images/logo1.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <slot name="head" />
+  </head>
+  <body class={bodyClass}>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <Header />
+    <Toast flash={Astro.locals.flash} />
+    <main id="main">
+      <slot />
+    </main>
+    <Footer />
+    {!noCart && <CartSidebar />}
+    <div class="lightbox" id="lightbox" data-lightbox-root>
+      <button type="button" class="lightbox-close" data-lightbox-close aria-label="Close image">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+      <img src="" alt="" data-lightbox-image />
+      <div class="lightbox-caption" data-lightbox-caption></div>
+    </div>
+
+    <script>
+      import '../client/nav';
+      import '../client/cart-ui';
+      import '../client/lightbox';
+    </script>
+  </body>
+</html>

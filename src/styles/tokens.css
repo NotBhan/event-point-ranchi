@@ -1,0 +1,81 @@
+:root {
+  /* Ink & text */
+  --ink: #171717;
+  --ink-2: #2c2b29;
+  --body: #5f636b;
+  --muted: #8a8e96;
+  --on-dark: #ffffff;
+  --on-dark-soft: #b7b3aa;
+
+  /* Surfaces */
+  --canvas: #ffffff;
+  --canvas-warm: #fbfaf7;
+  --surface: #ffffff;
+  --surface-2: #f7f5ef;
+  --surface-3: #f0ece2;
+  --dark: #141312;
+  --dark-2: #1e1c19;
+  --dark-3: #2a2723;
+
+  /* Lines */
+  --line: #e9e5db;
+  --line-strong: #d9d3c5;
+  --line-dark: #34302a;
+
+  /* Brand gold */
+  --gold: #a9862f;
+  --gold-bright: #d4af37;
+  --gold-soft: #f7f0dc;
+  --gold-ink: #6b5316;
+
+  /* Semantic */
+  --success: #15803d;
+  --success-soft: #f0fdf4;
+  --success-line: #bbf7d0;
+  --danger: #b91c1c;
+  --danger-soft: #fef2f2;
+  --danger-line: #fecaca;
+  --warning: #a16207;
+  --warning-soft: #fffbeb;
+  --warning-line: #fde68a;
+  --info: #0d6ea8;
+  --info-soft: #eff6ff;
+  --info-line: #bfdbfe;
+
+  /* Typography */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Radius */
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+  --r-2xl: 24px;
+  --r-pill: 9999px;
+
+  /* Spacing */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+  --sp-16: 64px;
+  --sp-24: 96px;
+
+  /* Depth */
+  --shadow-xs: 0 1px 2px rgba(23, 23, 23, 0.05);
+  --shadow-sm: 0 1px 2px rgba(23, 23, 23, 0.04), 0 4px 12px rgba(23, 23, 23, 0.04);
+  --shadow-md: 0 2px 4px rgba(23, 23, 23, 0.04), 0 12px 32px rgba(23, 23, 23, 0.08);
+  --shadow-lg: 0 8px 24px rgba(23, 23, 23, 0.1), 0 24px 64px rgba(23, 23, 23, 0.12);
+
+  --header-height: 72px;
+  --container: 1200px;
+  --container-narrow: 880px;
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+}

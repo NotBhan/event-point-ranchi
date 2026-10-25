@@ -1,0 +1,112 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { formatDate, formatDateTime, formatMoney } from '../../../core/http';
+import type { QuotationData } from '../../bookings/service';
+
+interface Props {
+  data?: QuotationData;
+  notFound?: boolean;
+}
+
+const { data, notFound = false } = Astro.props;
+const csrf = Astro.locals.csrf;
+const statuses = ['pending', 'confirmed', 'cancelled', 'draft'];
+---
+
+{notFound || !data ? (
+  <AdminLayout title="Booking not found">
+    <div class="admin-panel">
+      <div class="admin-empty">
+        This booking does not exist. <a href="/admin/bookings" style="color:var(--gold-ink);font-weight:600;">Back to bookings</a>
+      </div>
+    </div>
+  </AdminLayout>
+) : (
+  <AdminLayout title={`Booking #${data.booking.id}`} description={`${data.customer.name} · ${data.booking.event_type}`}>
+    <div class="admin-toolbar">
+      <a href="/admin/bookings" class="btn btn-secondary btn-sm">← All bookings</a>
+      <a href={`/booking/${data.booking.id}/quotation`} class="btn btn-secondary btn-sm" target="_blank" rel="noopener">Open invoice</a>
+      <span class="badge">{data.booking.status}</span>
+    </div>
+
+    <div class="admin-grid-3">
+      <div class="admin-panel">
+        <div class="admin-panel-head"><div><h2>Event</h2></div></div>
+        <div class="admin-panel-body">
+          <div class="summary-row"><div class="summary-left"><small>Event date</small><h4>{formatDate(data.booking.event_date)}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Start time</small><h4>{data.booking.event_time || '—'}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Type</small><h4>{data.booking.event_type}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Guests</small><h4>{data.booking.total_guest}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Created</small><h4>{formatDateTime(data.booking.created_at)}</h4></div></div>
+        </div>
+      </div>
+
+      <div class="admin-panel">
+        <div class="admin-panel-head"><div><h2>Customer</h2></div></div>
+        <div class="admin-panel-body">
+          <div class="summary-row"><div class="summary-left"><small>Name</small><h4>{data.customer.name}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Phone</small><h4>{data.customer.phone || '—'}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Email</small><h4>{data.customer.email || '—'}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Address</small><h4>{data.customer.address || '—'}</h4></div></div>
+        </div>
+      </div>
+
+      <div class="admin-panel">
+        <div class="admin-panel-head"><div><h2>Update status</h2></div></div>
+        <div class="admin-panel-body">
+          <form method="POST" action={`/admin/bookings/${data.booking.id}`} class="form-grid">
+            <input type="hidden" name="_csrf" value={csrf} />
+            <input type="hidden" name="action" value="update_status" />
+            <div class="field">
+              <label for="status">Booking status</label>
+              <select class="select" id="status" name="status">
+                {statuses.map((status) => (
+                  <option value={status} selected={data.booking.status === status}>{status}</option>
+                ))}
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Save status</button>
+          </form>
+
+          <form method="POST" action={`/admin/bookings/${data.booking.id}`} style="margin-top:16px;">
+            <input type="hidden" name="_csrf" value={csrf} />
+            <input type="hidden" name="action" value="delete" />
+            <button type="submit" class="btn btn-danger-soft btn-block" data-confirm="Delete this booking permanently?">
+              Delete booking
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="admin-panel">
+      <div class="admin-panel-head">
+        <div><h2>Items &amp; pricing</h2><p>Server-verified line items</p></div>
+        <strong class="money" style="font-size:1.05rem;">{formatMoney(data.booking.total_amount)}</strong>
+      </div>
+      <div class="admin-panel-body flush">
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr><th>Category</th><th>Details</th><th style="text-align:right;">Amount</th></tr>
+            </thead>
+            <tbody>
+              {data.lines.map((line) => (
+                <tr>
+                  <td><strong>{line.label}</strong></td>
+                  <td>{line.detail}</td>
+                  <td class="money" style="text-align:right;">{formatMoney(line.amount)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {data.booking.special_request && (
+        <div class="admin-panel-body">
+          <div class="muted-box"><strong>Special requests:</strong> {data.booking.special_request}</div>
+        </div>
+      )}
+    </div>
+  </AdminLayout>
+)}

@@ -1,0 +1,153 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import AccountSidebar from '../../../components/AccountSidebar.astro';
+import Icon from '../../../components/Icon.astro';
+import { formatDate, formatMoney } from '../../../core/http';
+import type { CustomerRow, UserRow } from '../service';
+import '../accounts.css';
+
+interface Props {
+  customer: CustomerRow;
+  recentBookings: Array<{
+    id: number;
+    event_date: string | null;
+    event_type: string;
+    total_amount: number;
+    status: string;
+  }>;
+  user: UserRow & { firstName?: string };
+}
+
+const { customer, recentBookings } = Astro.props;
+const user = Astro.locals.auth.user!;
+const csrf = Astro.locals.csrf;
+
+const statusClass: Record<string, string> = {
+  draft: 'badge-muted',
+  pending: 'badge-warning',
+  confirmed: 'badge-success',
+  cancelled: 'badge-danger',
+};
+---
+
+<BaseLayout title="My profile | Royal Palace" noCart>
+  <section class="account-page">
+    <div class="container">
+      <div class="account-header">
+        <h1>My account</h1>
+        <p>Manage your profile, password and bookings.</p>
+      </div>
+
+      <div class="account-grid">
+        <AccountSidebar user={{ firstName: user.firstName, email: user.email }} active="profile" isAdmin={Astro.locals.auth.isAdmin} />
+
+        <div class="account-content">
+          {Astro.locals.auth.isAdmin && (
+            <div class="admin-banner">
+              <div>
+                <h3><Icon name="shield" size={16} /> Staff access active</h3>
+                <p>You can manage bookings, venues and content from the admin console.</p>
+              </div>
+              <a href="/admin" class="btn btn-secondary btn-sm">Open admin console</a>
+            </div>
+          )}
+
+          <div class="account-card">
+            <div class="account-card-title"><span>Personal details</span></div>
+            <form method="POST" action="/profile" class="form-grid">
+              <input type="hidden" name="_csrf" value={csrf} />
+              <input type="hidden" name="action" value="update_profile" />
+
+              <div class="form-grid cols-3">
+                <div class="field">
+                  <label for="name">Full name</label>
+                  <input class="input" id="name" name="name" required value={customer.name} />
+                </div>
+                <div class="field">
+                  <label for="email">Email address</label>
+                  <input class="input" id="email" name="email" type="email" value={customer.email ?? ''} />
+                </div>
+                <div class="field">
+                  <label for="phone">Phone number</label>
+                  <input class="input" id="phone" name="phone" value={customer.phone} />
+                </div>
+              </div>
+
+              <div class="field">
+                <label for="address">Billing / mailing address</label>
+                <textarea class="textarea" id="address" name="address" rows="3">{customer.address ?? ''}</textarea>
+              </div>
+
+              <div style="text-align:right;">
+                <button type="submit" class="btn btn-primary">Save profile</button>
+              </div>
+            </form>
+          </div>
+
+          <div class="account-card">
+            <div class="account-card-title"><span>Security</span></div>
+            <form method="POST" action="/change-password" class="form-grid">
+              <input type="hidden" name="_csrf" value={csrf} />
+
+              <div class="form-grid cols-3">
+                <div class="field">
+                  <label for="current_password">Current password</label>
+                  <input class="input" id="current_password" name="current_password" type="password" required />
+                </div>
+                <div class="field">
+                  <label for="new_password">New password</label>
+                  <input class="input" id="new_password" name="new_password" type="password" required />
+                </div>
+                <div class="field">
+                  <label for="confirm_password">Confirm new password</label>
+                  <input class="input" id="confirm_password" name="confirm_password" type="password" required />
+                </div>
+              </div>
+
+              <div style="text-align:right;">
+                <button type="submit" class="btn btn-secondary">Update password</button>
+              </div>
+            </form>
+          </div>
+
+          {recentBookings.length > 0 && (
+            <div class="account-card">
+              <div class="account-card-title">
+                <span>Recent bookings</span>
+                <a href="/my-bookings" class="text-sm" style="color:var(--gold-ink);font-weight:600;">View all →</a>
+              </div>
+              <div class="table-wrap">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Booking</th>
+                      <th>Event date</th>
+                      <th>Type</th>
+                      <th>Total</th>
+                      <th>Status</th>
+                      <th style="text-align:right;">Invoice</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentBookings.map((booking) => (
+                      <tr>
+                        <td><strong>#{booking.id}</strong></td>
+                        <td>{formatDate(booking.event_date)}</td>
+                        <td>{booking.event_type}</td>
+                        <td class="money">{formatMoney(booking.total_amount)}</td>
+                        <td><span class:list={['badge', statusClass[booking.status] ?? 'badge-muted']}>{booking.status}</span></td>
+                        <td style="text-align:right;">
+                          <a href={`/booking/${booking.id}/quotation`} class="btn btn-ghost btn-sm">View</a>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

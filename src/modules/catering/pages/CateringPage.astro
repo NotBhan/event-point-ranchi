@@ -1,0 +1,78 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Icon from '../../../components/Icon.astro';
+import { formatMoney, imageUrl } from '../../../core/http';
+import type { loadCateringPage } from '../service';
+import '../catering.css';
+
+interface Props {
+  data: ReturnType<typeof loadCateringPage>;
+}
+
+const { data } = Astro.props;
+const { settings, packages } = data;
+---
+
+<BaseLayout title="Catering Packages | Royal Palace" description={settings.hero_subtitle}>
+  <section class:list={['page-hero', { 'with-image': Boolean(settings.hero_image) }]}>
+    {settings.hero_image && <img class="page-hero-media" src={imageUrl(settings.hero_image)} alt="" />}
+    <div class="container">
+      {settings.hero_badge && <span class="eyebrow">{settings.hero_badge}</span>}
+      <h1>{settings.hero_title}</h1>
+      <p>{settings.hero_subtitle}</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head">
+        <h2>Packages for every celebration</h2>
+        <p>Build each course yourself — open a package to choose starters, mains, desserts and live counters.</p>
+      </div>
+
+      {packages.length === 0 ? (
+        <div class="empty-state">
+          <div class="empty-icon"><Icon name="utensils" size={24} /></div>
+          <h3>No catering packages available</h3>
+          <p>Please check again later.</p>
+        </div>
+      ) : (
+        <div class="package-rows">
+          {packages.map((pkg, index) => (
+            <article class:list={['package-row', index % 2 === 1 ? 'image-right' : '']}>
+              <div class="package-row-media">
+                {pkg.image ? (
+                  <img src={imageUrl(pkg.image)} alt={pkg.name} loading="lazy" />
+                ) : (
+                  <div class="room-row-fallback"><Icon name="utensils" size={32} /></div>
+                )}
+                {pkg.badge && <span class="badge badge-gold">{pkg.badge}</span>}
+              </div>
+
+              <div class="package-row-body">
+                <span class="room-index">{String(index + 1).padStart(2, '0')}</span>
+                <h3>{pkg.name}</h3>
+                <div class="price price-lg">
+                  {formatMoney(pkg.price_paise)} <span class="price-unit">/ plate</span>
+                </div>
+                {pkg.description && <p class="room-description">{pkg.description}</p>}
+
+                <ul class="feature-list">
+                  {[...pkg.features, ...pkg.bannerFeatures].map((feature) => (
+                    <li><Icon name="check" size={14} /> {feature}</li>
+                  ))}
+                </ul>
+
+                <div class="package-row-foot">
+                  <a href={`/catering/${pkg.slug}`} class="btn btn-primary">
+                    Build this menu <Icon name="arrow-right" size={15} />
+                  </a>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </div>
+  </section>
+</BaseLayout>

@@ -1,0 +1,111 @@
+/* ---------- Catering ---------- */
+.package-rows { display: flex; flex-direction: column; gap: 26px; }
+.package-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: var(--surface);
+}
+.package-row.image-right { grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); }
+.package-row.image-right .package-row-media { order: 2; }
+.package-row-media { position: relative; background: var(--surface-2); min-height: 340px; }
+.package-row-media img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.package-row-media .badge { position: absolute; top: 14px; left: 14px; }
+.package-row-body { padding: 32px; display: flex; flex-direction: column; gap: 12px; }
+.package-row-body h3 { font-size: 1.35rem; letter-spacing: -0.02em; }
+.package-row-body .feature-list { margin-top: 4px; }
+.package-row-foot { margin-top: auto; padding-top: 18px; }
+
+/* Guest pricing */
+.pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; }
+.price-card {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  text-align: left;
+  transition: border-color 0.15s var(--ease), background 0.15s var(--ease), transform 0.15s var(--ease);
+}
+.price-card:hover { transform: translateY(-2px); border-color: var(--line-strong); }
+.price-card h3 { font-size: 13px; color: var(--body); font-weight: 500; margin-bottom: 8px; }
+.price-card .plate-price { font-family: var(--font-mono); font-size: 1.5rem; color: var(--ink); letter-spacing: -0.03em; }
+.price-card .plate-unit { font-size: 11.5px; color: var(--muted); }
+.price-card.active { border-color: var(--gold); background: var(--gold-soft); box-shadow: 0 0 0 2px rgba(169, 134, 47, 0.14); }
+
+.plate-stepper {
+  margin-top: 18px;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--canvas-warm);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.plate-stepper strong { display: block; font-size: 13.5px; color: var(--ink); }
+.plate-stepper small { display: block; font-size: 12px; color: var(--muted); margin-top: 3px; }
+.plate-stepper-controls { display: flex; align-items: center; gap: 6px; }
+.stepper-btn {
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.stepper-btn:hover { border-color: var(--ink); }
+.stepper-input {
+  width: 88px;
+  height: 36px;
+  text-align: center;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+/* Menu sections */
+.menu-section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+.menu-section-badges { display: flex; gap: 8px; flex-wrap: wrap; }
+.badge.limit-reached { background: var(--danger-soft); border-color: var(--danger-line); color: var(--danger); }
+.menu-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.menu-item-tile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--ink-2);
+  transition: border-color 0.15s var(--ease), background 0.15s var(--ease);
+}
+.menu-item-tile:hover { border-color: var(--line-strong); background: var(--canvas-warm); }
+.menu-item-tile input { width: 16px; height: 16px; accent-color: var(--gold); flex-shrink: 0; }
+.menu-item-tile.checked { border-color: var(--gold); background: var(--gold-soft); }
+
+@media (max-width: 900px) {
+  .package-row,
+  .package-row.image-right { grid-template-columns: 1fr; }
+  .package-row.image-right .package-row-media { order: 0; }
+  .package-row-media { min-height: 220px; }
+  .package-row-body { padding: 22px; }
+}

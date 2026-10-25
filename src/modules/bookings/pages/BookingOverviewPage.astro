@@ -1,0 +1,122 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Icon from '../../../components/Icon.astro';
+import { eventTypes } from '../../../core/config';
+import '../bookings.css';
+
+interface Props {
+  csrf: string;
+  prefill: { name?: string; phone?: string; email?: string; address?: string };
+}
+
+const { csrf, prefill } = Astro.props;
+const today = new Date().toISOString().slice(0, 10);
+---
+
+<BaseLayout title="Booking overview | Royal Palace" noCart>
+  <section class="page-hero">
+    <div class="container">
+      <span class="eyebrow">Checkout</span>
+      <h1>Review your booking</h1>
+      <p>Confirm the selections below. Every amount is recalculated on our server before the booking is saved.</p>
+    </div>
+  </section>
+
+  <div
+    class="container detail-layout"
+    data-booking-overview
+    data-csrf={csrf}
+    data-prefill={JSON.stringify(prefill)}
+  >
+    <div class="detail-main">
+      <div class="alert alert-error" data-overview-error hidden></div>
+      <div data-overview-items></div>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Customer &amp; event details</h2>
+            <p>We use these details on your invoice and to contact you about the event.</p>
+          </div>
+        </div>
+
+        <form class="form-grid" id="booking-form" data-booking-form novalidate>
+          <div class="form-grid cols-2">
+            <div class="field">
+              <label for="customerName">Full name *</label>
+              <input class="input" id="customerName" name="customer_name" required placeholder="Aarav Sharma" />
+            </div>
+            <div class="field">
+              <label for="customerPhone">Phone number *</label>
+              <input class="input" id="customerPhone" name="customer_phone" required inputmode="tel" maxlength="10" placeholder="9876543210" />
+            </div>
+          </div>
+
+          <div class="form-grid cols-2">
+            <div class="field">
+              <label for="customerEmail">Email address *</label>
+              <input class="input" id="customerEmail" name="customer_email" type="email" required placeholder="you@example.com" />
+            </div>
+            <div class="field">
+              <label for="customerAddress">Billing address</label>
+              <input class="input" id="customerAddress" name="customer_address" placeholder="Street, city, state" />
+            </div>
+          </div>
+
+          <div class="form-grid cols-2">
+            <div class="field">
+              <label for="eventDate">Event date *</label>
+              <input class="input" id="eventDate" name="event_date" type="date" required min={today} />
+            </div>
+            <div class="field">
+              <label for="eventTime">Event start time</label>
+              <input class="input" id="eventTime" name="event_time" type="time" />
+            </div>
+          </div>
+
+          <div class="form-grid cols-2">
+            <div class="field">
+              <label for="eventType">Event type *</label>
+              <select class="select" id="eventType" name="event_type" required>
+                <option value="">Select event type</option>
+                {eventTypes.map((type) => <option value={type}>{type}</option>)}
+              </select>
+            </div>
+            <div class="field">
+              <label for="expectedGuests">Expected guests</label>
+              <input class="input" id="expectedGuests" name="expected_guests" type="number" min="1" placeholder="e.g. 400" />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="specialRequest">Special requests</label>
+            <textarea
+              class="textarea"
+              id="specialRequest"
+              name="special_request"
+              rows="4"
+              placeholder="Flower preferences, Jain food, DJ setup, extra parking, wheelchair access…"
+            ></textarea>
+          </div>
+
+          <label class="checkbox-row">
+            <input type="checkbox" required />
+            <span>I confirm the details above are correct and agree to the booking terms.</span>
+          </label>
+        </form>
+      </section>
+    </div>
+
+    <aside class="detail-aside">
+      <div class="panel" data-overview-summary></div>
+      <button type="submit" form="booking-form" class="btn btn-primary btn-lg btn-block mt-4" data-submit-booking>
+        <Icon name="check-circle" size={16} /> Confirm &amp; submit booking
+      </button>
+      <a href="/cart" class="btn btn-ghost btn-block mt-2">Modify selections</a>
+    </aside>
+  </div>
+
+  <script>
+    import '../../../client/booking-overview';
+  </script>
+</BaseLayout>

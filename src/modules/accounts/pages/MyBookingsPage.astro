@@ -1,0 +1,93 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import AccountSidebar from '../../../components/AccountSidebar.astro';
+import Icon from '../../../components/Icon.astro';
+import { formatDate, formatMoney } from '../../../core/http';
+import '../accounts.css';
+
+interface Props {
+  bookings: Array<{
+    id: number;
+    event_date: string | null;
+    event_type: string;
+    total_guest: number;
+    total_amount: number;
+    status: string;
+    created_at: string;
+  }>;
+}
+
+const { bookings } = Astro.props;
+const user = Astro.locals.auth.user!;
+
+const statusClass: Record<string, string> = {
+  draft: 'badge-muted',
+  pending: 'badge-warning',
+  confirmed: 'badge-success',
+  cancelled: 'badge-danger',
+};
+---
+
+<BaseLayout title="My bookings | Royal Palace" noCart>
+  <section class="account-page">
+    <div class="container">
+      <div class="account-header">
+        <h1>My event bookings</h1>
+        <p>Track the status of every reservation and open its invoice.</p>
+      </div>
+
+      <div class="account-grid">
+        <AccountSidebar user={{ firstName: user.firstName, email: user.email }} active="bookings" isAdmin={Astro.locals.auth.isAdmin} />
+
+        <div class="account-content">
+          <div class="account-card">
+            <div class="account-card-title">
+              <span>All reservations ({bookings.length})</span>
+              <a href="/halls" class="btn btn-primary btn-sm">New booking</a>
+            </div>
+
+            {bookings.length === 0 ? (
+              <div class="empty-state">
+                <div class="empty-icon"><Icon name="calendar" size={24} /></div>
+                <h3>No bookings yet</h3>
+                <p>Browse our banquet halls and build your first event.</p>
+                <a href="/halls" class="btn btn-primary mt-4">Explore venues</a>
+              </div>
+            ) : (
+              <div class="table-wrap">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Booking</th>
+                      <th>Event date</th>
+                      <th>Type</th>
+                      <th>Guests</th>
+                      <th>Total</th>
+                      <th>Status</th>
+                      <th style="text-align:right;">Invoice</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bookings.map((booking) => (
+                      <tr>
+                        <td><strong>#{booking.id}</strong></td>
+                        <td>{formatDate(booking.event_date)}</td>
+                        <td>{booking.event_type}</td>
+                        <td>{booking.total_guest}</td>
+                        <td class="money">{formatMoney(booking.total_amount)}</td>
+                        <td><span class:list={['badge', statusClass[booking.status] ?? 'badge-muted']}>{booking.status}</span></td>
+                        <td style="text-align:right;">
+                          <a href={`/booking/${booking.id}/quotation`} class="btn btn-ghost btn-sm">View invoice</a>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
