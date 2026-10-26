@@ -433,10 +433,10 @@ export function seedDatabase(db: DatabaseSync): void {
     }
 
     const galleryCategories = [
-      ['Wedding Mandaps', 'wedding-mandaps'],
+      ['Mandap Designs', 'mandap-designs'],
       ['Stage Designs', 'stage-designs'],
       ['Furniture & Décor', 'furniture-decor'],
-      ['Real Celebrations', 'real-celebrations'],
+      ['Event Celebrations', 'event-celebrations'],
     ] as const;
     const galleryCategoryIds: number[] = [];
     for (const [name, slug] of galleryCategories) {
@@ -501,7 +501,7 @@ export function seedDatabase(db: DatabaseSync): void {
       ['mandaps', 'Wedding Mandaps, Designed Around You', 'Explore traditional, floral and contemporary mandap concepts with clear standard dimensions.', 'MANDAP COLLECTION', '/images/archive/runnyrem-LfqmND-hym8-unsplash.jpg'],
       ['stages', 'Reception & Ceremony Stages', 'Statement backdrops, layered florals and lighting designed for photographs and guest sightlines.', 'STAGE DESIGNS', '/images/archive/bilderboken-rlwE8f8anOc-unsplash.jpg'],
       ['equipment', 'Furniture & Event Equipment', 'Build a practical equipment list with quantities, finishes and specifications.', 'EQUIPMENT CATALOGUE', '/images/archive/manuel-moreno-DGa0LQ0yDPc-unsplash.jpg'],
-      ['gallery', 'Moments At Event Point', 'Mandap details, stage settings and celebrations styled by our Ranchi team.', 'THE COLLECTION', '/images/archive/visualsofdana-T5pL6ciEn-I-unsplash.jpg'],
+      ['gallery', 'Moments At Event Point Ranchi', 'Mandap details, stage settings and celebrations styled by our Ranchi team.', 'THE COLLECTION', '/images/archive/visualsofdana-T5pL6ciEn-I-unsplash.jpg'],
     ] as const;
     for (const [key, title, subtitle, badge, image] of pages) {
       insert(
@@ -765,7 +765,7 @@ export function seedDatabase(db: DatabaseSync): void {
       ],
     );
 
-    /* ==================== Event Point catalogue ==================== */
+    /* ==================== Event Point Ranchi catalogue ==================== */
 
     const mandapSeed = [
       {

@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import { uploadsDir } from './db';
 
@@ -64,4 +64,55 @@ export async function saveUploadedImage(
   writeFileSync(join(folderPath, fileName), Buffer.from(await file.arrayBuffer()));
 
   return `/uploads/${folder}/${fileName}`;
+}
+
+export interface StorageUsage {
+  totalBytes: number;
+  formatted: string;
+  fileCount: number;
+  driver: 'local' | 'r2';
+  r2Ready: boolean;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
+}
+
+export function getStorageUsage(): StorageUsage {
+  const root = uploadsDir();
+  let totalBytes = 0;
+  let fileCount = 0;
+
+  function walk(dir: string): void {
+    if (!existsSync(dir)) return;
+    try {
+      const entries = readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(fullPath);
+        } else if (entry.isFile()) {
+          try {
+            const stat = statSync(fullPath);
+            totalBytes += stat.size;
+            fileCount += 1;
+          } catch {}
+        }
+      }
+    } catch {}
+  }
+
+  walk(root);
+
+  return {
+    totalBytes,
+    formatted: formatBytes(totalBytes),
+    fileCount,
+    driver: 'local',
+    r2Ready: true,
+  };
 }

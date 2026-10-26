@@ -187,4 +187,5 @@ window.addEventListener('storage', (event) => {
 });
 
 document.addEventListener('DOMContentLoaded', updateCounts);
+document.addEventListener('astro:page-load', updateCounts);
 updateCounts();

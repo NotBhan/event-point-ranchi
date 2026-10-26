@@ -26,6 +26,7 @@ export function getDb(): DatabaseSync {
   mkdirSync(dataDir(), { recursive: true });
   const db = new DatabaseSync(join(dataDir(), 'event-point.db'));
   db.exec(schemaSql);
+  migrateTrafficEvents(db);
 
   const row = db.prepare('SELECT COUNT(*) AS count FROM users').get() as { count: number };
   if (!row || Number(row.count) === 0) {
@@ -36,6 +37,19 @@ export function getDb(): DatabaseSync {
 
   database = db;
   return db;
+}
+
+function migrateTrafficEvents(db: DatabaseSync): void {
+  const columns = db.prepare('PRAGMA table_info(traffic_events)').all() as Array<{ name: string }>;
+  const existing = new Set(columns.map((column) => column.name));
+
+  for (const column of ['utm_source', 'utm_medium', 'utm_campaign']) {
+    if (!existing.has(column)) {
+      db.exec(`ALTER TABLE traffic_events ADD COLUMN ${column} TEXT NOT NULL DEFAULT ''`);
+    }
+  }
+
+  db.exec('CREATE INDEX IF NOT EXISTS idx_traffic_events_campaign ON traffic_events(utm_source, utm_campaign)');
 }
 
 function ensureAdminUser(db: DatabaseSync): void {

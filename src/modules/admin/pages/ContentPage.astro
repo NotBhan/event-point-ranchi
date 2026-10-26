@@ -1,6 +1,6 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
-import { imageUrl } from '../../../core/http';
+import ImageUploadDropzone from '../../../components/admin/ImageUploadDropzone.astro';
 
 interface Props {
   homepage: { hero_title: string; hero_description: string; hero_image: string | null } | undefined;
@@ -36,13 +36,15 @@ const pageLabels: Record<string, string> = {
             <label for="hero_description">Subheadline</label>
             <textarea class="textarea" id="hero_description" name="hero_description" rows="3">{homepage?.hero_description ?? ''}</textarea>
           </div>
-          <div class="field">
-            <label for="hero_image">Hero image</label>
-            {homepage?.hero_image && <img class="admin-thumb" style="width:100%;height:140px;object-fit:cover;" src={imageUrl(homepage.hero_image)} alt="" />}
-            <input class="input" type="file" id="hero_image" name="hero_image" accept="image/*" />
-            <input type="hidden" name="hero_image_path" value={homepage?.hero_image ?? ''} />
-            <span class="hint" data-file-name>Upload replaces the current image.</span>
-          </div>
+          <ImageUploadDropzone
+            name="hero_image"
+            id="hero_image"
+            label="Hero image"
+            currentImage={homepage?.hero_image ?? null}
+            fallbackName="hero_image_path"
+            hint="Upload replaces the current image."
+            aspectHeight="140px"
+          />
           <button type="submit" class="btn btn-primary">Save homepage</button>
         </div>
       </div>
@@ -149,13 +151,15 @@ const pageLabels: Record<string, string> = {
                   <label>Badge</label>
                   <input class="input" name="hero_badge" value={page.hero_badge} />
                 </div>
-                <div class="field">
-                  <label>Banner image</label>
-                  {page.hero_image && <img class="admin-thumb" style="width:100%;height:110px;object-fit:cover;" src={imageUrl(page.hero_image)} alt="" />}
-                  <input class="input" type="file" name="hero_image" accept="image/*" />
-                  <input type="hidden" name="hero_image_path" value="" />
-                  <span class="hint" data-file-name>Upload replaces the current banner.</span>
-                </div>
+                <ImageUploadDropzone
+                  name="hero_image"
+                  id={`hero_image_${page.key}`}
+                  label="Banner image"
+                  currentImage={page.hero_image}
+                  fallbackName="hero_image_path"
+                  hint="Upload replaces the current banner."
+                  aspectHeight="110px"
+                />
                 <button type="submit" class="btn btn-secondary btn-sm">Save banner</button>
               </div>
             </div>

@@ -24,7 +24,7 @@ const statusClass: Record<string, string> = {
 {state === 'not-found' || (!data && !state) ? (
   <NotFound />
 ) : state === 'forbidden' ? (
-  <BaseLayout title="Invoice access restricted | Event Point" noCart>
+  <BaseLayout title="Invoice access restricted | Event Point Ranchi" noCart>
     <section class="section">
       <div class="container">
         <div style="max-width:560px;margin:40px auto;text-align:center;">
@@ -44,15 +44,15 @@ const statusClass: Record<string, string> = {
     </section>
   </BaseLayout>
 ) : data ? (
-  <BaseLayout title={`Invoice EP-${String(data.booking.id).padStart(5, '0')} | Event Point`} noCart>
+  <BaseLayout title={`Invoice EP-${String(data.booking.id).padStart(5, '0')} | Event Point Ranchi`} noCart>
     <section class="section-sm" style="background:var(--canvas-warm);">
       <div class="container">
         <div class="invoice-page print-area">
           <div class="invoice-head">
             <div class="invoice-brand">
-              <img src="/images/event-point-logo.svg" alt="Event Point" />
+              <img src="/images/event-point-logo.svg" alt="Event Point Ranchi" />
               <div>
-                <h1>Event Point</h1>
+                <h1>Event Point Ranchi</h1>
                 <p>Mandap, Stage, Furniture & Wedding Requirements · Ranchi, Jharkhand</p>
               </div>
             </div>

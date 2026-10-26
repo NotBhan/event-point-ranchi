@@ -13,7 +13,7 @@ const { data } = Astro.props;
 const { settings, rooms } = data;
 ---
 
-<BaseLayout title="Rooms & Bridal Suites | Event Point" description={settings.hero_subtitle}>
+<BaseLayout title="Rooms & Bridal Suites | Event Point Ranchi" description={settings.hero_subtitle}>
   <section class:list={['page-hero', { 'with-image': Boolean(settings.hero_image) }]}>
     {settings.hero_image && <img class="page-hero-media" src={imageUrl(settings.hero_image)} alt="" />}
     <div class="container">

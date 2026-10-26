@@ -70,7 +70,7 @@ export default defineModule({
 
           const user = userById(result.userId);
           if (user) startSession(ctx.cookies, user.id, user.password_hash);
-          setSuccess(ctx.cookies, 'Your account is ready. Welcome to Event Point!');
+          setSuccess(ctx.cookies, 'Your account is ready. Welcome to Event Point Ranchi!');
           return redirect(safeNext(getString(ctx.form, 'next') || nextParam, '/'));
         }
 

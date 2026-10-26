@@ -1,0 +1,88 @@
+---
+import Icon from '../Icon.astro';
+import { imageUrl } from '../../core/http';
+
+interface Props {
+  name: string;
+  id?: string;
+  label?: string;
+  hint?: string;
+  currentImage?: string | null;
+  fallbackName?: string;
+  required?: boolean;
+  aspectHeight?: string;
+  class?: string;
+}
+
+const {
+  name,
+  id = name,
+  label,
+  hint = 'Upload replaces current image.',
+  currentImage = null,
+  fallbackName = `${name}_path`,
+  required = false,
+  aspectHeight = '140px',
+  class: className = '',
+} = Astro.props;
+
+const hasExisting = Boolean(currentImage);
+const existingSrc = hasExisting ? imageUrl(currentImage) : '';
+---
+
+<div class:list={['field admin-image-field', className]}>
+  {label && <label for={id}>{label} {required && <span style="color:var(--danger)">*</span>}</label>}
+  <div
+    class:list={['admin-dropzone', { 'has-image': hasExisting }]}
+    data-image-dropzone
+    style={`--dropzone-height: ${aspectHeight};`}
+  >
+    <input
+      type="file"
+      id={id}
+      name={name}
+      accept="image/*"
+      required={required && !hasExisting}
+      class="admin-dropzone-input"
+    />
+    <input type="hidden" name={fallbackName} value={currentImage ?? ''} data-fallback-input />
+
+    <!-- Current or newly selected preview -->
+    <div class="admin-dropzone-preview" data-preview-container style={hasExisting ? '' : 'display:none;'}>
+      <img
+        src={existingSrc}
+        alt=""
+        class="admin-dropzone-thumb"
+        data-preview-img
+        data-initial-src={existingSrc}
+      />
+      <div class="admin-dropzone-overlay">
+        <span class="admin-dropzone-badge" data-preview-badge>{hasExisting ? 'Current photo' : 'Selected photo'}</span>
+        <span class="btn btn-secondary btn-xs admin-dropzone-change-btn">
+          <Icon name="upload" size={13} /> Change photo
+        </span>
+      </div>
+    </div>
+
+    <!-- Empty state prompt -->
+    <div class="admin-dropzone-prompt" data-prompt-container style={hasExisting ? 'display:none;' : ''}>
+      <div class="admin-dropzone-icon">
+        <Icon name="upload" size={24} />
+      </div>
+      <div class="admin-dropzone-text">
+        <strong>Drag & drop an image here</strong> or <span class="admin-dropzone-browse">browse files</span>
+      </div>
+      <span class="admin-dropzone-sub">JPG, PNG, WebP up to 10MB</span>
+    </div>
+
+    <!-- Live status bar with file details -->
+    <div class="admin-dropzone-status" data-status-bar style="display:none;">
+      <span class="status-name" data-status-name></span>
+      <span class="status-size" data-status-size></span>
+      <button type="button" class="status-clear" data-dropzone-clear title="Remove new selection">
+        <Icon name="x" size={13} />
+      </button>
+    </div>
+  </div>
+  {hint && <span class="hint" data-file-hint>{hint}</span>}
+</div>

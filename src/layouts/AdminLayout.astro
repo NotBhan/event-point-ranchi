@@ -1,4 +1,5 @@
 ---
+import { ClientRouter } from 'astro:transitions';
 import { getAdminNav } from '../core/registry';
 import Icon from '../components/Icon.astro';
 import { site } from '../core/config';
@@ -28,7 +29,7 @@ const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow" />
-    <title>{title} · Event Point Admin</title>
+    <title>{title} · {site.name} Admin</title>
     <link rel="icon" type="image/svg+xml" href={site.logo} />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -36,6 +37,7 @@ const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
+    <ClientRouter />
   </head>
   <body class="admin-body">
     <div class="admin-shell" id="adminShell">

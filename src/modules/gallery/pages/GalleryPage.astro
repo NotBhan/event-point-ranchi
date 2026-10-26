@@ -26,9 +26,15 @@ const { settings, categories, items } = data;
   <section class="section">
     <div class="container">
       <div class="filter-bar" data-gallery-filters>
-        <button type="button" class="filter-btn active" data-gallery-filter="all">All</button>
+        <button type="button" class="filter-btn active" data-gallery-filter="all">
+          <span>All</span>
+          <span class="filter-count">{items.length}</span>
+        </button>
         {categories.map((category) => (
-          <button type="button" class="filter-btn" data-gallery-filter={String(category.id)}>{category.name}</button>
+          <button type="button" class="filter-btn" data-gallery-filter={String(category.id)} data-category-slug={category.slug}>
+            <span>{category.name}</span>
+            <span class="filter-count">{category.count}</span>
+          </button>
         ))}
       </div>
 
@@ -46,12 +52,18 @@ const { settings, categories, items } = data;
               class="gallery-tile"
               data-gallery-item
               data-gallery-category={item.category_id}
+              data-gallery-slug={item.category_slug}
               data-lightbox
               data-src={imageUrl(item.image)}
-              data-caption={item.title}
+              data-caption={`${item.title} (${item.category_name})`}
             >
               <img src={imageUrl(item.image)} alt={item.title || 'Gallery image'} loading="lazy" />
-              <span class="gallery-overlay">{item.title || 'View image'}</span>
+              <div class="gallery-overlay">
+                <div class="gallery-card-info">
+                  <span class="gallery-category-badge">{item.category_name}</span>
+                  <strong class="gallery-title">{item.title || 'View image'}</strong>
+                </div>
+              </div>
             </button>
           ))}
         </div>

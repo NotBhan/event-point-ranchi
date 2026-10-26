@@ -1,6 +1,6 @@
 # Event Point Ranchi — Wedding Setup Planning (Astro)
 
-Event Point is a wedding mandap, stage design, furniture and event equipment planning business in
+Event Point Ranchi is a wedding mandap, stage design, furniture and event equipment planning business in
 Ranchi, Jharkhand. This Astro SSR application lets couples browse the catalogue, build a structured
 set of event requirements, and send a quotation enquiry that the operations team manages in the admin
 console.

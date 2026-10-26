@@ -1,6 +1,6 @@
 import { all, one, run } from '../../core/db';
 import { getBoolean, getInt, getString, parseMoneyToPaise, uniqueSlug } from '../../core/http';
-import { saveUploadedImage, UploadError } from '../../core/uploads';
+import { getStorageUsage, saveUploadedImage, UploadError } from '../../core/uploads';
 
 export { UploadError };
 
@@ -439,6 +439,13 @@ export function addMenuSection(packageId: number, form: FormData | null): void {
   run(`INSERT INTO menu_categories (section_id, title, sort) VALUES (?, ?, 1)`, [sectionId, `${title} selection`]);
 }
 
+export function updateMenuSection(sectionId: number, form: FormData | null): void {
+  const title = getString(form, 'title');
+  const maxSelection = getInt(form, 'max_selection', 3);
+  if (!title) return;
+  run('UPDATE menu_sections SET title = ?, max_selection = ? WHERE id = ?', [title, maxSelection, sectionId]);
+}
+
 export function deleteMenuSection(sectionId: number): void {
   run('DELETE FROM menu_sections WHERE id = ?', [sectionId]);
 }
@@ -454,6 +461,12 @@ export function addMenuItem(sectionId: number, form: FormData | null): void {
     category?.id ??
     run(`INSERT INTO menu_categories (section_id, title, sort) VALUES (?, 'Selection', 1)`, [sectionId]).lastId;
   run('INSERT INTO menu_items (category_id, name, is_available) VALUES (?, ?, 1)', [categoryId, name]);
+}
+
+export function updateMenuItem(itemId: number, form: FormData | null): void {
+  const name = getString(form, 'name');
+  if (!name) return;
+  run('UPDATE menu_items SET name = ? WHERE id = ?', [name, itemId]);
 }
 
 export function deleteMenuItem(itemId: number): void {
@@ -491,16 +504,50 @@ export function deletePackageOption(table: 'catering_features' | 'banner_feature
 
 /* ============================ Gallery ============================ */
 
-export function listGalleryAdmin() {
+export function listGalleryAdmin(options?: { page?: number; perPage?: number; categoryId?: number }) {
+  const page = Math.max(1, options?.page ?? 1);
+  const perPage = Math.max(1, Math.min(100, options?.perPage ?? 18));
+  const categoryId = options?.categoryId ?? 0;
+
   const categories = all<{ id: number; name: string; is_active: number; item_count: number }>(
     `SELECT gc.id, gc.name, gc.is_active,
             (SELECT COUNT(*) FROM gallery_items gi WHERE gi.category_id = gc.id) AS item_count
      FROM gallery_categories gc ORDER BY gc.sort, gc.name`,
   );
-  const items = all<{ id: number; title: string; image: string; category_id: number; is_active: number; created_at: string }>(
-    'SELECT id, title, image, category_id, is_active, created_at FROM gallery_items ORDER BY id DESC LIMIT 120',
+
+  const whereClause = categoryId > 0 ? 'WHERE category_id = ?' : '';
+  const queryParams = categoryId > 0 ? [categoryId] : [];
+
+  const totalRow = one<{ count: number }>(
+    `SELECT COUNT(*) AS count FROM gallery_items ${whereClause}`,
+    queryParams,
   );
-  return { categories, items };
+  const totalCount = Number(totalRow?.count ?? 0);
+  const totalPages = Math.max(1, Math.ceil(totalCount / perPage));
+  const currentPage = Math.min(page, totalPages);
+  const offset = (currentPage - 1) * perPage;
+
+  const items = all<{ id: number; title: string; image: string; category_id: number; is_active: number; created_at: string }>(
+    `SELECT id, title, image, category_id, is_active, created_at FROM gallery_items ${whereClause} ORDER BY id DESC LIMIT ? OFFSET ?`,
+    [...queryParams, perPage, offset],
+  );
+
+  const storageUsage = getStorageUsage();
+
+  return {
+    categories,
+    items,
+    pagination: {
+      page: currentPage,
+      perPage,
+      totalCount,
+      totalPages,
+      selectedCategory: categoryId,
+      startItem: totalCount === 0 ? 0 : offset + 1,
+      endItem: Math.min(offset + items.length, totalCount),
+    },
+    storageUsage,
+  };
 }
 
 export function addGalleryCategory(form: FormData | null): void {
@@ -519,29 +566,43 @@ export function deleteGalleryCategory(id: number): void {
   run('DELETE FROM gallery_categories WHERE id = ?', [id]);
 }
 
-export function toggleGalleryCategory(id: number): void {
+export function toggleGalleryCategory(id: number): boolean {
   run('UPDATE gallery_categories SET is_active = CASE is_active WHEN 1 THEN 0 ELSE 1 END WHERE id = ?', [id]);
+  return Boolean(one<{ is_active: number }>('SELECT is_active FROM gallery_categories WHERE id = ?', [id])?.is_active);
 }
 
 export async function addGalleryItem(form: FormData | null): Promise<void> {
   const categoryId = getInt(form, 'category_id', 0);
   if (!categoryId) throw new Error('Choose a gallery category.');
+  const title = getString(form, 'title');
+  if (!title) throw new Error('Add a caption for the image.');
   const uploaded = await saveUploadedImage(form, 'image', 'gallery');
   const image = uploaded ?? getString(form, 'image_path');
   if (!image) throw new Error('Upload an image or paste an image path.');
-  run('INSERT INTO gallery_items (category_id, title, image, is_active) VALUES (?, ?, ?, 1)', [
-    categoryId,
-    getString(form, 'title'),
-    image,
-  ]);
+  run('INSERT INTO gallery_items (category_id, title, image, is_active) VALUES (?, ?, ?, 1)', [categoryId, title, image]);
+}
+
+export function saveGalleryItemTitle(id: number, form: FormData | null): string {
+  const title = getString(form, 'title');
+  if (!title) throw new Error('Add a caption for the image.');
+  run('UPDATE gallery_items SET title = ? WHERE id = ?', [title, id]);
+  return title;
+}
+
+export function saveGalleryItemCategory(id: number, form: FormData | null): number {
+  const categoryId = getInt(form, 'category_id', 0);
+  if (!categoryId) throw new Error('Choose a valid category.');
+  run('UPDATE gallery_items SET category_id = ? WHERE id = ?', [categoryId, id]);
+  return categoryId;
 }
 
 export function deleteGalleryItem(id: number): void {
   run('DELETE FROM gallery_items WHERE id = ?', [id]);
 }
 
-export function toggleGalleryItem(id: number): void {
+export function toggleGalleryItem(id: number): boolean {
   run('UPDATE gallery_items SET is_active = CASE is_active WHEN 1 THEN 0 ELSE 1 END WHERE id = ?', [id]);
+  return Boolean(one<{ is_active: number }>('SELECT is_active FROM gallery_items WHERE id = ?', [id])?.is_active);
 }
 
 /* ============================ Customers ============================ */

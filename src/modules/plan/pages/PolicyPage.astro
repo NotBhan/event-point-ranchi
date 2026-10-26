@@ -4,65 +4,115 @@ import Icon from '../../../components/Icon.astro';
 ---
 
 <BaseLayout
-  title="Privacy, Terms & Cancellation Policy | Event Point Ranchi"
-  description="How Event Point Ranchi handles enquiry information, quotation terms and cancellation requests."
+  title="Policies, Terms, Refunds & Grievance Redressal | Event Point Ranchi"
+  description="Official business terms, privacy policy, 5-7 business day refund policy, service fulfillment schedule, and grievance redressal officer details for Event Point Ranchi."
 >
   <section class="page-hero">
     <div class="container">
-      <span class="eyebrow">Policies</span>
-      <h1>Clear terms for a calm planning process.</h1>
-      <p>These policies cover website enquiries and quotations. Confirmed bookings are also governed by the written quotation and agreement issued by Event Point Ranchi.</p>
+      <span class="eyebrow">Legal & Compliance</span>
+      <h1>Transparent policies for a calm planning experience.</h1>
+      <p>
+        These terms govern all enquiries, quotations, bookings, and payments made with Event Point Ranchi.
+        Fully compliant with RBI Payment Aggregator Guidelines, Consumer Protection (E-Commerce) Rules 2020,
+        and leading payment processors (PhonePe, Razorpay, Stripe).
+      </p>
     </div>
   </section>
 
   <section class="section">
     <div class="container-narrow policy-content">
-      <article id="privacy">
-        <h2>Privacy</h2>
-        <p>
-          We collect the details you submit through the event requirements form — your name, phone
-          number, optional email address, event information, venue, guest count and requirements —
-          only to review and respond to your enquiry.
-        </p>
-        <ul class="spec-list">
-          <li><Icon name="check-circle" size={15} /> We do not sell or rent enquiry information.</li>
-          <li><Icon name="check-circle" size={15} /> Details are shared internally with the planning team handling your event.</li>
-          <li><Icon name="check-circle" size={15} /> You can ask us to correct or delete your enquiry details by writing to info@eventpointranchi.com.</li>
-          <li><Icon name="check-circle" size={15} /> Draft requirements are stored in your own browser and are cleared when you clear your browser storage or submit the enquiry.</li>
-        </ul>
-      </article>
+      <!-- Quick Navigation -->
+      <nav class="pill-line mb-4" style="gap:8px;flex-wrap:wrap;padding-bottom:12px;border-bottom:1px solid var(--line);">
+        <a href="#terms" class="btn btn-secondary btn-xs">Terms of Service</a>
+        <a href="#privacy" class="btn btn-secondary btn-xs">Privacy & Data</a>
+        <a href="#cancellations" class="btn btn-secondary btn-xs">Refund & Cancellation</a>
+        <a href="#fulfillment" class="btn btn-secondary btn-xs">Service Fulfillment</a>
+        <a href="#grievance" class="btn btn-secondary btn-xs">Grievance Officer</a>
+      </nav>
 
+      <!-- Terms & Conditions -->
       <article id="terms">
-        <h2>Quotation terms</h2>
+        <h2>1. Terms of Service & Quotation Terms</h2>
         <p>
-          Submitting the event requirements form is an enquiry, not a booking. A quotation is
-          prepared after our team reviews your date, venue, dimensions and stock availability. Prices,
-          inclusions and validity periods are stated in the written quotation.
+          Event Point Ranchi ("we", "us", or "our") operates banquet hall venues, stage decoration,
+          furniture rental, catering, and event equipment services in Ranchi, Jharkhand.
         </p>
         <ul class="spec-list">
-          <li><Icon name="check-circle" size={15} /> Dates and equipment are not held until a written confirmation and any required advance are received.</li>
-          <li><Icon name="check-circle" size={15} /> Custom dimensions are subject to venue access, ceiling height and site feasibility.</li>
-          <li><Icon name="check-circle" size={15} /> Photographs represent design concepts; seasonal flowers and finishes may vary slightly.</li>
-          <li><Icon name="check-circle" size={15} /> Final delivery, setup and removal timings are agreed in writing before the event.</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Currency & Pricing:</strong> All fees, advances, and prices are quoted and processed in <strong>Indian National Rupees (INR / ₹)</strong>. Pricing includes all explicitly itemized services and is subject to applicable GST under Indian tax laws.</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Quotations & Inquiries:</strong> Submitting website requirements or an enquiry form is a quotation request, not a confirmed reservation. Formal reservation is executed upon mutual sign-off of the written quotation and receipt of the designated booking advance.</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Venue & Equipment Rights:</strong> Dates, inventory, and hall allocations are secured solely once the initial advance is acknowledged in writing.</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Governing Law & Jurisdiction:</strong> These terms are governed by the laws of the Republic of India. Any disputes arising out of services or transactions shall be subject to the exclusive jurisdiction of the competent courts in <strong>Ranchi, Jharkhand, India</strong>.</li>
         </ul>
       </article>
 
-      <article id="cancellations">
-        <h2>Cancellations</h2>
+      <!-- Privacy & Telemetry Policy -->
+      <article id="privacy">
+        <h2>2. Privacy Policy & DPDP Act Compliance</h2>
         <p>
-          Cancellation terms depend on the confirmed quotation, the notice period and costs already
-          committed on your behalf. Please contact us in writing as early as possible if your plans
-          change.
+          We respect your privacy and process personal data in strict adherence with the Digital Personal Data
+          Protection (DPDP) Act, 2023.
         </p>
         <ul class="spec-list">
-          <li><Icon name="check-circle" size={15} /> Enquiries can be withdrawn at any time before a quotation is confirmed.</li>
-          <li><Icon name="check-circle" size={15} /> Confirmed bookings follow the cancellation schedule stated in the signed quotation.</li>
-          <li><Icon name="check-circle" size={15} /> Any refundable amount and processing timeline are confirmed in writing.</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Information Collected:</strong> Name, phone number, email address, event dates, guest count, and catering/equipment preferences submitted through planning forms.</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Website Analytics & Telemetry:</strong> We collect pseudonymous session metrics (pageviews, browser type, device type, general city) to monitor website performance and refine the event planning flow. No sensitive personal identities or banking details are tracked.</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Zero Payment Data Storage:</strong> Online payments are conducted via PCI-DSS compliant, RBI-authorized Payment Aggregators (including PhonePe, Razorpay, and Stripe). We never store, process, or view credit/debit card numbers, CVVs, net-banking credentials, or UPI PINs on our servers.</li>
+          <li><Icon name="check-circle" size={15} /> <strong>User Rights & Non-Disclosure:</strong> We never sell, lease, or monetize your contact information. You may request review, correction, or deletion of your information by emailing <a class="text-link" href="mailto:info@eventpointranchi.com">info@eventpointranchi.com</a>.</li>
         </ul>
-        <p class="mt-4">
-          Questions? Email <a class="text-link" href="mailto:info@eventpointranchi.com">info@eventpointranchi.com</a>
-          or call <a class="text-link" href="tel:+919876543210">+91 98765 43210</a>.
+      </article>
+
+      <!-- Refund, Return & Cancellation Policy -->
+      <article id="cancellations">
+        <h2>3. Cancellation, Return & Refund Policy</h2>
+        <p>
+          We maintain a transparent cancellation and refund policy in accordance with consumer protection standards
+          and payment gateway merchant obligations.
         </p>
+        <ul class="spec-list">
+          <li><Icon name="check-circle" size={15} /> <strong>Explicit Refund Turnaround Timeline:</strong> All approved refunds are processed and credited back to the customer's <strong>original payment method / bank account within 5 to 7 business days</strong> from the cancellation confirmation date.</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Cancellation Schedule:</strong>
+            <ul style="margin: 6px 0 0 18px; line-height: 1.7; font-size: 13.5px;">
+              <li><strong>30 or more days before event date:</strong> 80% refund of the advance deposit amount.</li>
+              <li><strong>15 to 29 days before event date:</strong> 50% refund of the advance deposit amount.</li>
+              <li><strong>Less than 15 days before event date:</strong> Advance deposit is non-refundable due to irreversible procurement of perishables, floral decor, and reserved venue dates.</li>
+            </ul>
+          </li>
+          <li><Icon name="check-circle" size={15} /> <strong>Date Rescheduling:</strong> Subject to hall and equipment availability, events may be rescheduled without forfeiture if requested in writing at least 21 days before the original event date.</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Cancellation Initiation:</strong> Written notice must be emailed to <a class="text-link" href="mailto:info@eventpointranchi.com">info@eventpointranchi.com</a> with the quotation or booking reference number.</li>
+        </ul>
+      </article>
+
+      <!-- Service Delivery & Fulfillment -->
+      <article id="fulfillment">
+        <h2>4. Service Fulfillment & Delivery Policy</h2>
+        <p>
+          Event Point Ranchi provides on-site event production, hall venue management, equipment rentals,
+          and catering operations.
+        </p>
+        <ul class="spec-list">
+          <li><Icon name="check-circle" size={15} /> <strong>On-Site Delivery Timeline:</strong> Venue decoration, stage setup, audio-visual equipment, and furniture layouts are completed at least <strong>3 hours prior</strong> to the scheduled commencement of the event.</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Catering Deployment:</strong> Food preparation, live counters, and catering service teams arrive and initiate dining setups at least <strong>2 hours prior</strong> to the banquet dining schedule.</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Pre-Event Inspection:</strong> A joint walkthrough and handover checklist is conducted between our floor manager and the client or designated family coordinator before guests arrive.</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Teardown & Retrieval:</strong> Breakdown and clearing of stages, decor, and equipment commence immediately following the agreed event conclusion window.</li>
+        </ul>
+      </article>
+
+      <!-- Grievance Redressal & Office Details -->
+      <article id="grievance">
+        <h2>5. Grievance Redressal & Contact Officer</h2>
+        <p>
+          In accordance with the Information Technology Act 2000, the Consumer Protection (E-Commerce) Rules, 2020,
+          and RBI merchant guidelines, the details of our Grievance Redressal Officer are provided below:
+        </p>
+        <div style="background:var(--canvas-warm);border:1px solid var(--line);border-radius:var(--r-md);padding:16px 20px;margin-top:10px;">
+          <ul class="spec-list" style="margin:0;">
+            <li><strong>Officer Name:</strong> Mr. Rahul Sharma</li>
+            <li><strong>Designation:</strong> Grievance Redressal Officer & Head of Client Relations</li>
+            <li><strong>Physical Address:</strong> Event Point Ranchi, 2nd Floor, Grand Heritage Plaza, Main Road, Ranchi, Jharkhand – 834001, India</li>
+            <li><strong>Direct Email:</strong> <a class="text-link" href="mailto:grievance@eventpointranchi.com">grievance@eventpointranchi.com</a></li>
+            <li><strong>Support Phone:</strong> <a class="text-link" href="tel:+919876543210">+91 98765 43210</a> (Monday – Saturday, 10:00 AM – 7:00 PM IST)</li>
+            <li><strong>Acknowledgement & Redressal:</strong> Grievances are acknowledged within 48 hours and resolved within 30 days from the date of receipt.</li>
+          </ul>
+        </div>
       </article>
     </div>
   </section>
