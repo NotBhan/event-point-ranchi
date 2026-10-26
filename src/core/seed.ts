@@ -17,11 +17,16 @@ export function seedDatabase(db: DatabaseSync): void {
         .lastInsertRowid,
     );
 
+  const adminPassword =
+    process.env.ADMIN_PASSWORD ||
+    (typeof import.meta !== 'undefined' && import.meta.env?.ADMIN_PASSWORD) ||
+    'admin';
+
   db.exec('BEGIN');
   try {
     insert(
       `INSERT INTO users (username, email, password_hash, first_name, role) VALUES (?, ?, ?, ?, ?)`,
-      ['admin', 'admin@eventpointranchi.com', hashPassword('Admin@Royal2026!'), 'Root', 'developer'],
+      ['admin', 'admin@eventpointranchi.com', hashPassword(adminPassword), 'Root', 'developer'],
     );
     insert(
       `INSERT INTO users (username, email, password_hash, first_name, role) VALUES (?, ?, ?, ?, ?)`,

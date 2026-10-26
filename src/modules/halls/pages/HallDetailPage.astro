@@ -17,7 +17,7 @@ const { data, notFound = false } = Astro.props;
 {notFound || !data ? (
   <NotFound />
 ) : (
-  <BaseLayout title={`${data.hall.name} | Royal Palace`} description={data.hall.description}>
+  <BaseLayout title={`${data.hall.name} | Event Point`} description={data.hall.description}>
     <div
       data-hall-detail
       data-id={data.hall.id}

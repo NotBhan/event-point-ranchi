@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import schemaSql from './schema.sql?raw';
+import { hashPassword, verifyPassword } from './password';
 import { seedDatabase } from './seed';
 
 let database: DatabaseSync | null = null;
@@ -31,8 +32,39 @@ export function getDb(): DatabaseSync {
     seedDatabase(db);
   }
 
+  ensureAdminUser(db);
+
   database = db;
   return db;
+}
+
+function ensureAdminUser(db: DatabaseSync): void {
+  const adminPassword =
+    process.env.ADMIN_PASSWORD ||
+    (typeof import.meta !== 'undefined' && import.meta.env?.ADMIN_PASSWORD) ||
+    'admin';
+
+  const existing = db
+    .prepare("SELECT id, password_hash, role, is_active FROM users WHERE username = 'admin' COLLATE NOCASE")
+    .get() as { id: number; password_hash: string; role: string; is_active: number } | undefined;
+
+  if (existing) {
+    if (
+      !verifyPassword(adminPassword, existing.password_hash) ||
+      existing.is_active !== 1 ||
+      existing.role !== 'developer'
+    ) {
+      db.prepare("UPDATE users SET password_hash = ?, role = 'developer', is_active = 1 WHERE id = ?").run(
+        hashPassword(adminPassword),
+        existing.id,
+      );
+    }
+    return;
+  }
+
+  db.prepare(
+    "INSERT INTO users (username, email, password_hash, first_name, role, is_active) VALUES ('admin', 'admin@eventpointranchi.com', ?, 'Administrator', 'developer', 1)",
+  ).run(hashPassword(adminPassword));
 }
 
 export function cleanParams(params: unknown[]): unknown[] {

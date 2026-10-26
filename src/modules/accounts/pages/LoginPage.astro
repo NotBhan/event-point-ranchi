@@ -13,7 +13,7 @@ const { error, next, username } = Astro.props;
 const csrf = Astro.locals.csrf;
 ---
 
-<BaseLayout title="Log in | Royal Palace" noCart>
+<BaseLayout title="Log in | Event Point" noCart>
   <section class="auth-page">
     <div class="auth-card">
       <div class="auth-head">
@@ -49,7 +49,7 @@ const csrf = Astro.locals.csrf;
       </form>
 
       <p class="auth-foot">
-        New to Royal Palace? <a href={`/register${next ? `?next=${encodeURIComponent(next)}` : ''}`}>Create an account</a>
+        New to Event Point? <a href={`/register${next ? `?next=${encodeURIComponent(next)}` : ''}`}>Create an account</a>
       </p>
     </div>
   </section>
