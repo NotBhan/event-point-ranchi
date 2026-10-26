@@ -7,7 +7,7 @@ export default defineModule({
   id: 'stages',
   label: 'Stage Designs',
   order: 30,
-  nav: [{ label: 'Stage Designs', href: '/stages', order: 30 }],
+  nav: [{ label: 'Stages', href: '/stages', order: 30 }],
   routes: [
     {
       path: '/stages',
