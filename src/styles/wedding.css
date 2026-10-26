@@ -994,14 +994,6 @@
 }
 
 @media (max-width: 860px) {
-  .nav-mobile-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-top: 14px;
-    padding-top: 14px;
-    border-top: 1px solid var(--line);
-  }
   .requirements-link .requirements-label { display: none; }
   .header-staff-link { display: none; }
 }

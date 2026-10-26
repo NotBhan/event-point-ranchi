@@ -57,6 +57,12 @@ document.addEventListener('keydown', (event) => {
   document.querySelector('[data-user-toggle]')?.setAttribute('aria-expanded', 'false');
 });
 
+window.addEventListener('resize', () => {
+  if (window.innerWidth > 1024) {
+    setMenu(false);
+  }
+});
+
 function initToasts() {
   document.querySelectorAll<HTMLElement>('[data-toast]').forEach((toast) => {
     if (toast.dataset.initialized) return;

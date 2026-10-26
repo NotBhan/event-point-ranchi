@@ -39,14 +39,41 @@ const phoneHref = `tel:${site.phone.replace(/\s/g, '')}`;
     </a>
 
     <nav class="nav-menu" id="primaryNav" aria-label="Primary navigation">
-      {nav.map((item) => (
-        <a href={item.href} class:list={['nav-link', { active: isActive(item.href) }]}>{item.label}</a>
-      ))}
-      <div class="nav-mobile-actions">
-        <a href="/plan" class="btn btn-primary btn-block">Plan Your Event</a>
-        <a href="/plan" class="btn btn-secondary btn-block">
-          <Icon name="receipt" size={15} /> View requirements
+      <div class="nav-drawer-head">
+        <div class="nav-drawer-brand">
+          <img src={site.logo} alt="" width="32" height="32" />
+          <div class="nav-drawer-brand-text">
+            <strong>{site.name}</strong>
+            <span>Mandap · Stage · Equipment</span>
+          </div>
+        </div>
+        <button type="button" class="nav-close-btn" data-nav-close aria-label="Close menu">
+          <Icon name="x" size={18} strokeWidth={2.2} />
+        </button>
+      </div>
+
+      <div class="nav-drawer-links">
+        {nav.map((item) => (
+          <a href={item.href} class:list={['nav-link', { active: isActive(item.href) }]}>
+            <span>{item.label}</span>
+            <Icon name="chevron-right" size={14} class="nav-link-arrow" />
+          </a>
+        ))}
+      </div>
+
+      <div class="nav-drawer-footer">
+        <a class="nav-drawer-phone" href={phoneHref}>
+          <Icon name="phone" size={14} />
+          <span>Call: {site.phone}</span>
         </a>
+        <div class="nav-mobile-actions">
+          <a href="/plan" class="btn btn-primary btn-block">Plan Your Event</a>
+          <a href="/plan" class="btn btn-secondary btn-block nav-requirements-btn">
+            <Icon name="receipt" size={15} />
+            <span>View requirements</span>
+            <span class="requirements-count" data-requirements-count>0</span>
+          </a>
+        </div>
       </div>
     </nav>
 
