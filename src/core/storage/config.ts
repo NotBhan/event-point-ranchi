@@ -21,7 +21,7 @@ export function getStorageConfig(): StorageConfig {
   const bucket = env.FILEBASE_BUCKET || '';
   const accessKeyId = env.FILEBASE_ACCESS_KEY_ID || '';
   const secretAccessKey = env.FILEBASE_SECRET_ACCESS_KEY || '';
-  const publicBaseUrl = env.FILEBASE_PUBLIC_BASE_URL || (bucket ? `https://${bucket}.s3.filebase.io` : '');
+  const publicBaseUrl = env.FILEBASE_PUBLIC_BASE_URL || '/storage';
 
   const galleryLimitBytes = env.GALLERY_STORAGE_LIMIT_BYTES
     ? parseInt(env.GALLERY_STORAGE_LIMIT_BYTES, 10) || DEFAULT_GALLERY_LIMIT_BYTES

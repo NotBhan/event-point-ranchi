@@ -134,7 +134,7 @@ export function loadHomePage(): HomeData {
   );
 
   return {
-    heroImage: mandaps[0]?.image ?? '/images/archive/frames-for-your-heart-zSG-kd-L6vw-unsplash.jpg',
+    heroImage: mandaps[0]?.image ?? '/storage/assets/banners/homepage/banner-hero.webp',
     mandaps,
     stages,
     equipment,

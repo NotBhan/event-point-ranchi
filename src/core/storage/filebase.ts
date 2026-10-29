@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import {
   DeleteObjectCommand,
+  GetObjectCommand,
   HeadBucketCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
@@ -14,10 +15,20 @@ export type StorageDriver = 'filebase' | 'mock';
 
 export type StorageOperation =
   | 'putObject'
+  | 'getObject'
   | 'headObject'
   | 'deleteObject'
   | 'listObjects'
   | 'checkConnection';
+
+export interface GetObjectResult {
+  key: string;
+  body: Uint8Array;
+  contentType?: string;
+  cacheControl?: string;
+  etag: string;
+  size: number;
+}
 
 export interface PutObjectInput {
   key: string;
@@ -63,6 +74,7 @@ export interface ConnectionStatus {
 export interface FilebaseClient {
   readonly driver: StorageDriver;
   putObject(input: PutObjectInput): Promise<PutObjectResult>;
+  getObject(key: string): Promise<GetObjectResult | null>;
   headObject(key: string): Promise<StoredObject | null>;
   deleteObject(key: string): Promise<void>;
   listObjects(options?: ListObjectsOptions): Promise<ListObjectsResult>;
@@ -245,6 +257,21 @@ export class MockFilebaseClient implements FilebaseClient {
     return { key: input.key, etag, size: bytes.byteLength };
   }
 
+  async getObject(key: string): Promise<GetObjectResult | null> {
+    this.assertHealthy('getObject');
+
+    const object = this.objects.get(key);
+    if (!object) return null;
+
+    return {
+      key: object.key,
+      body: object.bytes,
+      contentType: object.contentType,
+      etag: object.etag,
+      size: object.bytes.byteLength,
+    };
+  }
+
   async headObject(key: string): Promise<StoredObject | null> {
     this.assertHealthy('headObject');
 
@@ -368,6 +395,29 @@ class S3FilebaseClient implements FilebaseClient {
       etag: normalizeEtag(response.ETag),
       size: bodySize(input.body),
     };
+  }
+
+  async getObject(key: string): Promise<GetObjectResult | null> {
+    try {
+      const response = await retryWithBackoff(() =>
+        this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key })),
+      );
+
+      if (!response.Body) return null;
+      const body = await response.Body.transformToByteArray();
+
+      return {
+        key,
+        body,
+        contentType: response.ContentType,
+        cacheControl: response.CacheControl,
+        etag: normalizeEtag(response.ETag),
+        size: body.length,
+      };
+    } catch (error) {
+      if (isNotFoundError(error)) return null;
+      throw error;
+    }
   }
 
   async headObject(key: string): Promise<StoredObject | null> {
