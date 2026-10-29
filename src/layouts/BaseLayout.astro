@@ -3,7 +3,7 @@ import { ClientRouter } from 'astro:transitions';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import Toast from '../components/Toast.astro';
-import { site } from '../core/config';
+import { getSiteSettings } from '../core/sanity/service';
 import '../styles/tokens.css';
 import '../styles/base.css';
 import '../styles/components.css';
@@ -14,13 +14,17 @@ import '../styles/wedding.css';
 interface Props {
   title?: string;
   description?: string;
+  ogImage?: string;
   bodyClass?: string;
   noCart?: boolean;
 }
 
+const siteSettings = await getSiteSettings();
+
 const {
-  title = `${site.name} | Wedding Mandaps, Stage Designs & Event Equipment in Ranchi`,
-  description = site.shortDescription,
+  title = siteSettings.seo.defaultTitle,
+  description = siteSettings.seo.defaultDescription,
+  ogImage = siteSettings.seo.ogImage,
   bodyClass = '',
 } = Astro.props;
 ---
@@ -32,25 +36,33 @@ const {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{title}</title>
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#721224" />
-    <link rel="icon" type="image/svg+xml" href={site.logo} />
+    <meta name="theme-color" content={siteSettings.theme.primaryColor} />
+    <link rel="icon" type="image/svg+xml" href={siteSettings.favicon} />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
       rel="stylesheet"
     />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImage} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
     <ClientRouter />
     <slot name="head" />
   </head>
   <body class={bodyClass}>
     <a class="skip-link" href="#main">Skip to content</a>
-    <Header />
+    <Header settings={siteSettings} />
     <Toast flash={Astro.locals.flash} />
     <main id="main">
       <slot />
     </main>
-    <Footer />
+    <Footer settings={siteSettings} />
     <div class="lightbox" id="lightbox" data-lightbox-root>
       <button type="button" class="lightbox-close" data-lightbox-close aria-label="Close image">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>

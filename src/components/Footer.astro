@@ -1,7 +1,23 @@
 ---
 import { site } from '../core/config';
 import { getNav } from '../core/registry';
+import type { MergedSiteSettings } from '../core/sanity/service';
 import Icon from './Icon.astro';
+
+interface Props {
+  settings?: MergedSiteSettings;
+}
+
+const { settings } = Astro.props;
+const brandName = settings?.name || site.name;
+const legalName = settings?.legalName || site.legalName;
+const logoUrl = settings?.logo || site.logo;
+const phone = settings?.phone || site.phone;
+const email = settings?.email || site.email;
+const address = settings?.address || site.address;
+const whatsapp = settings?.whatsapp || site.whatsapp;
+const businessHours = settings?.businessHours || 'Daily, 10:00 – 19:00';
+const socialLinks = settings?.social || site.social;
 
 const nav = getNav();
 const planLinks = [
@@ -12,21 +28,21 @@ const planLinks = [
   ['Photography gallery', '/gallery'],
 ];
 const year = new Date().getFullYear();
-const phoneHref = `tel:${site.phone.replace(/\s/g, '')}`;
+const phoneHref = `tel:${phone.replace(/\s/g, '')}`;
 ---
 
 <footer class="site-footer">
   <div class="container">
     <div class="footer-grid">
       <div class="footer-brand">
-        <img src={site.logo} alt={site.name} width="48" height="48" />
-        <h3>{site.name}</h3>
+        <img src={logoUrl} alt={brandName} width="48" height="48" />
+        <h3>{brandName}</h3>
         <p>
           Wedding mandap, stage design, furniture and event equipment planning in Ranchi. Share your
           dates and vision — we respond with a considered quotation.
         </p>
         <div class="footer-social">
-          {site.social.map((social) => (
+          {socialLinks.map((social) => (
             <a href={social.href} aria-label={social.label}>{social.label.slice(0, 2).toUpperCase()}</a>
           ))}
         </div>
@@ -51,24 +67,24 @@ const phoneHref = `tel:${site.phone.replace(/\s/g, '')}`;
         <div class="footer-contact">
           <div>
             <Icon name="pin" size={15} />
-            <span>{site.address}</span>
+            <span>{address}</span>
           </div>
           <div>
             <Icon name="phone" size={15} />
-            <a href={phoneHref}>{site.phone}</a>
+            <a href={phoneHref}>{phone}</a>
           </div>
           <div>
             <Icon name="mail" size={15} />
-            <a href={`mailto:${site.email}`}>{site.email}</a>
+            <a href={`mailto:${email}`}>{email}</a>
           </div>
           <div>
             <Icon name="clock" size={15} />
-            <span>Studio visits: daily, 10:00 – 19:00</span>
+            <span>Studio visits: {businessHours}</span>
           </div>
         </div>
         <a
           class="footer-whatsapp"
-          href={`https://wa.me/${site.whatsapp}?text=${encodeURIComponent('Hello Event Point Ranchi, I would like to plan a wedding setup in Ranchi.')}`}
+          href={`https://wa.me/${whatsapp}?text=${encodeURIComponent(`Hello ${brandName}, I would like to plan a wedding setup in Ranchi.`)}`}
           rel="noopener"
           target="_blank"
         >
@@ -78,7 +94,7 @@ const phoneHref = `tel:${site.phone.replace(/\s/g, '')}`;
     </div>
 
     <div class="footer-bottom">
-      <span>© {year} {site.legalName}. All rights reserved.</span>
+      <span>© {year} {legalName}. All rights reserved.</span>
       <span class="footer-policy-links">
         <a href="/policies#terms">Terms</a>
         <a href="/policies#privacy">Privacy</a>

@@ -26,6 +26,7 @@ import {
   eventEnquiryDetail,
   inquiriesList,
 } from './handlers/operations';
+import { studioAdmin } from './handlers/studio';
 import BookingDetailPage from './pages/BookingDetailPage.astro';
 import BookingsPage from './pages/BookingsPage.astro';
 import CateringFormPage from './pages/CateringFormPage.astro';
@@ -43,6 +44,7 @@ import InquiriesPage from './pages/InquiriesPage.astro';
 import LoginPage from './pages/LoginPage.astro';
 import RoomFormPage from './pages/RoomFormPage.astro';
 import RoomsPage from './pages/RoomsPage.astro';
+import StudioPage from './pages/StudioPage.astro';
 
 export default defineModule({
   id: 'admin',
@@ -59,6 +61,7 @@ export default defineModule({
     { label: 'Customers', href: '/admin/customers', icon: 'users', order: 70 },
     { label: 'Inquiries', href: '/admin/inquiries', icon: 'mail', order: 80 },
     { label: 'Content', href: '/admin/content', icon: 'settings', order: 90 },
+    { label: 'Sanity Studio', href: '/admin/studio', icon: 'settings', order: 95 },
   ],
   routes: [
     { path: '/admin/login', component: LoginPage, handle: adminLogin },
@@ -93,6 +96,8 @@ export default defineModule({
     { path: '/admin/customers/:id', component: CustomerDetailPage, handle: customerDetail },
     { path: '/admin/inquiries', component: InquiriesPage, handle: inquiriesList },
     { path: '/admin/content', component: ContentPage, handle: contentAdmin },
+    { path: '/admin/studio', component: StudioPage, handle: studioAdmin },
+    { path: '/admin/studio/:subpath*', component: StudioPage, handle: studioAdmin },
 
     { path: '/cms', component: DashboardPage, handle: dashboard },
   ],
