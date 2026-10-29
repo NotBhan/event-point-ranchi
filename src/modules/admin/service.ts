@@ -11,6 +11,16 @@ import {
   type StorageUsageSummary,
 } from '../../core/storage/service';
 import { getStorageUsage, saveUploadedImage, UploadError } from '../../core/uploads';
+import { getD1Client } from '../../core/content/d1-client';
+import {
+  invalidateContentCache,
+  listAllPageContent,
+  getMandaps,
+  savePageContent,
+  saveMandapLocation,
+  validateCoordinates,
+  validateExternalUrl,
+} from '../../core/content/service';
 
 export { UploadError };
 
@@ -965,7 +975,25 @@ export function deleteInquiry(id: number): void {
 
 /* ============================ Content ============================ */
 
-export function loadContentAdmin() {
+export async function loadContentAdmin() {
+  const d1 = getD1Client();
+  let siteSettings: any = null;
+  let seoSettings: any[] = [];
+  try {
+    const sRes = await d1.query('SELECT * FROM site_settings WHERE id = ? LIMIT 1', ['global']);
+    siteSettings = sRes.results?.[0] || null;
+    const seoRes = await d1.query('SELECT * FROM seo_settings ORDER BY page_key ASC');
+    seoSettings = seoRes.results || [];
+  } catch (err) {
+    console.warn('[D1] loadContentAdmin query error:', (err as Error).message);
+  }
+
+  // Load the 6 pages from D1
+  const pagesContent = await listAllPageContent(true);
+
+  // Load mandaps from D1 with location fields
+  const mandaps = await getMandaps(true);
+
   const homepage = one<{ hero_title: string; hero_description: string; hero_image: string | null }>(
     'SELECT hero_title, hero_description, hero_image FROM homepage WHERE id = 1',
   );
@@ -978,17 +1006,206 @@ export function loadContentAdmin() {
   const contact = one<{ address: string; phone: string; email: string }>(
     'SELECT address, phone, email FROM contact_info WHERE id = 1',
   );
-  return { homepage, features, pages, contact };
+  return { homepage, features, pages, contact, siteSettings, seoSettings, pagesContent, mandaps };
+}
+
+export async function saveSiteSettings(form: FormData | null): Promise<void> {
+  const d1 = getD1Client();
+  const name = getString(form, 'name');
+  const tagline = getString(form, 'tagline');
+  const short_description = getString(form, 'short_description');
+  const phone = getString(form, 'phone');
+  const whatsapp = getString(form, 'whatsapp');
+  const email = getString(form, 'email');
+  const address = getString(form, 'address');
+  const venue_address = getString(form, 'venue_address');
+  const business_hours = getString(form, 'business_hours');
+  const announcement_text = getString(form, 'announcement_text');
+  const google_maps_url = getString(form, 'google_maps_url');
+  const latStr = getString(form, 'latitude');
+  const lonStr = getString(form, 'longitude');
+  const latitude = latStr ? parseFloat(latStr) : null;
+  const longitude = lonStr ? parseFloat(lonStr) : null;
+  const footer_text = getString(form, 'footer_text');
+  const contact_buttons_enabled = form?.has('contact_buttons_enabled') ? 1 : 0;
+  const primary_color = getString(form, 'primary_color') || '#721224';
+  const gold_bright = getString(form, 'gold_bright') || '#e0b868';
+
+  const coordCheck = validateCoordinates(latitude, longitude);
+  if (!coordCheck.valid) {
+    throw new Error(coordCheck.error);
+  }
+
+  if (google_maps_url && !validateExternalUrl(google_maps_url)) {
+    throw new Error('Google Maps URL must be a valid HTTP or HTTPS link.');
+  }
+
+  await d1.query(
+    `UPDATE site_settings SET
+       name = COALESCE(NULLIF(?, ''), name),
+       tagline = COALESCE(NULLIF(?, ''), tagline),
+       short_description = COALESCE(NULLIF(?, ''), short_description),
+       phone = COALESCE(NULLIF(?, ''), phone),
+       whatsapp = COALESCE(NULLIF(?, ''), whatsapp),
+       email = COALESCE(NULLIF(?, ''), email),
+       address = COALESCE(NULLIF(?, ''), address),
+       venue_address = COALESCE(NULLIF(?, ''), venue_address),
+       business_hours = COALESCE(NULLIF(?, ''), business_hours),
+       announcement_text = COALESCE(NULLIF(?, ''), announcement_text),
+       google_maps_url = COALESCE(?, google_maps_url),
+       latitude = ?,
+       longitude = ?,
+       footer_text = COALESCE(?, footer_text),
+       contact_buttons_enabled = ?,
+       primary_color = ?,
+       gold_bright = ?,
+       updated_at = datetime('now')
+     WHERE id = 'global'`,
+    [
+      name,
+      tagline,
+      short_description,
+      phone,
+      whatsapp,
+      email,
+      address,
+      venue_address,
+      business_hours,
+      announcement_text,
+      google_maps_url,
+      latitude,
+      longitude,
+      footer_text,
+      contact_buttons_enabled,
+      primary_color,
+      gold_bright,
+    ],
+  );
+  invalidateContentCache();
+}
+
+export async function savePageAdmin(form: FormData | null): Promise<void> {
+  const page_key = getString(form, 'page_key');
+  if (!page_key) throw new Error('Page key is required.');
+
+  const uploaded = await saveUploadedImage(form, 'banner_image', 'content');
+  const banner_image_url = (uploaded ?? getString(form, 'banner_image_path')) || undefined;
+
+  const title = getString(form, 'title');
+  const subtitle = getString(form, 'subtitle');
+  const description = getString(form, 'description');
+  const seo_title = getString(form, 'seo_title');
+  const seo_description = getString(form, 'seo_description');
+  const banner_enabled = form?.has('banner_enabled');
+  const published = form?.has('published');
+
+  const badge = getString(form, 'badge');
+  const overlay = getString(form, 'overlay') || 'dark';
+  const textAlignment = getString(form, 'text_alignment') || 'left';
+  const primaryCtaLabel = getString(form, 'primary_cta_label');
+  const primaryCtaUrl = getString(form, 'primary_cta_url');
+  const secondaryCtaLabel = getString(form, 'secondary_cta_label');
+  const secondaryCtaUrl = getString(form, 'secondary_cta_url');
+
+  const content_json: Record<string, any> = {
+    badge,
+    overlay,
+    textAlignment,
+  };
+  if (primaryCtaLabel || primaryCtaUrl) {
+    content_json.primaryCta = { label: primaryCtaLabel, url: primaryCtaUrl };
+  }
+  if (secondaryCtaLabel || secondaryCtaUrl) {
+    content_json.secondaryCta = { label: secondaryCtaLabel, url: secondaryCtaUrl };
+  }
+
+  await savePageContent(page_key, {
+    title,
+    subtitle,
+    description,
+    banner_image_url,
+    banner_enabled,
+    content_json,
+    seo_title,
+    seo_description,
+    og_image_url: banner_image_url,
+    published,
+  });
+}
+
+export async function saveMandapLocationAdmin(form: FormData | null): Promise<void> {
+  const id = getInt(form, 'mandap_id');
+  if (!id) throw new Error('Mandap ID is required.');
+
+  const location_name = getString(form, 'location_name');
+  const address = getString(form, 'address');
+  const latStr = getString(form, 'latitude');
+  const lonStr = getString(form, 'longitude');
+  const latitude = latStr ? parseFloat(latStr) : null;
+  const longitude = lonStr ? parseFloat(lonStr) : null;
+  const google_maps_url = getString(form, 'google_maps_url');
+  const directions_url = getString(form, 'directions_url');
+  const show_location = form?.has('show_location');
+
+  await saveMandapLocation(id, {
+    location_name,
+    address,
+    latitude,
+    longitude,
+    google_maps_url,
+    directions_url,
+    show_location,
+  });
+}
+
+export async function saveSeoSettings(form: FormData | null): Promise<void> {
+  const d1 = getD1Client();
+  const page_key = getString(form, 'page_key');
+  const title = getString(form, 'title');
+  const description = getString(form, 'description');
+  const canonical_url = getString(form, 'canonical_url');
+  const og_image_url = getString(form, 'og_image_url');
+
+  if (page_key) {
+    await d1.query(
+      `UPDATE seo_settings SET
+         title = ?,
+         description = ?,
+         canonical_url = ?,
+         og_image_url = COALESCE(NULLIF(?, ''), og_image_url),
+         updated_at = datetime('now')
+       WHERE page_key = ?`,
+      [title, description, canonical_url, og_image_url, page_key],
+    );
+    invalidateContentCache();
+  }
 }
 
 export async function saveHomepage(form: FormData | null): Promise<void> {
   const uploaded = await saveUploadedImage(form, 'hero_image', 'content');
   const image = (uploaded ?? getString(form, 'hero_image_path')) || null;
+  const title = getString(form, 'hero_title');
+  const description = getString(form, 'hero_description');
+
   run('UPDATE homepage SET hero_title = ?, hero_description = ?, hero_image = ? WHERE id = 1', [
-    getString(form, 'hero_title'),
-    getString(form, 'hero_description'),
+    title,
+    description,
     image,
   ]);
+
+  try {
+    const d1 = getD1Client();
+    await d1.query(
+      `UPDATE homepage_sections SET
+         title = ?,
+         description = ?,
+         image_url = COALESCE(?, image_url),
+         updated_at = datetime('now')
+       WHERE section_key = 'hero'`,
+      [title, description, image],
+    );
+    invalidateContentCache();
+  } catch {}
 }
 
 export function addHomeFeature(form: FormData | null): void {
@@ -999,10 +1216,12 @@ export function addHomeFeature(form: FormData | null): void {
      VALUES (?, ?, ?, (SELECT COALESCE(MAX(sort), 0) + 1 FROM homepage_features))`,
     [getString(form, 'icon') || 'sparkles', title, getString(form, 'description')],
   );
+  invalidateContentCache();
 }
 
 export function deleteHomeFeature(id: number): void {
   run('DELETE FROM homepage_features WHERE id = ?', [id]);
+  invalidateContentCache();
 }
 
 export async function savePageSettings(form: FormData | null): Promise<void> {
@@ -1023,14 +1242,33 @@ export async function savePageSettings(form: FormData | null): Promise<void> {
       getString(form, 'key'),
     ],
   );
+  invalidateContentCache();
 }
 
-export function saveContactInfo(form: FormData | null): void {
+export async function saveContactInfo(form: FormData | null): Promise<void> {
+  const address = getString(form, 'address');
+  const phone = getString(form, 'phone');
+  const email = getString(form, 'email');
+
   run('UPDATE contact_info SET address = ?, phone = ?, email = ? WHERE id = 1', [
-    getString(form, 'address'),
-    getString(form, 'phone'),
-    getString(form, 'email'),
+    address,
+    phone,
+    email,
   ]);
+
+  try {
+    const d1 = getD1Client();
+    await d1.query(
+      `UPDATE site_settings SET
+         address = ?,
+         phone = ?,
+         email = ?,
+         updated_at = datetime('now')
+       WHERE id = 'global'`,
+      [address, phone, email],
+    );
+    invalidateContentCache();
+  } catch {}
 }
 
 /* ============================ Event enquiries ============================ */

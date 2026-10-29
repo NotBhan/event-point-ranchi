@@ -11,9 +11,9 @@ export default defineModule({
     {
       path: '/equipment',
       component: EquipmentPage,
-      handle: ({ url }) => ({
+      handle: async ({ url }) => ({
         props: {
-          data: loadEquipmentPage({ category: url.searchParams.get('category') ?? '' }),
+          data: await loadEquipmentPage({ category: url.searchParams.get('category') ?? '' }),
         },
       }),
     },

@@ -1,7 +1,9 @@
-import { requireAdmin } from '../../../core/auth';
+import { requireAdmin, requireEditor } from '../../../core/auth';
 import { getInt, getString, redirect } from '../../../core/http';
 import type { PageContext } from '../../../core/types';
 import {
+  saveSiteSettings,
+  saveSeoSettings,
   addGalleryCategory,
   addGuestPricing,
   addHomeFeature,
@@ -34,6 +36,8 @@ import {
   saveGalleryItemTitle,
   saveHall,
   saveHomepage,
+  saveMandapLocationAdmin,
+  savePageAdmin,
   savePageSettings,
   saveRoom,
   toggleCatering,
@@ -257,8 +261,8 @@ export function galleryAdmin(ctx: PageContext) {
 
 /* ---------------- Content ---------------- */
 
-export function contentAdmin(ctx: PageContext) {
-  const denied = requireAdmin(ctx);
+export async function contentAdmin(ctx: PageContext) {
+  const denied = requireEditor(ctx);
   if (denied) return denied;
 
   if (ctx.request.method === 'POST') {
@@ -270,10 +274,15 @@ export function contentAdmin(ctx: PageContext) {
         delete_feature: () => deleteHomeFeature(getInt(ctx.form, 'feature_id')),
         save_page: () => savePageSettings(ctx.form),
         save_contact: () => saveContactInfo(ctx.form),
+        save_site_settings: () => saveSiteSettings(ctx.form),
+        save_seo: () => saveSeoSettings(ctx.form),
+        save_page_content: () => savePageAdmin(ctx.form),
+        save_mandap_location: () => saveMandapLocationAdmin(ctx.form),
       },
       { redirectTo: '/admin/content' },
     );
   }
 
-  return { props: loadContentAdmin() };
+  const content = await loadContentAdmin();
+  return { props: content };
 }

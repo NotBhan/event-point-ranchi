@@ -1,171 +1,740 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import ImageUploadDropzone from '../../../components/admin/ImageUploadDropzone.astro';
+import Icon from '../../../components/Icon.astro';
+import type { PageContent, MandapItem } from '../../../core/content/types';
 
 interface Props {
-  homepage: { hero_title: string; hero_description: string; hero_image: string | null } | undefined;
-  features: Array<{ id: number; icon: string; title: string; description: string }>;
-  pages: Array<{ key: string; hero_title: string; hero_subtitle: string; hero_badge: string; hero_image: string | null }>;
-  contact: { address: string; phone: string; email: string } | undefined;
+  homepage?: { hero_title: string; hero_description: string; hero_image: string | null };
+  features?: Array<{ id: number; icon: string; title: string; description: string }>;
+  pages?: Array<{ key: string; hero_title: string; hero_subtitle: string; hero_badge: string; hero_image: string | null }>;
+  contact?: { address: string; phone: string; email: string };
+  siteSettings?: {
+    id?: string;
+    name?: string;
+    tagline?: string;
+    short_description?: string;
+    phone?: string;
+    whatsapp?: string;
+    email?: string;
+    address?: string;
+    venue_address?: string;
+    business_hours?: string;
+    announcement_text?: string;
+    google_maps_url?: string;
+    latitude?: number | string | null;
+    longitude?: number | string | null;
+    footer_text?: string;
+    contact_buttons_enabled?: number | boolean;
+    primary_color?: string;
+    gold_bright?: string;
+    logo_path?: string;
+  } | null;
+  seoSettings?: Array<{
+    id?: number;
+    page_key: string;
+    title: string;
+    description: string;
+    canonical_url: string;
+    og_image_url: string;
+  }>;
+  pagesContent?: PageContent[];
+  mandaps?: MandapItem[];
 }
 
-const { homepage, features, pages, contact } = Astro.props;
+const {
+  features = [],
+  siteSettings,
+  seoSettings = [],
+  pagesContent = [],
+  mandaps = [],
+} = Astro.props;
+
 const csrf = Astro.locals.csrf;
 
-const pageLabels: Record<string, string> = {
-  halls: 'Banquet halls page',
-  rooms: 'Rooms page',
-  catering: 'Catering page',
-  gallery: 'Gallery page',
-};
+const corePages = [
+  { key: 'home', label: 'Home Page', icon: 'home', desc: 'Main landing page hero and branding' },
+  { key: 'mandaps', label: 'Mandaps', icon: 'archway', desc: 'Wedding mandap catalogue banner and hero' },
+  { key: 'gallery', label: 'Gallery', icon: 'image', desc: 'Event moments and portfolio showcase' },
+  { key: 'catering', label: 'Catering', icon: 'utensils', desc: 'Catering menu and package builder banner' },
+  { key: 'stages', label: 'Stages', icon: 'theater', desc: 'Reception & ceremony stage designs banner' },
+  { key: 'equipment', label: 'Equipment', icon: 'chair', desc: 'Furniture and event equipment banner' },
+];
+
+const pageContentMap = new Map(pagesContent.map((p) => [p.page_key, p]));
 ---
 
-<AdminLayout title="Site content" description="Homepage hero, page banners and contact details.">
-  <div class="admin-grid-2">
-    <form method="POST" action="/admin/content" class="admin-panel" enctype="multipart/form-data">
-      <input type="hidden" name="_csrf" value={csrf} />
-      <input type="hidden" name="action" value="save_homepage" />
-      <div class="admin-panel-head"><div><h2>Homepage hero</h2></div></div>
-      <div class="admin-panel-body">
-        <div class="admin-form-grid">
-          <div class="field">
-            <label for="hero_title">Headline</label>
-            <input class="input" id="hero_title" name="hero_title" required value={homepage?.hero_title ?? ''} />
-          </div>
-          <div class="field">
-            <label for="hero_description">Subheadline</label>
-            <textarea class="textarea" id="hero_description" name="hero_description" rows="3">{homepage?.hero_description ?? ''}</textarea>
-          </div>
-          <ImageUploadDropzone
-            name="hero_image"
-            id="hero_image"
-            label="Hero image"
-            currentImage={homepage?.hero_image ?? null}
-            fallbackName="hero_image_path"
-            hint="Upload replaces the current image."
-            aspectHeight="140px"
-          />
-          <button type="submit" class="btn btn-primary">Save homepage</button>
-        </div>
-      </div>
-    </form>
-
-    <form method="POST" action="/admin/content" class="admin-panel">
-      <input type="hidden" name="_csrf" value={csrf} />
-      <input type="hidden" name="action" value="save_contact" />
-      <div class="admin-panel-head"><div><h2>Contact details</h2><p>Shown in the footer and contact page.</p></div></div>
-      <div class="admin-panel-body">
-        <div class="admin-form-grid">
-          <div class="field">
-            <label for="address">Office address</label>
-            <textarea class="textarea" id="address" name="address" rows="2">{contact?.address ?? ''}</textarea>
-          </div>
-          <div class="admin-form-grid" style="grid-template-columns:1fr 1fr;">
-            <div class="field">
-              <label for="phone">Phone</label>
-              <input class="input" id="phone" name="phone" value={contact?.phone ?? ''} />
-            </div>
-            <div class="field">
-              <label for="email">Email</label>
-              <input class="input" id="email" name="email" type="email" value={contact?.email ?? ''} />
-            </div>
-          </div>
-          <button type="submit" class="btn btn-primary">Save contact details</button>
-        </div>
-      </div>
-    </form>
-  </div>
-
-  <div class="admin-panel">
-    <div class="admin-panel-head">
-      <div><h2>Homepage feature tiles</h2><p>The “why choose us” grid under the hero.</p></div>
+<AdminLayout title="Site Content Studio" description="Manage page copy, hero banners, brand contacts and mandap map locations.">
+  <div class="content-studio">
+    <!-- Unsaved Changes Alert Bar -->
+    <div id="unsavedChangesBanner" class="unsaved-alert" style="display:none;">
+      <span><Icon name="alert" size={16} /> You have unsaved changes in this form.</span>
     </div>
-    <div class="admin-panel-body">
-      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px;">
-        {features.map((feature) => (
-          <div class="flex-between" style="gap:14px;border-bottom:1px solid var(--line);padding-bottom:10px;">
-            <div>
-              <strong style="font-size:13.5px;">{feature.title}</strong>
-              <div class="text-xs text-muted">{feature.icon} · {feature.description}</div>
-            </div>
-            <form method="POST" action="/admin/content">
-              <input type="hidden" name="_csrf" value={csrf} />
-              <input type="hidden" name="action" value="delete_feature" />
-              <input type="hidden" name="feature_id" value={feature.id} />
-              <button type="submit" class="icon-btn danger" data-confirm="Remove this feature tile?" aria-label="Delete feature">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-              </button>
-            </form>
-          </div>
-        ))}
-        {features.length === 0 && <p class="text-sm text-muted">No feature tiles yet.</p>}
-      </div>
 
-      <form method="POST" action="/admin/content" class="admin-inline-form">
+    <!-- Tab Bar -->
+    <div class="studio-tab-bar" role="tablist" aria-label="Content Studio Sections">
+      <div class="studio-tabs">
+        <button type="button" class="studio-tab-btn active" data-tab-target="brand" role="tab" aria-selected="true">
+          <Icon name="building" size={15} />
+          <span>Brand &amp; Contact</span>
+        </button>
+        <button type="button" class="studio-tab-btn" data-tab-target="locations" role="tab" aria-selected="false">
+          <Icon name="pin" size={15} />
+          <span>Mandap Map Locations</span>
+          <span class="tab-badge">{mandaps.length}</span>
+        </button>
+        {corePages.map((page) => (
+          <button type="button" class="studio-tab-btn" data-tab-target={`page-${page.key}`} role="tab" aria-selected="false">
+            <Icon name={page.icon} size={15} />
+            <span>{page.label}</span>
+          </button>
+        ))}
+        <button type="button" class="studio-tab-btn" data-tab-target="seo" role="tab" aria-selected="false">
+          <Icon name="search" size={15} />
+          <span>SEO Metadata</span>
+        </button>
+        <button type="button" class="studio-tab-btn" data-tab-target="features" role="tab" aria-selected="false">
+          <Icon name="sparkles" size={15} />
+          <span>Feature Tiles</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ==================== TAB 1: BRAND & CONTACT ==================== -->
+    <div id="tab-brand" class="studio-panel active" role="tabpanel">
+      <form method="POST" action="/admin/content" class="admin-panel" data-track-changes>
         <input type="hidden" name="_csrf" value={csrf} />
-        <input type="hidden" name="action" value="add_feature" />
-        <div class="field" style="width:110px;">
-          <label for="icon">Icon</label>
-          <select class="select" id="icon" name="icon">
-            {['building', 'utensils', 'sparkles', 'shield', 'users', 'star', 'camera', 'music', 'flower', 'coffee'].map((icon) => (
-              <option value={icon}>{icon}</option>
-            ))}
-          </select>
+        <input type="hidden" name="action" value="save_site_settings" />
+
+        <div class="admin-panel-head">
+          <div>
+            <h2>Global Brand &amp; Contact Information (Cloudflare D1)</h2>
+            <p>Authoritative business details displayed in header, footer, contact links and across the site.</p>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">Save Brand &amp; Contacts</button>
         </div>
-        <div class="field" style="min-width:200px;flex:1;">
-          <label for="title">Title</label>
-          <input class="input" id="title" name="title" placeholder="Four signature venues" required />
+
+        <div class="admin-panel-body">
+          <div class="admin-form-grid">
+            <div class="admin-grid-2">
+              <div class="field">
+                <label for="brand_name">Brand Name <span class="text-danger">*</span></label>
+                <input class="input" id="brand_name" name="name" value={siteSettings?.name ?? 'Event Point Ranchi'} required />
+              </div>
+              <div class="field">
+                <label for="brand_tagline">Tagline</label>
+                <input class="input" id="brand_tagline" name="tagline" value={siteSettings?.tagline ?? 'Premier Wedding & Event Decorators in Ranchi'} />
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="brand_short_desc">Brand Short Description</label>
+              <textarea class="textarea" id="brand_short_desc" name="short_description" rows="2" placeholder="Brief summary of the business...">{siteSettings?.short_description ?? ''}</textarea>
+            </div>
+
+            <div class="admin-grid-3">
+              <div class="field">
+                <label for="brand_phone">Phone / Booking Call</label>
+                <input class="input" id="brand_phone" name="phone" value={siteSettings?.phone ?? '+91 94311 07577'} placeholder="+91 94311 07577" />
+              </div>
+              <div class="field">
+                <label for="brand_whatsapp">WhatsApp Direct Number</label>
+                <input class="input" id="brand_whatsapp" name="whatsapp" value={siteSettings?.whatsapp ?? '919431107577'} placeholder="919431107577" />
+                <span class="text-xs text-muted">Country code + number without plus or spaces</span>
+              </div>
+              <div class="field">
+                <label for="brand_email">Email Address</label>
+                <input class="input" id="brand_email" name="email" type="email" value={siteSettings?.email ?? 'contact@eventpoint.in'} placeholder="contact@eventpoint.in" />
+              </div>
+            </div>
+
+            <div class="admin-grid-2">
+              <div class="field">
+                <label for="brand_address">Primary Registered Office Address</label>
+                <textarea class="textarea" id="brand_address" name="address" rows="2" placeholder="Office address...">{siteSettings?.address ?? 'Main Road, Ranchi, Jharkhand 834001'}</textarea>
+              </div>
+              <div class="field">
+                <label for="brand_venue_address">Venue / Warehouse Address</label>
+                <textarea class="textarea" id="brand_venue_address" name="venue_address" rows="2" placeholder="Warehouse address...">{siteSettings?.venue_address ?? 'Tatisilwai Industrial Area, Ranchi, Jharkhand 835103'}</textarea>
+              </div>
+            </div>
+
+            <div class="admin-grid-2">
+              <div class="field">
+                <label for="brand_business_hours">Opening / Studio Visiting Hours</label>
+                <input class="input" id="brand_business_hours" name="business_hours" value={siteSettings?.business_hours ?? 'Monday – Sunday: 9:00 AM – 8:00 PM IST'} placeholder="e.g. Daily, 9:00 AM – 8:00 PM IST" />
+              </div>
+              <div class="field">
+                <label for="brand_announcement">Header Announcement Bar Text</label>
+                <input class="input" id="brand_announcement" name="announcement_text" value={siteSettings?.announcement_text ?? ''} placeholder="e.g. ✨ Now Booking for 2026-2027 Wedding Season in Ranchi!" />
+              </div>
+            </div>
+
+            <div class="admin-grid-3">
+              <div class="field">
+                <label for="brand_maps_url">Google Maps URL</label>
+                <input class="input" id="brand_maps_url" name="google_maps_url" value={siteSettings?.google_maps_url ?? 'https://maps.google.com/?q=Event+Point+Ranchi'} placeholder="https://maps.google.com/?q=..." />
+              </div>
+              <div class="field">
+                <label for="brand_lat">Latitude (-90 to 90)</label>
+                <input class="input" id="brand_lat" name="latitude" type="number" step="any" min="-90" max="90" value={siteSettings?.latitude ?? '23.3441'} placeholder="23.3441" />
+              </div>
+              <div class="field">
+                <label for="brand_lon">Longitude (-180 to 180)</label>
+                <input class="input" id="brand_lon" name="longitude" type="number" step="any" min="-180" max="180" value={siteSettings?.longitude ?? '85.3096'} placeholder="85.3096" />
+              </div>
+            </div>
+
+            <div class="field" style="margin-top:-6px;">
+              <a
+                id="brandMapPreviewLink"
+                href={siteSettings?.google_maps_url || (siteSettings?.latitude && siteSettings?.longitude ? `https://maps.google.com/?q=${siteSettings.latitude},${siteSettings.longitude}` : 'https://maps.google.com/?q=Event+Point+Ranchi')}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="text-xs"
+                style="display:inline-flex;align-items:center;gap:6px;color:var(--gold-bright);text-decoration:underline;"
+              >
+                <Icon name="external" size={13} /> Preview Location on Google Maps
+              </a>
+            </div>
+
+            <div class="field">
+              <label for="brand_footer_text">Custom Footer Text / Copyright Notice</label>
+              <input class="input" id="brand_footer_text" name="footer_text" value={siteSettings?.footer_text ?? ''} placeholder="e.g. © 2026 Event Point Ranchi. All rights reserved." />
+            </div>
+
+            <div class="field-checkbox">
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                <input type="checkbox" name="contact_buttons_enabled" value="1" checked={siteSettings?.contact_buttons_enabled !== 0 && siteSettings?.contact_buttons_enabled !== false} />
+                <span><strong>Enable Quick Contact Buttons</strong> (Shows WhatsApp &amp; Call buttons in header and footer)</span>
+              </label>
+            </div>
+
+            <div class="admin-grid-2">
+              <div class="field">
+                <label for="brand_primary_color">Primary Brand Color</label>
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <input type="color" value={siteSettings?.primary_color || '#721224'} oninput="this.nextElementSibling.value=this.value" style="width:42px;height:38px;padding:2px;border-radius:6px;border:1px solid var(--line);cursor:pointer;" />
+                  <input class="input" id="brand_primary_color" name="primary_color" value={siteSettings?.primary_color || '#721224'} />
+                </div>
+              </div>
+              <div class="field">
+                <label for="brand_gold_color">Gold Accent Color</label>
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <input type="color" value={siteSettings?.gold_bright || '#e0b868'} oninput="this.nextElementSibling.value=this.value" style="width:42px;height:38px;padding:2px;border-radius:6px;border:1px solid var(--line);cursor:pointer;" />
+                  <input class="input" id="brand_gold_color" name="gold_bright" value={siteSettings?.gold_bright || '#e0b868'} />
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex;gap:12px;margin-top:12px;">
+              <button type="submit" class="btn btn-primary">Save Global Site Settings</button>
+            </div>
+          </div>
         </div>
-        <div class="field" style="min-width:260px;flex:2;">
-          <label for="description">Description</label>
-          <input class="input" id="description" name="description" placeholder="From an 800-guest ballroom to a garden lawn." />
-        </div>
-        <button type="submit" class="btn btn-secondary btn-sm">Add tile</button>
       </form>
     </div>
-  </div>
 
-  <div class="admin-panel">
-    <div class="admin-panel-head">
-      <div><h2>Page banners</h2><p>Hero copy for each listing page.</p></div>
+    <!-- ==================== TAB 2: MANDAP MAP LOCATIONS ==================== -->
+    <div id="tab-locations" class="studio-panel" role="tabpanel" style="display:none;">
+      <div class="admin-panel">
+        <div class="admin-panel-head">
+          <div>
+            <h2>Mandap Physical Map Locations ({mandaps.length})</h2>
+            <p>Configure dedicated venue showroom addresses, GPS coordinates (-90..90, -180..180) and directions links for each mandap design.</p>
+          </div>
+        </div>
+        <div class="admin-panel-body">
+          <div class="mandap-locations-list" style="display:flex;flex-direction:column;gap:24px;">
+            {mandaps.map((m) => {
+              const mapsUrl = m.google_maps_url || (m.latitude && m.longitude ? `https://maps.google.com/?q=${m.latitude},${m.longitude}` : '');
+              const dirUrl = m.directions_url || (m.latitude && m.longitude ? `https://www.google.com/maps/dir/?api=1&destination=${m.latitude},${m.longitude}` : '');
+              return (
+                <form method="POST" action="/admin/content" class="admin-panel mandap-location-card" style="border:1px solid var(--line);background:var(--surface);" data-track-changes>
+                  <input type="hidden" name="_csrf" value={csrf} />
+                  <input type="hidden" name="action" value="save_mandap_location" />
+                  <input type="hidden" name="mandap_id" value={m.id} />
+
+                  <div class="admin-panel-head" style="background:rgba(0,0,0,0.02);padding:14px 18px;">
+                    <div style="display:flex;align-items:center;gap:12px;">
+                      {m.image_url && <img src={m.image_url} alt="" style="width:44px;height:44px;object-fit:cover;border-radius:var(--r-xs);" />}
+                      <div>
+                        <h3 style="font-size:15px;margin:0;">{m.name}</h3>
+                        <span class="text-xs text-muted">/{m.slug} · {m.category}</span>
+                      </div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:10px;">
+                      <a href={`/mandaps/${m.slug}`} target="_blank" class="btn btn-secondary btn-sm" style="font-size:12px;">View page &rarr;</a>
+                      <button type="submit" class="btn btn-primary btn-sm">Save Location</button>
+                    </div>
+                  </div>
+
+                  <div class="admin-panel-body" style="padding:18px;">
+                    <div class="admin-form-grid">
+                      <div class="admin-grid-2">
+                        <div class="field">
+                          <label>Location / Showroom Name</label>
+                          <input class="input" name="location_name" value={m.location_name ?? ''} placeholder="e.g. Main Wedding Setup Studio / Morabadi Grounds" />
+                        </div>
+                        <div class="field">
+                          <label>Physical Address</label>
+                          <input class="input" name="address" value={m.address ?? ''} placeholder="e.g. Near Morabadi Ground, Ranchi, Jharkhand 834008" />
+                        </div>
+                      </div>
+
+                      <div class="admin-grid-4" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+                        <div class="field">
+                          <label>Latitude (-90 to 90)</label>
+                          <input class="input" name="latitude" type="number" step="any" min="-90" max="90" value={m.latitude ?? ''} placeholder="23.3441" />
+                        </div>
+                        <div class="field">
+                          <label>Longitude (-180 to 180)</label>
+                          <input class="input" name="longitude" type="number" step="any" min="-180" max="180" value={m.longitude ?? ''} placeholder="85.3096" />
+                        </div>
+                        <div class="field">
+                          <label>Google Maps URL</label>
+                          <input class="input" name="google_maps_url" value={m.google_maps_url ?? ''} placeholder="https://maps.google.com/?q=..." />
+                        </div>
+                        <div class="field">
+                          <label>Directions URL</label>
+                          <input class="input" name="directions_url" value={m.directions_url ?? ''} placeholder="https://www.google.com/maps/dir/..." />
+                        </div>
+                      </div>
+
+                      <div class="flex-between" style="flex-wrap:wrap;gap:12px;margin-top:6px;">
+                        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                          <input type="checkbox" name="show_location" value="1" checked={m.show_location !== false} />
+                          <span style="font-size:13.5px;">Show location and map block on mandap detail page</span>
+                        </label>
+
+                        <div style="display:flex;gap:12px;">
+                          {mapsUrl && (
+                            <a href={mapsUrl} target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;">
+                              <Icon name="external" size={13} /> View on Google Maps
+                            </a>
+                          )}
+                          {dirUrl && (
+                            <a href={dirUrl} target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;">
+                              <Icon name="arrow-right" size={13} /> Get Directions
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </form>
+              );
+            })}
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="admin-panel-body">
-      <div class="admin-grid-2">
-        {pages.map((page) => (
-          <form method="POST" action="/admin/content" class="admin-panel" enctype="multipart/form-data" style="border-style:dashed;">
+
+    <!-- ==================== TABS 3–8: DYNAMIC PAGE CONTENT ==================== -->
+    {corePages.map((page) => {
+      const pc = pageContentMap.get(page.key);
+      const json = pc?.content_json || {};
+      const pageUrl = page.key === 'home' ? '/' : `/${page.key}`;
+
+      return (
+        <div id={`tab-page-${page.key}`} class="studio-panel" role="tabpanel" style="display:none;">
+          <form method="POST" action="/admin/content" class="admin-panel" enctype="multipart/form-data" data-track-changes>
             <input type="hidden" name="_csrf" value={csrf} />
-            <input type="hidden" name="action" value="save_page" />
-            <input type="hidden" name="key" value={page.key} />
-            <div class="admin-panel-head"><div><h2>{pageLabels[page.key] ?? page.key}</h2></div></div>
+            <input type="hidden" name="action" value="save_page_content" />
+            <input type="hidden" name="page_key" value={page.key} />
+
+            <div class="admin-panel-head">
+              <div>
+                <h2>{page.label} Page Content (Cloudflare D1)</h2>
+                <p>{page.desc}</p>
+              </div>
+              <div style="display:flex;gap:10px;align-items:center;">
+                <a href={pageUrl} target="_blank" class="btn btn-secondary btn-sm" style="font-size:12px;">View live page &rarr;</a>
+                <button type="submit" class="btn btn-primary btn-sm">Save {page.label} Page</button>
+              </div>
+            </div>
+
             <div class="admin-panel-body">
               <div class="admin-form-grid">
-                <div class="field">
-                  <label>Title</label>
-                  <input class="input" name="hero_title" value={page.hero_title} />
+                <div class="admin-grid-2">
+                  <div class="field">
+                    <label>Page Hero Headline <span class="text-danger">*</span></label>
+                    <input class="input" name="title" value={pc?.title ?? ''} placeholder="Page headline..." required />
+                  </div>
+                  <div class="field">
+                    <label>Badge / Eyebrow Text</label>
+                    <input class="input" name="badge" value={json.badge ?? ''} placeholder="e.g. Signature Collection" />
+                  </div>
                 </div>
+
                 <div class="field">
-                  <label>Subtitle</label>
-                  <input class="input" name="hero_subtitle" value={page.hero_subtitle} />
+                  <label>Hero Subtitle / Introductory Paragraph</label>
+                  <textarea class="textarea" name="subtitle" rows="3" placeholder="Lead paragraph shown under the headline...">{pc?.subtitle ?? ''}</textarea>
                 </div>
+
                 <div class="field">
-                  <label>Badge</label>
-                  <input class="input" name="hero_badge" value={page.hero_badge} />
+                  <label>Extended Page Description (Optional)</label>
+                  <textarea class="textarea" name="description" rows="3" placeholder="Extended description or secondary copy...">{pc?.description ?? ''}</textarea>
                 </div>
-                <ImageUploadDropzone
-                  name="hero_image"
-                  id={`hero_image_${page.key}`}
-                  label="Banner image"
-                  currentImage={page.hero_image}
-                  fallbackName="hero_image_path"
-                  hint="Upload replaces the current banner."
-                  aspectHeight="110px"
-                />
-                <button type="submit" class="btn btn-secondary btn-sm">Save banner</button>
+
+                <!-- Banner Image via Filebase S3 -->
+                <div class="admin-grid-2">
+                  <ImageUploadDropzone
+                    name="banner_image"
+                    id={`banner_image_${page.key}`}
+                    label="Banner / Hero Media (Filebase S3)"
+                    currentImage={pc?.banner_image_url ?? null}
+                    fallbackName="banner_image_path"
+                    hint="Uploaded banner stored in Filebase S3 under content assets."
+                    aspectHeight="150px"
+                  />
+                  <div style="display:flex;flex-direction:column;gap:14px;justify-content:center;">
+                    <div class="field-checkbox">
+                      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                        <input type="checkbox" name="banner_enabled" value="1" checked={pc ? pc.banner_enabled : true} />
+                        <span><strong>Display Banner Media</strong> on page hero</span>
+                      </label>
+                    </div>
+                    <div class="field-checkbox">
+                      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                        <input type="checkbox" name="published" value="1" checked={pc ? pc.published : true} />
+                        <span><strong>Published &amp; Active</strong> in site navigation</span>
+                      </label>
+                    </div>
+                    <div class="field">
+                      <label>Overlay Style</label>
+                      <select class="select" name="overlay">
+                        <option value="dark" selected={json.overlay === 'dark' || !json.overlay}>Dark Overlay</option>
+                        <option value="gradient" selected={json.overlay === 'gradient'}>Subtle Gradient</option>
+                        <option value="light" selected={json.overlay === 'light'}>Light Tint</option>
+                        <option value="none" selected={json.overlay === 'none'}>No Overlay</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label>Text Alignment</label>
+                      <select class="select" name="text_alignment">
+                        <option value="left" selected={json.textAlignment === 'left' || !json.textAlignment}>Left Aligned</option>
+                        <option value="center" selected={json.textAlignment === 'center'}>Centered</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Call to Actions -->
+                <div class="admin-grid-2">
+                  <div class="admin-panel" style="border:1px dashed var(--line);padding:14px;">
+                    <h4 style="font-size:13px;margin:0 0 10px 0;">Primary Call to Action</h4>
+                    <div class="admin-form-grid">
+                      <div class="field">
+                        <label>Button Label</label>
+                        <input class="input" name="primary_cta_label" value={json.primaryCta?.label ?? ''} placeholder="e.g. Plan Your Event" />
+                      </div>
+                      <div class="field">
+                        <label>Button URL</label>
+                        <input class="input" name="primary_cta_url" value={json.primaryCta?.url ?? ''} placeholder="/plan" />
+                      </div>
+                    </div>
+                  </div>
+                  <div class="admin-panel" style="border:1px dashed var(--line);padding:14px;">
+                    <h4 style="font-size:13px;margin:0 0 10px 0;">Secondary Call to Action</h4>
+                    <div class="admin-form-grid">
+                      <div class="field">
+                        <label>Button Label</label>
+                        <input class="input" name="secondary_cta_label" value={json.secondaryCta?.label ?? ''} placeholder="e.g. Browse Mandaps" />
+                      </div>
+                      <div class="field">
+                        <label>Button URL</label>
+                        <input class="input" name="secondary_cta_url" value={json.secondaryCta?.url ?? ''} placeholder="/mandaps" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- SEO & Meta Tags -->
+                <div class="admin-panel" style="border:1px solid var(--line);padding:16px;background:rgba(0,0,0,0.01);">
+                  <h4 style="font-size:14px;margin:0 0 10px 0;display:flex;align-items:center;gap:8px;">
+                    <Icon name="search" size={15} /> Page SEO &amp; Social Metadata
+                  </h4>
+                  <div class="admin-form-grid">
+                    <div class="field">
+                      <label>Meta Title</label>
+                      <input class="input" name="seo_title" value={pc?.seo_title ?? ''} placeholder="SEO title for browser tab and search results..." />
+                    </div>
+                    <div class="field">
+                      <label>Meta Description</label>
+                      <textarea class="textarea" name="seo_description" rows="2" placeholder="Search engine description snippet...">{pc?.seo_description ?? ''}</textarea>
+                    </div>
+                  </div>
+                </div>
+
+                <div style="display:flex;gap:12px;margin-top:10px;">
+                  <button type="submit" class="btn btn-primary">Save {page.label} Content</button>
+                </div>
               </div>
             </div>
           </form>
-        ))}
+        </div>
+      );
+    })}
+
+    <!-- ==================== TAB 9: SEO METADATA ==================== -->
+    <div id="tab-seo" class="studio-panel" role="tabpanel" style="display:none;">
+      <div class="admin-panel">
+        <div class="admin-panel-head">
+          <div>
+            <h2>Global Page SEO &amp; Canonical Tags (Cloudflare D1)</h2>
+            <p>Maintain search engine optimization records across all public listing pages.</p>
+          </div>
+        </div>
+        <div class="admin-panel-body">
+          <div class="admin-grid-2">
+            {seoSettings.map((seo) => (
+              <form method="POST" action="/admin/content" class="admin-panel" style="border-style:dashed;" data-track-changes>
+                <input type="hidden" name="_csrf" value={csrf} />
+                <input type="hidden" name="action" value="save_seo" />
+                <input type="hidden" name="page_key" value={seo.page_key} />
+                <div class="admin-panel-head">
+                  <div>
+                    <h3 style="font-size:15px;text-transform:capitalize;">{seo.page_key} Page SEO</h3>
+                  </div>
+                </div>
+                <div class="admin-panel-body">
+                  <div class="admin-form-grid">
+                    <div class="field">
+                      <label>Meta Title</label>
+                      <input class="input" name="title" value={seo.title} placeholder="Meta Title" required />
+                    </div>
+                    <div class="field">
+                      <label>Meta Description</label>
+                      <textarea class="textarea" name="description" rows="2" placeholder="Meta description for search engines...">{seo.description}</textarea>
+                    </div>
+                    <div class="field">
+                      <label>Canonical URL</label>
+                      <input class="input" name="canonical_url" value={seo.canonical_url} placeholder="https://eventpoint.in/..." />
+                    </div>
+                    <button type="submit" class="btn btn-secondary btn-sm">Update {seo.page_key} SEO</button>
+                  </div>
+                </div>
+              </form>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== TAB 10: HOMEPAGE FEATURE TILES ==================== -->
+    <div id="tab-features" class="studio-panel" role="tabpanel" style="display:none;">
+      <div class="admin-panel">
+        <div class="admin-panel-head">
+          <div>
+            <h2>Homepage Feature Tiles ({features.length})</h2>
+            <p>The “Why Choose Us” grid under the homepage hero section.</p>
+          </div>
+        </div>
+        <div class="admin-panel-body">
+          <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px;">
+            {features.map((feature) => (
+              <div class="flex-between" style="gap:14px;border-bottom:1px solid var(--line);padding-bottom:10px;">
+                <div>
+                  <strong style="font-size:13.5px;">{feature.title}</strong>
+                  <div class="text-xs text-muted">{feature.icon} · {feature.description}</div>
+                </div>
+                <form method="POST" action="/admin/content">
+                  <input type="hidden" name="_csrf" value={csrf} />
+                  <input type="hidden" name="action" value="delete_feature" />
+                  <input type="hidden" name="feature_id" value={feature.id} />
+                  <button type="submit" class="icon-btn danger" data-confirm="Remove this feature tile?" aria-label="Delete feature">
+                    <Icon name="trash" size={14} />
+                  </button>
+                </form>
+              </div>
+            ))}
+            {features.length === 0 && <p class="text-sm text-muted">No feature tiles yet.</p>}
+          </div>
+
+          <form method="POST" action="/admin/content" class="admin-inline-form">
+            <input type="hidden" name="_csrf" value={csrf} />
+            <input type="hidden" name="action" value="add_feature" />
+            <div class="field" style="width:110px;">
+              <label for="icon">Icon</label>
+              <select class="select" id="icon" name="icon">
+                {['archway', 'building', 'utensils', 'sparkles', 'shield', 'users', 'star', 'camera', 'music', 'flower', 'coffee', 'chair'].map((icon) => (
+                  <option value={icon}>{icon}</option>
+                ))}
+              </select>
+            </div>
+            <div class="field" style="min-width:200px;flex:1;">
+              <label for="title">Title</label>
+              <input class="input" id="title" name="title" placeholder="Four signature venues" required />
+            </div>
+            <div class="field" style="min-width:260px;flex:2;">
+              <label for="description">Description</label>
+              <input class="input" id="description" name="description" placeholder="From an 800-guest ballroom to a garden lawn." />
+            </div>
+            <button type="submit" class="btn btn-secondary btn-sm">Add tile</button>
+          </form>
+        </div>
       </div>
     </div>
   </div>
 </AdminLayout>
+
+<style>
+  .content-studio {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .unsaved-alert {
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+    color: #92400e;
+    padding: 10px 16px;
+    border-radius: var(--r-sm);
+    font-size: 13.5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+  }
+  .studio-tab-bar {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    padding: 6px;
+    overflow-x: auto;
+  }
+  .studio-tabs {
+    display: flex;
+    gap: 4px;
+    min-width: max-content;
+  }
+  .studio-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 14px;
+    background: transparent;
+    border: none;
+    border-radius: var(--r-sm);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-soft);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+  .studio-tab-btn:hover {
+    background: rgba(0, 0, 0, 0.04);
+    color: var(--text);
+  }
+  .studio-tab-btn.active {
+    background: var(--burgundy, #721224);
+    color: #fff;
+    font-weight: 600;
+  }
+  .tab-badge {
+    background: rgba(255, 255, 255, 0.2);
+    color: inherit;
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-weight: 600;
+  }
+  .studio-tab-btn:not(.active) .tab-badge {
+    background: var(--line);
+    color: var(--text-muted);
+  }
+  .admin-grid-3 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+  }
+  .admin-grid-4 {
+    display: grid;
+    gap: 16px;
+  }
+</style>
+
+<script>
+  function setupStudioTabs() {
+    const tabBtns = document.querySelectorAll<HTMLButtonElement>('.studio-tab-btn');
+    const panels = document.querySelectorAll<HTMLElement>('.studio-panel');
+    const unsavedBanner = document.getElementById('unsavedChangesBanner');
+    let isFormDirty = false;
+
+    function switchTab(targetId: string, pushHash: boolean = true) {
+      tabBtns.forEach((btn) => {
+        const isMatch = btn.dataset.tabTarget === targetId;
+        btn.classList.toggle('active', isMatch);
+        btn.setAttribute('aria-selected', isMatch ? 'true' : 'false');
+      });
+
+      panels.forEach((p) => {
+        if (p.id === `tab-${targetId}`) {
+          p.style.display = 'block';
+        } else {
+          p.style.display = 'none';
+        }
+      });
+
+      if (pushHash && history.replaceState) {
+        history.replaceState(null, '', `#${targetId}`);
+      }
+    }
+
+    tabBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const target = btn.dataset.tabTarget;
+        if (target) switchTab(target);
+      });
+    });
+
+    // Handle initial hash in URL
+    const hash = window.location.hash.replace(/^#/, '');
+    if (hash && document.getElementById(`tab-${hash}`)) {
+      switchTab(hash, false);
+    }
+
+    // Track unsaved changes
+    const forms = document.querySelectorAll<HTMLFormElement>('form[data-track-changes]');
+    forms.forEach((form) => {
+      form.addEventListener('input', () => {
+        isFormDirty = true;
+        if (unsavedBanner) unsavedBanner.style.display = 'flex';
+      });
+      form.addEventListener('change', () => {
+        isFormDirty = true;
+        if (unsavedBanner) unsavedBanner.style.display = 'flex';
+      });
+      form.addEventListener('submit', () => {
+        isFormDirty = false;
+        if (unsavedBanner) unsavedBanner.style.display = 'none';
+      });
+    });
+
+    window.addEventListener('beforeunload', (e) => {
+      if (isFormDirty) {
+        e.preventDefault();
+      }
+    });
+
+    // Dynamic map preview updater for Brand Lat/Lon
+    const latInput = document.getElementById('brand_lat') as HTMLInputElement | null;
+    const lonInput = document.getElementById('brand_lon') as HTMLInputElement | null;
+    const previewLink = document.getElementById('brandMapPreviewLink') as HTMLAnchorElement | null;
+    function updateMapPreview() {
+      if (!previewLink) return;
+      const lat = latInput?.value.trim();
+      const lon = lonInput?.value.trim();
+      if (lat && lon) {
+        previewLink.href = `https://maps.google.com/?q=${lat},${lon}`;
+      }
+    }
+    latInput?.addEventListener('input', updateMapPreview);
+    lonInput?.addEventListener('input', updateMapPreview);
+  }
+
+  setupStudioTabs();
+  document.addEventListener('astro:page-load', setupStudioTabs);
+</script>

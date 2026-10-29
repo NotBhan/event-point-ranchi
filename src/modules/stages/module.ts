@@ -12,8 +12,8 @@ export default defineModule({
     {
       path: '/stages',
       component: StagesPage,
-      handle: ({ url }) => {
-        const data = loadStagesPage({
+      handle: async ({ url }) => {
+        const data = await loadStagesPage({
           category: url.searchParams.get('style') ?? '',
           query: url.searchParams.get('q') ?? '',
         });
@@ -23,8 +23,8 @@ export default defineModule({
     {
       path: '/stages/:slug',
       component: StageDetailPage,
-      handle: ({ params }) => {
-        const data = loadStageDetail(params.slug);
+      handle: async ({ params }) => {
+        const data = await loadStageDetail(params.slug);
         if (!data) return { props: { notFound: true }, status: 404 };
         return { props: { data } };
       },

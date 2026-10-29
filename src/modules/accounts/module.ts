@@ -30,7 +30,7 @@ export default defineModule({
         if (ctx.request.method === 'POST') {
           const login = getString(ctx.form, 'username');
           const password = getString(ctx.form, 'password');
-          const user = authenticate(login, password);
+          const user = await authenticate(login, password);
 
           if (!user) {
             return { props: { error: 'Invalid username/email or password.', next: nextParam, username: login } };
@@ -139,7 +139,7 @@ export default defineModule({
 
         if (ctx.request.method !== 'POST') return redirect('/profile');
 
-        const result = changePassword(
+        const result = await changePassword(
           ctx.auth.user!.id,
           getString(ctx.form, 'current_password'),
           getString(ctx.form, 'new_password'),

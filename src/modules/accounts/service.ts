@@ -2,6 +2,12 @@ import { one, run, tx } from '../../core/db';
 import { isEmail } from '../../core/http';
 import { hashPassword, verifyPassword } from '../../core/password';
 import type { Role } from '../../core/types';
+import {
+  findUserByLogin as neonFindUserByLogin,
+  authenticate as neonAuthenticate,
+  findUserById as neonFindUserById,
+  updateUserPassword as neonUpdateUserPassword,
+} from '../../core/operational/service';
 
 export interface UserRow {
   id: number;
@@ -9,15 +15,13 @@ export interface UserRow {
   email: string | null;
   first_name: string;
   role: Role;
-  is_active: number;
+  is_active: number | boolean;
   password_hash: string;
 }
 
-export function findUserByLogin(login: string): UserRow | undefined {
-  return one<UserRow>(
-    'SELECT * FROM users WHERE (username = ? COLLATE NOCASE OR email = ? COLLATE NOCASE) AND is_active = 1',
-    [login, login],
-  );
+export async function findUserByLogin(login: string): Promise<UserRow | undefined> {
+  const user = await neonFindUserByLogin(login);
+  return user as UserRow | undefined;
 }
 
 export interface CustomerRow {
@@ -113,14 +117,13 @@ export function registerCustomer(input: RegisterInput): { ok: true; userId: numb
   });
 }
 
-export function authenticate(login: string, password: string): UserRow | null {
-  const user = findUserByLogin(login);
-  if (!user) return null;
-  return verifyPassword(password, user.password_hash) ? user : null;
+export async function authenticate(login: string, password: string): Promise<UserRow | null> {
+  const user = await neonAuthenticate(login, password);
+  return user as UserRow | null;
 }
 
-export function changePassword(userId: number, currentPassword: string, newPassword: string, confirmPassword: string) {
-  const user = one<UserRow>('SELECT * FROM users WHERE id = ?', [userId]);
+export async function changePassword(userId: number, currentPassword: string, newPassword: string, confirmPassword: string) {
+  const user = await neonFindUserById(userId);
   if (!user) return { ok: false as const, error: 'Account not found.' };
   if (!verifyPassword(currentPassword, user.password_hash)) {
     return { ok: false as const, error: 'Your current password is incorrect.' };
@@ -129,6 +132,6 @@ export function changePassword(userId: number, currentPassword: string, newPassw
   if (newPassword !== confirmPassword) return { ok: false as const, error: 'New passwords do not match.' };
 
   const hash = hashPassword(newPassword);
-  run('UPDATE users SET password_hash = ? WHERE id = ?', [hash, userId]);
+  await neonUpdateUserPassword(userId, hash);
   return { ok: true as const, passwordHash: hash };
 }

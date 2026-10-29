@@ -2,26 +2,38 @@
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import Icon from '../../../components/Icon.astro';
 import { imageUrl } from '../../../core/http';
-import type { loadGalleryPage } from '../service';
+import type { GalleryPageData } from '../service';
+import { getPageContent } from '../../../core/content/service';
 import '../gallery.css';
 
 interface Props {
-  data: ReturnType<typeof loadGalleryPage>;
+  data: GalleryPageData;
 }
 
 const { data } = Astro.props;
 const { settings, categories, items } = data;
+const pageContent = await getPageContent('gallery');
+
+const heroTitle = pageContent.title || settings.hero_title;
+const heroSubtitle = pageContent.subtitle || settings.hero_subtitle;
+const heroBadge = pageContent.content_json?.badge || settings.hero_badge;
+const heroBanner = pageContent.banner_image_url || settings.hero_image;
+const showBanner = pageContent.banner_enabled !== false && Boolean(heroBanner);
+
 const DEFAULT_PAGE_SIZE = 8;
 const totalInitialPages = Math.ceil(items.length / DEFAULT_PAGE_SIZE);
 ---
 
-<BaseLayout title="Gallery | Event Point Ranchi" description={settings.hero_subtitle}>
-  <section class:list={['page-hero', { 'with-image': Boolean(settings.hero_image) }]}>
-    {settings.hero_image && <img class="page-hero-media" src={imageUrl(settings.hero_image)} alt="" />}
+<BaseLayout
+  title={pageContent.seo_title || "Gallery | Event Point Ranchi"}
+  description={pageContent.seo_description || heroSubtitle}
+>
+  <section class:list={['page-hero', { 'with-image': showBanner }]}>
+    {showBanner && <img class="page-hero-media" src={imageUrl(heroBanner)} alt="" />}
     <div class="container">
-      {settings.hero_badge && <span class="eyebrow">{settings.hero_badge}</span>}
-      <h1>{settings.hero_title}</h1>
-      <p>{settings.hero_subtitle}</p>
+      {heroBadge && <span class="eyebrow">{heroBadge}</span>}
+      <h1>{heroTitle}</h1>
+      <p>{heroSubtitle}</p>
     </div>
   </section>
 

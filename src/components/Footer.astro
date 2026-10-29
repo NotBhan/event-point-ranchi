@@ -1,7 +1,7 @@
 ---
 import { site } from '../core/config';
 import { getNav } from '../core/registry';
-import type { MergedSiteSettings } from '../core/sanity/service';
+import type { MergedSiteSettings } from '../core/content/service';
 import Icon from './Icon.astro';
 
 interface Props {
@@ -17,7 +17,7 @@ const email = settings?.email || site.email;
 const address = settings?.address || site.address;
 const whatsapp = settings?.whatsapp || site.whatsapp;
 const businessHours = settings?.businessHours || 'Daily, 10:00 – 19:00';
-const socialLinks = settings?.social || site.social;
+const socialLinks: ReadonlyArray<{ label: string; href: string }> = settings?.social || site.social;
 
 const nav = getNav();
 const planLinks = [
@@ -67,7 +67,13 @@ const phoneHref = `tel:${phone.replace(/\s/g, '')}`;
         <div class="footer-contact">
           <div>
             <Icon name="pin" size={15} />
-            <span>{address}</span>
+            {settings?.googleMapsUrl ? (
+              <a href={settings.googleMapsUrl} target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;text-underline-offset:2px;">
+                {address}
+              </a>
+            ) : (
+              <span>{address}</span>
+            )}
           </div>
           <div>
             <Icon name="phone" size={15} />
@@ -81,20 +87,30 @@ const phoneHref = `tel:${phone.replace(/\s/g, '')}`;
             <Icon name="clock" size={15} />
             <span>Studio visits: {businessHours}</span>
           </div>
+          {settings?.googleMapsUrl && (
+            <div style="margin-top:4px;">
+              <Icon name="external" size={13} />
+              <a href={settings.googleMapsUrl} target="_blank" rel="noopener noreferrer" style="font-size:12px;color:var(--gold-bright);">
+                View on Google Maps &rarr;
+              </a>
+            </div>
+          )}
         </div>
-        <a
-          class="footer-whatsapp"
-          href={`https://wa.me/${whatsapp}?text=${encodeURIComponent(`Hello ${brandName}, I would like to plan a wedding setup in Ranchi.`)}`}
-          rel="noopener"
-          target="_blank"
-        >
-          <Icon name="phone" size={14} /> Chat on WhatsApp
-        </a>
+        {settings?.contactButtonsEnabled !== false && (
+          <a
+            class="footer-whatsapp"
+            href={`https://wa.me/${whatsapp}?text=${encodeURIComponent(`Hello ${brandName}, I would like to plan a wedding setup in Ranchi.`)}`}
+            rel="noopener"
+            target="_blank"
+          >
+            <Icon name="phone" size={14} /> Chat on WhatsApp
+          </a>
+        )}
       </div>
     </div>
 
     <div class="footer-bottom">
-      <span>© {year} {legalName}. All rights reserved.</span>
+      <span>{settings?.footerText || `© ${year} ${legalName}. All rights reserved.`}</span>
       <span class="footer-policy-links">
         <a href="/policies#terms">Terms</a>
         <a href="/policies#privacy">Privacy</a>

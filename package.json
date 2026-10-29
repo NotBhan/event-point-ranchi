@@ -21,12 +21,10 @@
     "@astrojs/node": "^11.1.9",
     "@astrojs/vercel": "^11.0.16",
     "@aws-sdk/client-s3": "^3.1159.0",
-    "@sanity/client": "^8.13.0",
-    "@sanity/image-url": "^2.1.1",
+    "@neondatabase/serverless": "^1.2.0",
     "astro": "^7.4.2",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "sanity": "^6.21.0",
     "sharp": "^0.35.5"
   },
   "devDependencies": {
