@@ -37,6 +37,10 @@ export function seedDatabase(db: DatabaseSync): void {
       `INSERT INTO users (username, email, password_hash, first_name, role) VALUES (?, ?, ?, ?, ?)`,
       ['event_manager', 'manager@eventpointranchi.com', hashPassword('Manager@Royal2026!'), 'Rajesh', 'admin'],
     );
+    insert(
+      `INSERT INTO users (username, email, password_hash, first_name, role) VALUES (?, ?, ?, ?, ?)`,
+      ['content_editor', 'editor@eventpointranchi.com', hashPassword('Editor@Royal2026!'), 'Content Editor', 'editor'],
+    );
     const customerSeed = [
       ['rohit_sharma', 'Rohit Sharma', 'rohit.sharma@example.com', '9876543210', 'Flat 402, Sea Green Heights, Worli, Mumbai'],
       ['priya_patel', 'Priya Patel', 'priya.patel@example.com', '9812345678', 'Villa 12, Palm Meadows, Whitefield, Bangalore'],

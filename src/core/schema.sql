@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
   email         TEXT UNIQUE COLLATE NOCASE,
   password_hash TEXT NOT NULL,
   first_name    TEXT NOT NULL DEFAULT '',
-  role          TEXT NOT NULL DEFAULT 'customer' CHECK (role IN ('customer', 'admin', 'superadmin', 'developer')),
+  role          TEXT NOT NULL DEFAULT 'customer' CHECK (role IN ('customer', 'editor', 'admin', 'superadmin', 'developer')),
   is_active     INTEGER NOT NULL DEFAULT 1,
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );

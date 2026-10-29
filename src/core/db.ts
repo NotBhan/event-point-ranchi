@@ -28,6 +28,7 @@ export function getDb(): DatabaseSync {
   const db = new DatabaseSync(join(dataDir(), 'event-point.db'));
   db.exec(schemaSql);
   migrateTrafficEvents(db);
+  migrateUsersRole(db);
   initStorageSchema(db);
 
   const row = db.prepare('SELECT COUNT(*) AS count FROM users').get() as { count: number };
@@ -36,9 +37,34 @@ export function getDb(): DatabaseSync {
   }
 
   ensureAdminUser(db);
+  ensureEditorUser(db);
 
   database = db;
   return db;
+}
+
+function migrateUsersRole(db: DatabaseSync): void {
+  const tableSql = (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").get() as { sql?: string })?.sql || '';
+  if (tableSql && !tableSql.includes("'editor'")) {
+    db.exec(`
+      PRAGMA foreign_keys = OFF;
+      CREATE TABLE users_migrated (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        username      TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        email         TEXT UNIQUE COLLATE NOCASE,
+        password_hash TEXT NOT NULL,
+        first_name    TEXT NOT NULL DEFAULT '',
+        role          TEXT NOT NULL DEFAULT 'customer' CHECK (role IN ('customer', 'editor', 'admin', 'superadmin', 'developer')),
+        is_active     INTEGER NOT NULL DEFAULT 1,
+        created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      INSERT INTO users_migrated (id, username, email, password_hash, first_name, role, is_active, created_at)
+        SELECT id, username, email, password_hash, first_name, role, is_active, created_at FROM users;
+      DROP TABLE users;
+      ALTER TABLE users_migrated RENAME TO users;
+      PRAGMA foreign_keys = ON;
+    `);
+  }
 }
 
 function migrateTrafficEvents(db: DatabaseSync): void {
@@ -81,6 +107,35 @@ function ensureAdminUser(db: DatabaseSync): void {
   db.prepare(
     "INSERT INTO users (username, email, password_hash, first_name, role, is_active) VALUES ('admin', 'admin@eventpointranchi.com', ?, 'Administrator', 'developer', 1)",
   ).run(hashPassword(adminPassword));
+}
+
+function ensureEditorUser(db: DatabaseSync): void {
+  const editorPassword =
+    process.env.EDITOR_PASSWORD ||
+    (typeof import.meta !== 'undefined' && import.meta.env?.EDITOR_PASSWORD) ||
+    'Editor@Royal2026!';
+
+  const existing = db
+    .prepare("SELECT id, password_hash, role, is_active FROM users WHERE username = 'content_editor' COLLATE NOCASE")
+    .get() as { id: number; password_hash: string; role: string; is_active: number } | undefined;
+
+  if (existing) {
+    if (
+      !verifyPassword(editorPassword, existing.password_hash) ||
+      existing.is_active !== 1 ||
+      existing.role !== 'editor'
+    ) {
+      db.prepare("UPDATE users SET password_hash = ?, role = 'editor', is_active = 1 WHERE id = ?").run(
+        hashPassword(editorPassword),
+        existing.id,
+      );
+    }
+    return;
+  }
+
+  db.prepare(
+    "INSERT INTO users (username, email, password_hash, first_name, role, is_active) VALUES ('content_editor', 'editor@eventpointranchi.com', ?, 'Content Editor', 'editor', 1)",
+  ).run(hashPassword(editorPassword));
 }
 
 export function cleanParams(params: unknown[]): unknown[] {

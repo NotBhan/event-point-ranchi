@@ -182,6 +182,7 @@ test('Admin studio handler enforces admin authorization', () => {
       user: null,
       isAuthenticated: false,
       isAdmin: false,
+      isEditor: false,
       isSuperadmin: false,
       isDeveloper: false,
     },
@@ -195,7 +196,7 @@ test('Admin studio handler enforces admin authorization', () => {
 
   const anonResult = studioAdmin(anonCtx);
   assert.ok(anonResult && typeof anonResult === 'object');
-  // requireAdmin returns redirect response
+  // requireEditor returns redirect response
   assert.equal((anonResult as any).status, 303);
   assert.equal((anonResult as any).headers?.get('Location'), '/admin/login?next=%2Fadmin%2Fstudio');
 
@@ -216,6 +217,7 @@ test('Admin studio handler enforces admin authorization', () => {
       },
       isAuthenticated: true,
       isAdmin: true,
+      isEditor: true,
       isSuperadmin: false,
       isDeveloper: false,
     },
@@ -230,4 +232,90 @@ test('Admin studio handler enforces admin authorization', () => {
   const adminResult = studioAdmin(adminCtx);
   assert.ok(adminResult && 'props' in adminResult);
   assert.equal(typeof adminResult.props.configured, 'boolean');
+});
+
+test('Role-based access control enforces editor vs admin separation', async () => {
+  const { authStateFor } = await import('../src/core/auth');
+  const { dashboard, bookingsList, customersList } = await import('../src/modules/admin/handlers/operations');
+  const { galleryAdmin } = await import('../src/modules/admin/handlers/catalog');
+
+  // Verify authStateFor flags
+  const customerAuth = authStateFor({
+    id: 10,
+    username: 'cust',
+    email: 'c@test.com',
+    firstName: 'Cust',
+    role: 'customer',
+    isActive: true,
+  });
+  assert.equal(customerAuth.isEditor, false);
+  assert.equal(customerAuth.isAdmin, false);
+
+  const editorAuth = authStateFor({
+    id: 11,
+    username: 'content_editor',
+    email: 'editor@test.com',
+    firstName: 'Editor',
+    role: 'editor',
+    isActive: true,
+  });
+  assert.equal(editorAuth.isEditor, true);
+  assert.equal(editorAuth.isAdmin, false);
+
+  const adminAuth = authStateFor({
+    id: 12,
+    username: 'manager',
+    email: 'm@test.com',
+    firstName: 'Manager',
+    role: 'admin',
+    isActive: true,
+  });
+  assert.equal(adminAuth.isEditor, true);
+  assert.equal(adminAuth.isAdmin, true);
+
+  // Editor context
+  const editorCtx: PageContext = {
+    request: new Request('http://localhost/admin/studio'),
+    url: new URL('http://localhost/admin/studio'),
+    params: {},
+    form: null,
+    auth: editorAuth,
+    csrf: 'token',
+    cookies: {
+      get: () => undefined,
+      set: () => {},
+      delete: () => {},
+    },
+  };
+
+  // Editor CAN access Sanity Studio
+  const studioResult = studioAdmin(editorCtx);
+  assert.ok(studioResult && 'props' in studioResult);
+  assert.equal(typeof (studioResult as any).props.configured, 'boolean');
+
+  // Editor accessing /admin dashboard is redirected to /admin/studio
+  const dashResult = dashboard({ ...editorCtx, url: new URL('http://localhost/admin') });
+  assert.equal((dashResult as any).status, 303);
+  assert.equal((dashResult as any).headers?.get('Location'), '/admin/studio');
+
+  // Editor CANNOT access operational data: Bookings, Customers, Gallery Admin
+  const bookingsResult = bookingsList({ ...editorCtx, url: new URL('http://localhost/admin/bookings') });
+  assert.equal((bookingsResult as any).status, 303);
+  assert.equal((bookingsResult as any).headers?.get('Location'), '/admin/login?next=%2Fadmin%2Fbookings');
+
+  const customersResult = customersList({ ...editorCtx, url: new URL('http://localhost/admin/customers') });
+  assert.equal((customersResult as any).status, 303);
+  assert.equal((customersResult as any).headers?.get('Location'), '/admin/login?next=%2Fadmin%2Fcustomers');
+
+  const galleryResult = await galleryAdmin({ ...editorCtx, url: new URL('http://localhost/admin/gallery') });
+  assert.equal((galleryResult as any).status, 303);
+  assert.equal((galleryResult as any).headers?.get('Location'), '/admin/login?next=%2Fadmin%2Fgallery');
+});
+
+test('Sanity Studio configuration exports clean structure with dynamic basePath', async () => {
+  const sanityConfig = (await import('../sanity.config')).default;
+  assert.ok(sanityConfig);
+  assert.equal(sanityConfig.name, 'event-point-ranchi');
+  assert.ok(Array.isArray(sanityConfig.schema?.types));
+  assert.ok(sanityConfig.schema.types.length >= 5);
 });

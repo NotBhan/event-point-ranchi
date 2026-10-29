@@ -19,6 +19,8 @@ const user = auth.user!;
 const csrf = Astro.locals.csrf;
 const nav = getAdminNav();
 const path = Astro.url.pathname;
+const isEditorOnly = user.role === 'editor';
+const visibleNav = isEditorOnly ? nav.filter((item) => item.href === '/admin/studio') : nav;
 
 const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path.startsWith(href));
 ---
@@ -51,8 +53,8 @@ const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path
         </div>
 
         <nav class="admin-nav">
-          <span class="admin-nav-label">Operations</span>
-          {nav.map((item) => (
+          <span class="admin-nav-label">{isEditorOnly ? 'Content Studio' : 'Operations'}</span>
+          {visibleNav.map((item) => (
             <a href={item.href} class:list={{ active: isActive(item.href) }}>
               <Icon name={item.icon} size={15} /> {item.label}
             </a>

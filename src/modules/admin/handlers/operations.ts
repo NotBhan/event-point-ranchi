@@ -25,9 +25,11 @@ import {
 import { runFormAction } from './shared';
 
 export async function adminLogin(ctx: PageContext) {
-  const next = safeNext(ctx.url.searchParams.get('next'), '/admin');
+  const defaultRedirect = ctx.auth.user?.role === 'editor' ? '/admin/studio' : '/admin';
+  const next = safeNext(ctx.url.searchParams.get('next'), defaultRedirect);
 
   if (ctx.auth.isAdmin) return redirect(next);
+  if (ctx.auth.user?.role === 'editor') return redirect('/admin/studio');
 
   if (ctx.request.method === 'POST') {
     const user = authenticate(getString(ctx.form, 'username'), getString(ctx.form, 'password'));
@@ -38,7 +40,8 @@ export async function adminLogin(ctx: PageContext) {
 
     startSession(ctx.cookies, user.id, user.password_hash);
     setSuccess(ctx.cookies, `Welcome back, ${user.first_name || user.username}.`);
-    return redirect(safeNext(getString(ctx.form, 'next') || next, '/admin'));
+    const destination = user.role === 'editor' ? '/admin/studio' : safeNext(getString(ctx.form, 'next') || next, '/admin');
+    return redirect(destination);
   }
 
   return { props: { error: null, next } };
@@ -51,6 +54,9 @@ export async function adminLogout(ctx: PageContext) {
 }
 
 export function dashboard(ctx: PageContext) {
+  if (ctx.auth.user?.role === 'editor') {
+    return redirect('/admin/studio');
+  }
   const denied = requireAdmin(ctx);
   if (denied) return denied;
 

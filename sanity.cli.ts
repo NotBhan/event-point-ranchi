@@ -15,5 +15,5 @@ export default defineCliConfig({
     projectId,
     dataset,
   },
-  studioHost: 'event-point-ranchi',
+  studioHost: process.env.SANITY_STUDIO_HOST || 'event-point-ranchi',
 });

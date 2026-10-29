@@ -1,9 +1,9 @@
-import { requireAdmin } from '../../../core/auth';
+import { requireEditor } from '../../../core/auth';
 import type { PageContext } from '../../../core/types';
 import { getSanityConfig, isSanityConfigured } from '../../../core/sanity/config';
 
 export function studioAdmin(ctx: PageContext) {
-  const denied = requireAdmin(ctx);
+  const denied = requireEditor(ctx);
   if (denied) return denied;
 
   const config = getSanityConfig();

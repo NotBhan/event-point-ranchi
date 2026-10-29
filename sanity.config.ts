@@ -12,12 +12,24 @@ const dataset =
   process.env.SANITY_DATASET ||
   'production';
 
+function resolveBasePath(): string {
+  if (process.env.SANITY_STUDIO_BASE_PATH) {
+    return process.env.SANITY_STUDIO_BASE_PATH;
+  }
+  if (typeof window !== 'undefined') {
+    if (window.location.pathname.startsWith('/admin/studio')) return '/admin/studio';
+    if (window.location.pathname.startsWith('/studio')) return '/studio';
+    return '/';
+  }
+  return '/admin/studio';
+}
+
 export default defineConfig({
   name: 'event-point-ranchi',
   title: 'Event Point Ranchi Studio',
   projectId,
   dataset,
-  basePath: '/admin/studio',
+  basePath: resolveBasePath(),
   plugins: [structureTool()],
   schema: {
     types: schemaTypes,

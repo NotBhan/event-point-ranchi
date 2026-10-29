@@ -87,16 +87,22 @@ export const emptyAuth: AuthState = {
   user: null,
   isAuthenticated: false,
   isAdmin: false,
+  isEditor: false,
   isSuperadmin: false,
   isDeveloper: false,
 };
 
 export function authStateFor(user: SessionUser | null): AuthState {
+  const isSuperadmin = Boolean(user && (user.role === 'superadmin' || user.role === 'developer'));
+  const isAdmin = Boolean(user && (user.role === 'admin' || isSuperadmin));
+  const isEditor = Boolean(user && (user.role === 'editor' || isAdmin));
+
   return {
     user,
     isAuthenticated: Boolean(user),
-    isAdmin: Boolean(user && user.role !== 'customer'),
-    isSuperadmin: Boolean(user && (user.role === 'superadmin' || user.role === 'developer')),
+    isAdmin,
+    isEditor,
+    isSuperadmin,
     isDeveloper: Boolean(user && user.role === 'developer'),
   };
 }
@@ -142,6 +148,12 @@ export function requireCustomer(ctx: PageContext): Response | null {
 export function requireAdmin(ctx: PageContext): Response | null {
   if (ctx.auth.isAdmin) return null;
   const next = safeNext(`${ctx.url.pathname}${ctx.url.search}`, '/admin');
+  return redirect(`/admin/login?next=${encodeURIComponent(next)}`);
+}
+
+export function requireEditor(ctx: PageContext): Response | null {
+  if (ctx.auth.isEditor) return null;
+  const next = safeNext(`${ctx.url.pathname}${ctx.url.search}`, '/admin/studio');
   return redirect(`/admin/login?next=${encodeURIComponent(next)}`);
 }
 
