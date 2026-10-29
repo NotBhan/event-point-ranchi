@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import { hashPassword } from './password';
+import { INITIAL_STORAGE_OBJECTS } from './storage/initial-storage-objects';
 
 function isoDate(daysFromNow: number): string {
   const date = new Date();
@@ -17,11 +18,16 @@ export function seedDatabase(db: DatabaseSync): void {
         .lastInsertRowid,
     );
 
+  const adminPassword =
+    process.env.ADMIN_PASSWORD ||
+    (typeof import.meta !== 'undefined' && import.meta.env?.ADMIN_PASSWORD) ||
+    'admin';
+
   db.exec('BEGIN');
   try {
     insert(
       `INSERT INTO users (username, email, password_hash, first_name, role) VALUES (?, ?, ?, ?, ?)`,
-      ['admin', 'admin@eventpointranchi.com', hashPassword('Admin@Royal2026!'), 'Root', 'developer'],
+      ['admin', 'admin@eventpointranchi.com', hashPassword(adminPassword), 'Root', 'developer'],
     );
     insert(
       `INSERT INTO users (username, email, password_hash, first_name, role) VALUES (?, ?, ?, ?, ?)`,
@@ -30,6 +36,10 @@ export function seedDatabase(db: DatabaseSync): void {
     insert(
       `INSERT INTO users (username, email, password_hash, first_name, role) VALUES (?, ?, ?, ?, ?)`,
       ['event_manager', 'manager@eventpointranchi.com', hashPassword('Manager@Royal2026!'), 'Rajesh', 'admin'],
+    );
+    insert(
+      `INSERT INTO users (username, email, password_hash, first_name, role) VALUES (?, ?, ?, ?, ?)`,
+      ['content_editor', 'editor@eventpointranchi.com', hashPassword('Editor@Royal2026!'), 'Content Editor', 'editor'],
     );
     const customerSeed = [
       ['rohit_sharma', 'Rohit Sharma', 'rohit.sharma@example.com', '9876543210', 'Flat 402, Sea Green Heights, Worli, Mumbai'],
@@ -60,8 +70,8 @@ export function seedDatabase(db: DatabaseSync): void {
         slug: 'royal-kohinoor-ballroom',
         description:
           'Our flagship grand ballroom with Bohemian crystal chandeliers, soaring ceilings, acoustic insulation and an expansive stage for royal weddings and international summits.',
-        image: '/images/archive/fernando-alvarez-rodriguez-M7GddPqJowg-unsplash.jpg',
-        banner: '/images/archive/fernando-alvarez-rodriguez-M7GddPqJowg-unsplash.jpg',
+        image: '/storage/assets/halls/1/primary.webp',
+        banner: '/storage/assets/halls/1/banner.webp',
         price: 25_000_000,
         capacity: 800,
         location: 'North Wing, Level 1',
@@ -69,8 +79,8 @@ export function seedDatabase(db: DatabaseSync): void {
         featured: 1,
         badge: 1,
         gallery: [
-          '/images/archive/visualsofdana-T5pL6ciEn-I-unsplash.jpg',
-          '/images/archive/runnyrem-LfqmND-hym8-unsplash.jpg',
+          '/storage/assets/halls/1/gallery_1.webp',
+          '/storage/assets/halls/1/gallery_2.webp',
         ],
         features: [
           ['snowflake', 'Central Air Conditioning', 'High-capacity multi-zone climate control'],
@@ -86,8 +96,8 @@ export function seedDatabase(db: DatabaseSync): void {
         slug: 'imperial-crystal-hall',
         description:
           'Contemporary glass architecture with double-height panoramic garden views, dynamic LED wash lighting and dedicated VIP hospitality lounges.',
-        image: '/images/archive/point3d-commercial-imaging-ltd-oxeCZrodz78-unsplash.jpg',
-        banner: '/images/archive/point3d-commercial-imaging-ltd-oxeCZrodz78-unsplash.jpg',
+        image: '/storage/assets/halls/2/primary.webp',
+        banner: '/storage/assets/halls/2/banner.webp',
         price: 18_000_000,
         capacity: 500,
         location: 'East Wing, Ground Floor',
@@ -95,8 +105,8 @@ export function seedDatabase(db: DatabaseSync): void {
         featured: 1,
         badge: 1,
         gallery: [
-          '/images/archive/linus-mimietz-p3UWyaujtQo-unsplash.jpg',
-          '/images/archive/bilderboken-rlwE8f8anOc-unsplash.jpg',
+          '/storage/assets/halls/2/gallery_3.webp',
+          '/storage/assets/halls/2/gallery_4.webp',
         ],
         features: [
           ['snowflake', 'Climate Controlled', 'Independent airflow regulation'],
@@ -110,15 +120,15 @@ export function seedDatabase(db: DatabaseSync): void {
         slug: 'heritage-regal-pavilion',
         description:
           'Traditional Rajasthani stone jharokhas, handcrafted wooden motifs and an intimate acoustic ambiance for traditional ceremonies and engagements.',
-        image: '/images/archive/vojtech-bruzek-Yrxr3bsPdS0-unsplash.jpg',
-        banner: '/images/archive/vojtech-bruzek-Yrxr3bsPdS0-unsplash.jpg',
+        image: '/storage/assets/halls/3/primary.webp',
+        banner: '/storage/assets/halls/3/banner.webp',
         price: 12_000_000,
         capacity: 350,
         location: 'Heritage Courtyard',
         parking: 120,
         featured: 0,
         badge: 0,
-        gallery: ['/images/archive/christian-lambert-vmIWr0NnpCQ-unsplash.jpg'],
+        gallery: ['/storage/assets/halls/3/gallery_5.webp'],
         features: [
           ['building', 'Artisanal Heritage Arches', 'Hand-carved sandstone pillars'],
           ['snowflake', 'Concealed AC Ducts', 'Silent split-duct cooling system'],
@@ -130,15 +140,15 @@ export function seedDatabase(db: DatabaseSync): void {
         slug: 'emerald-garden-lawn',
         description:
           'Expansive green lawn with illuminated palm avenues, waterfall backdrops and open-air luxury cabanas for sangeet and reception nights.',
-        image: '/images/archive/valeriia-bugaiova-_pPHgeHz1uk-unsplash.jpg',
-        banner: '/images/archive/valeriia-bugaiova-_pPHgeHz1uk-unsplash.jpg',
+        image: '/storage/assets/halls/4/primary.webp',
+        banner: '/storage/assets/halls/4/banner.webp',
         price: 15_000_000,
         capacity: 650,
         location: 'Outdoor South Gardens',
         parking: 200,
         featured: 1,
         badge: 1,
-        gallery: ['/images/archive/gerson-repreza-CepDpEiALqM-unsplash.jpg'],
+        gallery: ['/storage/assets/halls/4/gallery_6.webp'],
         features: [
           ['sparkles', 'Lush Carpet Lawn', '15,000 sq. ft. manicured natural turf'],
           ['star', 'Fairytale Fairy Lighting', 'Illuminated palm tree canopy'],
@@ -218,16 +228,18 @@ export function seedDatabase(db: DatabaseSync): void {
         [hallId, 'Grand Wedding & Gala Stages', 'Signature stage concepts styled by our in-house design team.'],
       );
       const stages = [
-        ['Royal Kohinoor Floral Mandap & Stage', 'Signature', '/images/archive/frames-for-your-heart-zSG-kd-L6vw-unsplash.jpg', 6_500_000],
-        ['Modern Crystal & LED Infinity Stage', 'Trending', '/images/archive/bilderboken-rlwE8f8anOc-unsplash.jpg', 8_500_000],
-        ['Traditional Marigold & Brass Heritage Stage', 'Classic', '/images/archive/christian-lambert-vmIWr0NnpCQ-unsplash.jpg', 4_500_000],
+        ['Royal Kohinoor Floral Mandap & Stage', 'Signature', 6_500_000],
+        ['Modern Crystal & LED Infinity Stage', 'Trending', 8_500_000],
+        ['Traditional Marigold & Brass Heritage Stage', 'Classic', 4_500_000],
       ] as const;
       const stageIds: number[] = [];
-      for (const [name, badge, image, price] of stages) {
+      let stageDesignCount = stagesByHall.reduce((acc, curr) => acc + curr.length, 0);
+      for (const [name, badge, price] of stages) {
+        stageDesignCount++;
         stageIds.push(
           insert(
             `INSERT INTO stage_designs (category_id, name, badge, image, price_paise) VALUES (?, ?, ?, ?, ?)`,
-            [stageCategory, name, badge, image, price],
+            [stageCategory, name, badge, `/storage/assets/stages/design_${stageDesignCount}/primary.webp`, price],
           ),
         );
       }
@@ -262,7 +274,7 @@ export function seedDatabase(db: DatabaseSync): void {
         price: 1_200_000,
         capacity: 2,
         total: 4,
-        image: '/images/archive/roberto-nickson-emqnSQwQQDo-unsplash.jpg',
+        image: '/storage/assets/rooms/1/primary.webp',
         description:
           'Master king suite with panoramic balcony views, jacuzzi bath, Italian furnishings and 24/7 butler service.',
         features: ['King Size Plush Bed', 'Jacuzzi & Designer Bath', 'Private Scenic Balcony', 'Central AC', 'High-Speed Wi-Fi', 'Mini Bar'],
@@ -272,7 +284,7 @@ export function seedDatabase(db: DatabaseSync): void {
         price: 1_500_000,
         capacity: 4,
         total: 2,
-        image: '/images/archive/sasha-kaunas-TAgGZWz6Qg8-unsplash.jpg',
+        image: '/storage/assets/rooms/2/primary.webp',
         description:
           'Spacious styling suite with 360-degree vanity mirrors, makeup stations, steamer wardrobe and private stage access.',
         features: ['Salon Makeup Station', 'Full-Length Mirrors', 'Garment Steamer', 'Attached Luxury Washroom', 'Direct Stage Access'],
@@ -282,7 +294,7 @@ export function seedDatabase(db: DatabaseSync): void {
         price: 750_000,
         capacity: 2,
         total: 14,
-        image: '/images/archive/sasha-kaunas-67-sOi7mVIk-unsplash.jpg',
+        image: '/storage/assets/rooms/3/primary.webp',
         description:
           'Contemporary executive accommodation with plush queen bedding, ergonomic work desk, smart TV and garden views.',
         features: ['Plush Queen Bed', 'En-suite Bathroom', 'Smart LED TV', 'Work Desk', 'Complimentary Wi-Fi'],
@@ -292,7 +304,7 @@ export function seedDatabase(db: DatabaseSync): void {
         price: 900_000,
         capacity: 5,
         total: 6,
-        image: '/images/archive/sasha-kaunas-xEaAoizNFV8-unsplash.jpg',
+        image: '/storage/assets/rooms/4/primary.webp',
         description:
           'Dual-bedroom family suite for wedding parties, with a shared lounge and dining space.',
         features: ['Dual Bedrooms', 'Living & Dining Lounge', '2 Attached Bathrooms', 'Climate Control', 'Tea/Coffee Maker'],
@@ -302,7 +314,7 @@ export function seedDatabase(db: DatabaseSync): void {
         price: 450_000,
         capacity: 2,
         total: 25,
-        image: '/images/archive/francesca-saraco-_dS27XGgRyQ-unsplash.jpg',
+        image: '/storage/assets/rooms/5/primary.webp',
         description:
           'Comfortable, climate-controlled guest rooms for travelling event attendees with all essential amenities.',
         features: ['Twin / Queen Bedding', 'Attached Washroom', 'Air Conditioning', 'High-Speed Internet', 'Daily Housekeeping'],
@@ -326,7 +338,7 @@ export function seedDatabase(db: DatabaseSync): void {
         name: 'Royal Shahi Feast (Platinum Menu)',
         slug: 'royal-shahi-platinum',
         price: 185_000,
-        image: '/images/archive/manuel-moreno-DGa0LQ0yDPc-unsplash.jpg',
+        image: '/storage/assets/catering/1/primary.webp',
         badge: 'Signature',
         description:
           'Seven-course live gourmet dining with an imported mocktail bar, artisanal kebabs and a dessert boutique.',
@@ -337,7 +349,7 @@ export function seedDatabase(db: DatabaseSync): void {
         name: 'Grand Imperial Buffet (Gold Menu)',
         slug: 'grand-imperial-gold',
         price: 145_000,
-        image: '/images/archive/rhema-kallianpur-uocSnWMhnAs-unsplash.jpg',
+        image: '/storage/assets/catering/2/primary.webp',
         badge: 'Most Popular',
         description:
           'Five-course spread spanning Mughlai, Pan-Asian, Continental and traditional Indian live counters.',
@@ -348,7 +360,7 @@ export function seedDatabase(db: DatabaseSync): void {
         name: 'Regal Celebration Spread (Silver Menu)',
         slug: 'regal-silver-spread',
         price: 115_000,
-        image: '/images/archive/sara-dubler-Koei_7yYtIo-unsplash.jpg',
+        image: '/storage/assets/catering/3/primary.webp',
         badge: 'Best Value',
         description:
           'Classic banquet buffet with welcome drinks, appetizers, a multi-cuisine main course and traditional sweets.',
@@ -428,10 +440,10 @@ export function seedDatabase(db: DatabaseSync): void {
     }
 
     const galleryCategories = [
-      ['Wedding Mandaps', 'wedding-mandaps'],
+      ['Mandap Designs', 'mandap-designs'],
       ['Stage Designs', 'stage-designs'],
       ['Furniture & Décor', 'furniture-decor'],
-      ['Real Celebrations', 'real-celebrations'],
+      ['Event Celebrations', 'event-celebrations'],
     ] as const;
     const galleryCategoryIds: number[] = [];
     for (const [name, slug] of galleryCategories) {
@@ -445,16 +457,16 @@ export function seedDatabase(db: DatabaseSync): void {
     }
 
     const galleryItems = [
-      [0, 'Royal Rajputana Carved Mandap', '/images/archive/frames-for-your-heart-zSG-kd-L6vw-unsplash.jpg'],
-      [0, 'Floating Floral Dome Mandap', '/images/archive/runnyrem-LfqmND-hym8-unsplash.jpg'],
-      [0, 'Temple Pillar Ceremony', '/images/archive/christian-lambert-vmIWr0NnpCQ-unsplash.jpg'],
-      [1, 'Modern LED Horizon Stage', '/images/archive/bilderboken-rlwE8f8anOc-unsplash.jpg'],
-      [1, 'Grand Mughal Backdrop', '/images/archive/gerson-repreza-CepDpEiALqM-unsplash.jpg'],
-      [1, 'Minimalist Geometric Floral Stage', '/images/archive/linus-mimietz-p3UWyaujtQo-unsplash.jpg'],
-      [2, 'Maharaja Lounge Setting', '/images/archive/visualsofdana-T5pL6ciEn-I-unsplash.jpg'],
-      [2, 'Royal Table Styling', '/images/archive/manuel-moreno-DGa0LQ0yDPc-unsplash.jpg'],
-      [3, 'Garden Sangeet Evening', '/images/archive/valeriia-bugaiova-_pPHgeHz1uk-unsplash.jpg'],
-      [3, 'Reception Under the Stars', '/images/archive/point3d-commercial-imaging-ltd-oxeCZrodz78-unsplash.jpg'],
+      [0, 'Royal Rajputana Carved Mandap', '/storage/gallery/1/migrated-1.webp'],
+      [0, 'Floating Floral Dome Mandap', '/storage/gallery/2/migrated-2.webp'],
+      [0, 'Temple Pillar Ceremony', '/storage/gallery/3/migrated-3.webp'],
+      [1, 'Modern LED Horizon Stage', '/storage/gallery/4/migrated-4.webp'],
+      [1, 'Grand Mughal Backdrop', '/storage/gallery/5/migrated-5.webp'],
+      [1, 'Minimalist Geometric Floral Stage', '/storage/gallery/6/migrated-6.webp'],
+      [2, 'Maharaja Lounge Setting', '/storage/gallery/7/migrated-7.webp'],
+      [2, 'Royal Table Styling', '/storage/gallery/8/migrated-8.webp'],
+      [3, 'Garden Sangeet Evening', '/storage/gallery/9/migrated-9.webp'],
+      [3, 'Reception Under the Stars', '/storage/gallery/10/migrated-10.webp'],
     ] as const;
     for (const [categoryIndex, title, image] of galleryItems) {
       insert(`INSERT INTO gallery_items (category_id, title, image) VALUES (?, ?, ?)`, [
@@ -469,7 +481,7 @@ export function seedDatabase(db: DatabaseSync): void {
       [
         "Create the Wedding Setup You've Always Imagined.",
         'Royal mandaps, statement stage designs, furniture and event equipment — planned, delivered and styled by one Ranchi team. Share your vision and receive a considered quotation.',
-        '/images/archive/frames-for-your-heart-zSG-kd-L6vw-unsplash.jpg',
+        '/storage/assets/banners/homepage/banner-hero.webp',
       ],
     );
 
@@ -493,10 +505,10 @@ export function seedDatabase(db: DatabaseSync): void {
     ]);
 
     const pages = [
-      ['mandaps', 'Wedding Mandaps, Designed Around You', 'Explore traditional, floral and contemporary mandap concepts with clear standard dimensions.', 'MANDAP COLLECTION', '/images/archive/runnyrem-LfqmND-hym8-unsplash.jpg'],
-      ['stages', 'Reception & Ceremony Stages', 'Statement backdrops, layered florals and lighting designed for photographs and guest sightlines.', 'STAGE DESIGNS', '/images/archive/bilderboken-rlwE8f8anOc-unsplash.jpg'],
-      ['equipment', 'Furniture & Event Equipment', 'Build a practical equipment list with quantities, finishes and specifications.', 'EQUIPMENT CATALOGUE', '/images/archive/manuel-moreno-DGa0LQ0yDPc-unsplash.jpg'],
-      ['gallery', 'Moments At Event Point', 'Mandap details, stage settings and celebrations styled by our Ranchi team.', 'THE COLLECTION', '/images/archive/visualsofdana-T5pL6ciEn-I-unsplash.jpg'],
+      ['mandaps', 'Wedding Mandaps, Designed Around You', 'Explore traditional, floral and contemporary mandap concepts with clear standard dimensions.', 'MANDAP COLLECTION', '/storage/assets/banners/mandaps/banner-hero.webp'],
+      ['stages', 'Reception & Ceremony Stages', 'Statement backdrops, layered florals and lighting designed for photographs and guest sightlines.', 'STAGE DESIGNS', '/storage/assets/banners/stages/banner-hero.webp'],
+      ['equipment', 'Furniture & Event Equipment', 'Build a practical equipment list with quantities, finishes and specifications.', 'EQUIPMENT CATALOGUE', '/storage/assets/banners/equipment/banner-hero.webp'],
+      ['gallery', 'Moments At Event Point Ranchi', 'Mandap details, stage settings and celebrations styled by our Ranchi team.', 'THE COLLECTION', '/storage/assets/banners/gallery/banner-hero.webp'],
     ] as const;
     for (const [key, title, subtitle, badge, image] of pages) {
       insert(
@@ -760,7 +772,7 @@ export function seedDatabase(db: DatabaseSync): void {
       ],
     );
 
-    /* ==================== Event Point catalogue ==================== */
+    /* ==================== Event Point Ranchi catalogue ==================== */
 
     const mandapSeed = [
       {
@@ -768,7 +780,7 @@ export function seedDatabase(db: DatabaseSync): void {
         slug: 'royal-rajputana-carved-mandap',
         description:
           'Hand-carved Shekhawati arches, brass inlay and deep maroon drapes create a stately backdrop for traditional pheras and family portraits.',
-        image: '/images/archive/frames-for-your-heart-zSG-kd-L6vw-unsplash.jpg',
+        image: '/storage/assets/mandaps/1/primary.webp',
         category: 'Traditional Royal',
         length: 20,
         width: 20,
@@ -776,8 +788,8 @@ export function seedDatabase(db: DatabaseSync): void {
         specs:
           'Carved MDF and timber arch frames · Antique brass pillars · Maroon and ivory silk drapes · Hand-painted motifs · Raised platform included',
         gallery: [
-          '/images/archive/christian-lambert-vmIWr0NnpCQ-unsplash.jpg',
-          '/images/archive/visualsofdana-T5pL6ciEn-I-unsplash.jpg',
+          '/storage/assets/mandaps/1/gallery_1.webp',
+          '/storage/assets/mandaps/1/gallery_2.webp',
         ],
       },
       {
@@ -785,7 +797,7 @@ export function seedDatabase(db: DatabaseSync): void {
         slug: 'floating-floral-dome-mandap',
         description:
           'A suspended dome of fresh and preserved florals above a circular platform, designed to feel airy from every guest sightline.',
-        image: '/images/archive/runnyrem-LfqmND-hym8-unsplash.jpg',
+        image: '/storage/assets/mandaps/2/primary.webp',
         category: 'Floral Ethereal',
         length: 18,
         width: 18,
@@ -793,8 +805,8 @@ export function seedDatabase(db: DatabaseSync): void {
         specs:
           'Suspended floral dome · Circular wooden platform · Pastel roses, orchids and baby’s breath · Concealed warm lighting · Shear drape curtains',
         gallery: [
-          '/images/archive/valeriia-bugaiova-_pPHgeHz1uk-unsplash.jpg',
-          '/images/archive/frames-for-your-heart-zSG-kd-L6vw-unsplash.jpg',
+          '/storage/assets/mandaps/2/gallery_3.webp',
+          '/storage/assets/mandaps/2/gallery_4.webp',
         ],
       },
       {
@@ -802,7 +814,7 @@ export function seedDatabase(db: DatabaseSync): void {
         slug: 'temple-pillar-mandap',
         description:
           'South Indian temple-inspired pillars in warm ivory and gold, with a carved ceiling panel and a low, intimate seating plan.',
-        image: '/images/archive/christian-lambert-vmIWr0NnpCQ-unsplash.jpg',
+        image: '/storage/assets/mandaps/3/primary.webp',
         category: 'Temple Heritage',
         length: 16,
         width: 16,
@@ -810,8 +822,8 @@ export function seedDatabase(db: DatabaseSync): void {
         specs:
           'Four carved temple pillars · Ivory and gold palette · Brass hanging lamps · Marigold garland accents · Low seating platforms',
         gallery: [
-          '/images/archive/runnyrem-LfqmND-hym8-unsplash.jpg',
-          '/images/archive/manuel-moreno-DGa0LQ0yDPc-unsplash.jpg',
+          '/storage/assets/mandaps/3/gallery_5.webp',
+          '/storage/assets/mandaps/3/gallery_6.webp',
         ],
       },
       {
@@ -819,7 +831,7 @@ export function seedDatabase(db: DatabaseSync): void {
         slug: 'contemporary-glass-gold-mandap',
         description:
           'Clean geometric lines, fluted glass panels and brushed-gold framing for couples who want a modern, editorial ceremony setting.',
-        image: '/images/archive/bilderboken-rlwE8f8anOc-unsplash.jpg',
+        image: '/storage/assets/mandaps/4/primary.webp',
         category: 'Contemporary Luxe',
         length: 22,
         width: 16,
@@ -827,8 +839,8 @@ export function seedDatabase(db: DatabaseSync): void {
         specs:
           'Fluted glass panels · Brushed-gold metal frame · Mirror-finish platform · White and champagne florals · Dimmable pinspot lighting',
         gallery: [
-          '/images/archive/linus-mimietz-p3UWyaujtQo-unsplash.jpg',
-          '/images/archive/point3d-commercial-imaging-ltd-oxeCZrodz78-unsplash.jpg',
+          '/storage/assets/mandaps/4/gallery_7.webp',
+          '/storage/assets/mandaps/4/gallery_8.webp',
         ],
       },
       {
@@ -836,7 +848,7 @@ export function seedDatabase(db: DatabaseSync): void {
         slug: 'lotus-blossom-mandap',
         description:
           'Layered lotus-inspired petals in blush and ivory frame the couple, with a low floral base and soft candlelight.',
-        image: '/images/archive/valeriia-bugaiova-_pPHgeHz1uk-unsplash.jpg',
+        image: '/storage/assets/mandaps/5/primary.webp',
         category: 'Floral Ethereal',
         length: 18,
         width: 18,
@@ -844,8 +856,8 @@ export function seedDatabase(db: DatabaseSync): void {
         specs:
           'Lotus-petal arch structure · Blush and ivory florals · Candle and diya cluster · Low circular platform · Optional petal aisle',
         gallery: [
-          '/images/archive/runnyrem-LfqmND-hym8-unsplash.jpg',
-          '/images/archive/visualsofdana-T5pL6ciEn-I-unsplash.jpg',
+          '/storage/assets/mandaps/5/gallery_9.webp',
+          '/storage/assets/mandaps/5/gallery_10.webp',
         ],
       },
       {
@@ -853,7 +865,7 @@ export function seedDatabase(db: DatabaseSync): void {
         slug: 'pastel-floral-canopy-mandap',
         description:
           'A soft canopy of pastel blooms, hanging fabric and fairy lights that suits daytime lawns and intimate courtyard ceremonies.',
-        image: '/images/archive/visualsofdana-T5pL6ciEn-I-unsplash.jpg',
+        image: '/storage/assets/mandaps/6/primary.webp',
         category: 'Floral Ethereal',
         length: 16,
         width: 16,
@@ -861,8 +873,8 @@ export function seedDatabase(db: DatabaseSync): void {
         specs:
           'Pastel floral canopy · Hanging fabric panels · Warm fairy lights · Lightweight timber frame · Indoor or lawn installation',
         gallery: [
-          '/images/archive/frames-for-your-heart-zSG-kd-L6vw-unsplash.jpg',
-          '/images/archive/valeriia-bugaiova-_pPHgeHz1uk-unsplash.jpg',
+          '/storage/assets/mandaps/6/gallery_11.webp',
+          '/storage/assets/mandaps/6/gallery_12.webp',
         ],
       },
     ];
@@ -901,7 +913,7 @@ export function seedDatabase(db: DatabaseSync): void {
         slug: 'majestic-royal-reception-stage',
         description:
           'Tiered royal staging with carved panels, velvet drapes and a central throne setting for receptions and grand entrances.',
-        image: '/images/archive/bilderboken-rlwE8f8anOc-unsplash.jpg',
+        image: '/storage/assets/stages/1/primary.webp',
         category: 'Royal Reception',
         length: 28,
         width: 18,
@@ -909,8 +921,8 @@ export function seedDatabase(db: DatabaseSync): void {
         notes:
           'Three-level platform · Carved side panels · Deep maroon velvet · Gold throne chairs · Warm wash lighting · Fresh floral edge',
         gallery: [
-          '/images/archive/gerson-repreza-CepDpEiALqM-unsplash.jpg',
-          '/images/archive/point3d-commercial-imaging-ltd-oxeCZrodz78-unsplash.jpg',
+          '/storage/assets/stages/1/gallery_1.webp',
+          '/storage/assets/stages/1/gallery_2.webp',
         ],
       },
       {
@@ -918,7 +930,7 @@ export function seedDatabase(db: DatabaseSync): void {
         slug: 'minimalist-geometric-floral-stage',
         description:
           'Architectural white panels softened with single-variety florals — a calm, contemporary stage that photographs beautifully.',
-        image: '/images/archive/linus-mimietz-p3UWyaujtQo-unsplash.jpg',
+        image: '/storage/assets/stages/2/primary.webp',
         category: 'Modern Minimal',
         length: 24,
         width: 16,
@@ -926,8 +938,8 @@ export function seedDatabase(db: DatabaseSync): void {
         notes:
           'Matte white geometric backdrop · Monochrome floral clusters · Low platform · Concealed uplighting · Optional acrylic lectern',
         gallery: [
-          '/images/archive/bilderboken-rlwE8f8anOc-unsplash.jpg',
-          '/images/archive/runnyrem-LfqmND-hym8-unsplash.jpg',
+          '/storage/assets/stages/2/gallery_3.webp',
+          '/storage/assets/stages/2/gallery_4.webp',
         ],
       },
       {
@@ -935,7 +947,7 @@ export function seedDatabase(db: DatabaseSync): void {
         slug: 'grand-mughal-backdrop-stage',
         description:
           'Jali screens, scalloped arches and jewel-toned drapes for a reception that feels rooted in Mughal courtly design.',
-        image: '/images/archive/gerson-repreza-CepDpEiALqM-unsplash.jpg',
+        image: '/storage/assets/stages/3/primary.webp',
         category: 'Mughal Heritage',
         length: 30,
         width: 20,
@@ -943,8 +955,8 @@ export function seedDatabase(db: DatabaseSync): void {
         notes:
           'Hand-finished jali panels · Scalloped arch framing · Jewel-tone drapes · Brass lanterns · Raised carpeted platform · Floral garlands',
         gallery: [
-          '/images/archive/christian-lambert-vmIWr0NnpCQ-unsplash.jpg',
-          '/images/archive/visualsofdana-T5pL6ciEn-I-unsplash.jpg',
+          '/storage/assets/stages/3/gallery_5.webp',
+          '/storage/assets/stages/3/gallery_6.webp',
         ],
       },
       {
@@ -952,7 +964,7 @@ export function seedDatabase(db: DatabaseSync): void {
         slug: 'modern-led-horizon-stage',
         description:
           'A wide LED horizon wall with clean lines and programmable lighting for sangeet nights, receptions and corporate celebrations.',
-        image: '/images/archive/point3d-commercial-imaging-ltd-oxeCZrodz78-unsplash.jpg',
+        image: '/storage/assets/stages/4/primary.webp',
         category: 'Contemporary LED',
         length: 32,
         width: 18,
@@ -960,8 +972,8 @@ export function seedDatabase(db: DatabaseSync): void {
         notes:
           'P3 LED wall · Programmable content · Truss lighting · Mirror stage top · DJ riser · Cable-managed installation',
         gallery: [
-          '/images/archive/linus-mimietz-p3UWyaujtQo-unsplash.jpg',
-          '/images/archive/bilderboken-rlwE8f8anOc-unsplash.jpg',
+          '/storage/assets/stages/4/gallery_7.webp',
+          '/storage/assets/stages/4/gallery_8.webp',
         ],
       },
       {
@@ -969,7 +981,7 @@ export function seedDatabase(db: DatabaseSync): void {
         slug: 'botanical-gardenia-stage',
         description:
           'Lush green foliage, white gardenias and natural textures bring a garden conservatory feel to indoor and lawn venues.',
-        image: '/images/archive/valeriia-bugaiova-_pPHgeHz1uk-unsplash.jpg',
+        image: '/storage/assets/stages/5/primary.webp',
         category: 'Botanical',
         length: 26,
         width: 16,
@@ -977,8 +989,8 @@ export function seedDatabase(db: DatabaseSync): void {
         notes:
           'Foliage wall · White gardenia and rose clusters · Natural jute runner · Warm bulb lighting · Timber platform · Potted plant border',
         gallery: [
-          '/images/archive/runnyrem-LfqmND-hym8-unsplash.jpg',
-          '/images/archive/frames-for-your-heart-zSG-kd-L6vw-unsplash.jpg',
+          '/storage/assets/stages/5/gallery_9.webp',
+          '/storage/assets/stages/5/gallery_10.webp',
         ],
       },
       {
@@ -986,7 +998,7 @@ export function seedDatabase(db: DatabaseSync): void {
         slug: 'regal-ivory-gold-stage',
         description:
           'An ivory and antique-gold stage with layered drapes and classical detailing for engagements and formal receptions.',
-        image: '/images/archive/frames-for-your-heart-zSG-kd-L6vw-unsplash.jpg',
+        image: '/storage/assets/stages/6/primary.webp',
         category: 'Classic Elegance',
         length: 26,
         width: 18,
@@ -994,8 +1006,8 @@ export function seedDatabase(db: DatabaseSync): void {
         notes:
           'Layered ivory drapes · Antique-gold trim · Classical sofa seating · Candelabra cluster · Fresh white florals · Warm pinspots',
         gallery: [
-          '/images/archive/visualsofdana-T5pL6ciEn-I-unsplash.jpg',
-          '/images/archive/christian-lambert-vmIWr0NnpCQ-unsplash.jpg',
+          '/storage/assets/stages/6/gallery_11.webp',
+          '/storage/assets/stages/6/gallery_12.webp',
         ],
       },
     ];
@@ -1494,6 +1506,34 @@ export function seedDatabase(db: DatabaseSync): void {
             line.specifications,
             line.notes,
           ],
+        );
+      }
+    }
+
+    const storageCount = db.prepare('SELECT COUNT(*) AS count FROM storage_objects').get() as { count: number };
+    if (!storageCount || Number(storageCount.count) === 0) {
+      const insertStorage = db.prepare(`
+        INSERT OR IGNORE INTO storage_objects (
+          object_id, storage_category, entity_type, entity_id, slot, object_key,
+          public_url, mime_type, size_bytes, width, height, format, original_filename, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const obj of INITIAL_STORAGE_OBJECTS) {
+        insertStorage.run(
+          obj.object_id,
+          obj.storage_category,
+          obj.entity_type,
+          obj.entity_id,
+          obj.slot,
+          obj.object_key,
+          obj.public_url,
+          obj.mime_type,
+          obj.size_bytes,
+          obj.width,
+          obj.height,
+          obj.format,
+          obj.original_filename,
+          obj.status,
         );
       }
     }

@@ -6,7 +6,7 @@ export default defineModule({
   id: 'equipment',
   label: 'Furniture & Equipment',
   order: 40,
-  nav: [{ label: 'Furniture & Equipment', href: '/equipment', order: 40 }],
+  nav: [{ label: 'Equipment', href: '/equipment', order: 40 }],
   routes: [
     {
       path: '/equipment',

@@ -14,8 +14,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   const method = context.request.method.toUpperCase();
   const isMutation = !['GET', 'HEAD', 'OPTIONS'].includes(method);
+  const isWebhook = context.url.pathname === '/api/sanity-webhook';
 
-  if (isMutation) {
+  if (isMutation && !isWebhook) {
     const submitted = await submittedCsrfToken(context.request);
     if (!csrfMatches(submitted, csrf)) {
       return new Response('Invalid or missing CSRF token. Refresh the page and try again.', {

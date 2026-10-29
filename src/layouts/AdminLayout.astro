@@ -1,4 +1,5 @@
 ---
+import { ClientRouter } from 'astro:transitions';
 import { getAdminNav } from '../core/registry';
 import Icon from '../components/Icon.astro';
 import { site } from '../core/config';
@@ -18,6 +19,8 @@ const user = auth.user!;
 const csrf = Astro.locals.csrf;
 const nav = getAdminNav();
 const path = Astro.url.pathname;
+const isEditorOnly = user.role === 'editor';
+const visibleNav = isEditorOnly ? nav.filter((item) => item.href === '/admin/studio') : nav;
 
 const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path.startsWith(href));
 ---
@@ -28,7 +31,7 @@ const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow" />
-    <title>{title} · Event Point Admin</title>
+    <title>{title} · {site.name} Admin</title>
     <link rel="icon" type="image/svg+xml" href={site.logo} />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -36,6 +39,7 @@ const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
+    <ClientRouter />
   </head>
   <body class="admin-body">
     <div class="admin-shell" id="adminShell">
@@ -49,8 +53,8 @@ const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path
         </div>
 
         <nav class="admin-nav">
-          <span class="admin-nav-label">Operations</span>
-          {nav.map((item) => (
+          <span class="admin-nav-label">{isEditorOnly ? 'Content Studio' : 'Operations'}</span>
+          {visibleNav.map((item) => (
             <a href={item.href} class:list={{ active: isActive(item.href) }}>
               <Icon name={item.icon} size={15} /> {item.label}
             </a>

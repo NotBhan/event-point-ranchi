@@ -10,6 +10,33 @@ html {
   /* `clip` contains the off-canvas mobile drawer without creating a scroll
      container, so the sticky header keeps working. */
   overflow-x: clip;
+  scrollbar-width: thin;
+  scrollbar-color: #d4b896 var(--canvas, #faf8f5);
+}
+
+/* Custom refined scrollbar matching Event Point Ranchi's warm royal palette */
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--canvas, #faf8f5);
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #d4b896;
+  border-radius: 9999px;
+  border: 2px solid var(--canvas, #faf8f5);
+  transition: background-color 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--brand-maroon, #721224);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 body {

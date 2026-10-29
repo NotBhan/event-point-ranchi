@@ -1,6 +1,6 @@
 import type { AstroComponentFactory } from 'astro/runtime/server/index.js';
 
-export type Role = 'customer' | 'admin' | 'superadmin' | 'developer';
+export type Role = 'customer' | 'editor' | 'admin' | 'superadmin' | 'developer';
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 export interface SessionUser {
@@ -16,6 +16,7 @@ export interface AuthState {
   user: SessionUser | null;
   isAuthenticated: boolean;
   isAdmin: boolean;
+  isEditor: boolean;
   isSuperadmin: boolean;
   isDeveloper: boolean;
 }

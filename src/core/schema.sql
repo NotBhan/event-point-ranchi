@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
   email         TEXT UNIQUE COLLATE NOCASE,
   password_hash TEXT NOT NULL,
   first_name    TEXT NOT NULL DEFAULT '',
-  role          TEXT NOT NULL DEFAULT 'customer' CHECK (role IN ('customer', 'admin', 'superadmin', 'developer')),
+  role          TEXT NOT NULL DEFAULT 'customer' CHECK (role IN ('customer', 'editor', 'admin', 'superadmin', 'developer')),
   is_active     INTEGER NOT NULL DEFAULT 1,
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -458,4 +458,23 @@ CREATE TABLE IF NOT EXISTS enquiry_line_items (
   notes                       TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_enquiry_line_items_enquiry ON enquiry_line_items(enquiry_id);
+
+CREATE TABLE IF NOT EXISTS traffic_events (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id       TEXT NOT NULL,
+  path             TEXT NOT NULL,
+  referrer         TEXT NOT NULL DEFAULT 'direct',
+  device_type      TEXT NOT NULL DEFAULT 'desktop',
+  browser          TEXT NOT NULL DEFAULT 'Other',
+  os               TEXT NOT NULL DEFAULT 'Other',
+  city             TEXT NOT NULL DEFAULT 'Ranchi',
+  duration_seconds INTEGER NOT NULL DEFAULT 0,
+  utm_source       TEXT NOT NULL DEFAULT '',
+  utm_medium       TEXT NOT NULL DEFAULT '',
+  utm_campaign     TEXT NOT NULL DEFAULT '',
+  created_at       TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_traffic_events_created ON traffic_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_traffic_events_path ON traffic_events(path);
+CREATE INDEX IF NOT EXISTS idx_traffic_events_session ON traffic_events(session_id);
 

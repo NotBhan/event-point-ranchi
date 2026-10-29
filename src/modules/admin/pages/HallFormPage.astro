@@ -1,6 +1,6 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
-import { imageUrl } from '../../../core/http';
+import ImageUploadDropzone from '../../../components/admin/ImageUploadDropzone.astro';
 
 interface Props {
   hall: Record<string, unknown> | null;
@@ -76,20 +76,24 @@ const banner = value('banner_image');
         <div class="admin-panel-head"><div><h2>Media</h2></div></div>
         <div class="admin-panel-body">
           <div class="admin-form-grid">
-            <div class="field">
-              <label for="image">Card image</label>
-              {value('image') && <img class="admin-thumb" style="width:100%;height:130px;object-fit:cover;" src={imageUrl(value('image'))} alt="" />}
-              <input class="input" type="file" id="image" name="image" accept="image/*" />
-              <input type="hidden" name="image_path" value={value('image')} />
-              <span class="hint" data-file-name>Upload replaces the current image.</span>
-            </div>
-            <div class="field">
-              <label for="banner_image">Banner image</label>
-              {banner && <img class="admin-thumb" style="width:100%;height:130px;object-fit:cover;" src={imageUrl(banner)} alt="" />}
-              <input class="input" type="file" id="banner_image" name="banner_image" accept="image/*" />
-              <input type="hidden" name="banner_path" value={banner} />
-              <span class="hint" data-file-name>Shown behind the venue hero.</span>
-            </div>
+            <ImageUploadDropzone
+              name="image"
+              id="image"
+              label="Card image"
+              currentImage={value('image') || null}
+              fallbackName="image_path"
+              hint="Upload replaces the current image."
+              aspectHeight="130px"
+            />
+            <ImageUploadDropzone
+              name="banner_image"
+              id="banner_image"
+              label="Banner image"
+              currentImage={banner || null}
+              fallbackName="banner_path"
+              hint="Shown behind the venue hero."
+              aspectHeight="130px"
+            />
           </div>
         </div>
       </div>

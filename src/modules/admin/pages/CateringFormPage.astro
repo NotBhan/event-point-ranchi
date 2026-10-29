@@ -1,6 +1,8 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
-import { formatMoney, imageUrl } from '../../../core/http';
+import { formatMoney } from '../../../core/http';
+import Icon from '../../../components/Icon.astro';
+import ImageUploadDropzone from '../../../components/admin/ImageUploadDropzone.astro';
 
 interface Section {
   id: number;
@@ -58,13 +60,15 @@ const action = id ? `/admin/catering/${id}` : '/admin/catering/new';
             <label for="description">Description</label>
             <textarea class="textarea" id="description" name="description" rows="3">{value('description')}</textarea>
           </div>
-          <div class="field">
-            <label for="image">Package image</label>
-            {value('image') && <img class="admin-thumb" style="width:100%;height:130px;object-fit:cover;" src={imageUrl(value('image'))} alt="" />}
-            <input class="input" type="file" id="image" name="image" accept="image/*" />
-            <input type="hidden" name="image_path" value={value('image')} />
-            <span class="hint" data-file-name>Upload replaces the current image.</span>
-          </div>
+          <ImageUploadDropzone
+            name="image"
+            id="image"
+            label="Package image"
+            currentImage={value('image') || null}
+            fallbackName="image_path"
+            hint="Upload replaces the current image."
+            aspectHeight="140px"
+          />
           <div style="display:flex;gap:18px;flex-wrap:wrap;">
             <label class="switch"><input type="checkbox" name="is_active" checked={isActive} /> Published</label>
             <label class="switch"><input type="checkbox" name="show_on_home" checked={onHome} /> Show on homepage</label>
@@ -189,54 +193,137 @@ const action = id ? `/admin/catering/${id}` : '/admin/catering/new';
   {id && (
     <div class="admin-panel">
       <div class="admin-panel-head">
-        <div><h2>Menu sections</h2><p>Guests pick a limited number of items per section.</p></div>
+        <div>
+          <h2>Menu sections & selections</h2>
+          <p>Guests pick a limited number of items per section. Click "Edit" to rename sections or edit item names inline.</p>
+        </div>
+        <span class="badge badge-gold">{sections.length} {sections.length === 1 ? 'section' : 'sections'}</span>
       </div>
       <div class="admin-panel-body">
         {sections.map((section) => (
-          <div class="menu-admin-section">
-            <header>
-              <div>
-                <strong>{section.title}</strong>
-                <small>Max {section.max_selection} selections</small>
+          <div class="menu-admin-section" id={`section-${section.id}`}>
+            <header class="menu-admin-header">
+              <!-- Normal display view -->
+              <div class="menu-admin-header-content">
+                <div class="menu-admin-header-title">
+                  <strong>{section.title}</strong>
+                  <span class="badge badge-gold" style="font-size:11px;">Max {section.max_selection} selections</span>
+                  <span class="badge badge-muted" style="font-size:11px;">{section.items.length} {section.items.length === 1 ? 'item' : 'items'}</span>
+                </div>
+                <div class="menu-admin-header-actions">
+                  <button type="button" class="btn btn-secondary btn-xs" data-edit-section-btn title="Edit section details">
+                    <Icon name="edit" size={13} /> Edit
+                  </button>
+                  <form method="POST" action={action} style="display:inline;">
+                    <input type="hidden" name="_csrf" value={csrf} />
+                    <input type="hidden" name="action" value="delete_section" />
+                    <input type="hidden" name="section_id" value={section.id} />
+                    <button type="submit" class="btn btn-danger-soft btn-xs" data-confirm={`Delete section "${section.title}"?`} title="Delete section">
+                      <Icon name="trash" size={13} />
+                    </button>
+                  </form>
+                </div>
               </div>
-              <form method="POST" action={action}>
+
+              <!-- Inline edit form for section -->
+              <form method="POST" action={action} class="menu-admin-edit-form">
                 <input type="hidden" name="_csrf" value={csrf} />
-                <input type="hidden" name="action" value="delete_section" />
+                <input type="hidden" name="action" value="update_section" />
                 <input type="hidden" name="section_id" value={section.id} />
-                <button type="submit" class="btn btn-danger-soft btn-sm" data-confirm={`Delete section "${section.title}"?`}>Delete section</button>
+                <input
+                  class="input"
+                  name="title"
+                  value={section.title}
+                  placeholder="Section title"
+                  required
+                  style="min-height:30px;height:30px;font-size:12.5px;flex:1;"
+                />
+                <div style="display:flex;align-items:center;gap:4px;">
+                  <span style="font-size:11px;color:var(--muted);white-space:nowrap;">Max picks:</span>
+                  <input
+                    class="input"
+                    name="max_selection"
+                    type="number"
+                    min="1"
+                    value={section.max_selection}
+                    required
+                    style="min-height:30px;height:30px;width:60px;font-size:12.5px;padding:4px 6px;"
+                  />
+                </div>
+                <button type="submit" class="btn btn-primary btn-xs">Save</button>
+                <button type="button" class="btn btn-secondary btn-xs" data-cancel-section-btn>Cancel</button>
               </form>
             </header>
+
             <div class="menu-admin-items">
               {section.items.map((item) => (
-                <span class="menu-admin-item">
-                  {item.name}
-                  {item.is_available === 0 && <span class="badge badge-muted">hidden</span>}
-                  <form method="POST" action={action}>
+                <span class:list={['menu-admin-item', { 'is-disabled': item.is_available === 0 }]}>
+                  <!-- Normal item view -->
+                  <span class="item-display-box">
+                    <span class="item-name" title={item.name}>{item.name}</span>
+                    {item.is_available === 0 && <span class="badge badge-muted" style="font-size:10px;padding:1px 5px;">hidden</span>}
+
+                    <button type="button" class="item-btn" data-edit-item-btn title="Edit dish name">
+                      <Icon name="edit" size={11} />
+                    </button>
+
+                    <form method="POST" action={action} style="display:inline-flex;">
+                      <input type="hidden" name="_csrf" value={csrf} />
+                      <input type="hidden" name="action" value="toggle_item" />
+                      <input type="hidden" name="item_id" value={item.id} />
+                      <button type="submit" class="item-btn" title={item.is_available ? 'Hide dish' : 'Show dish'}>
+                        <Icon name={item.is_available ? 'eye' : 'eye-off'} size={11} />
+                      </button>
+                    </form>
+
+                    <form method="POST" action={action} style="display:inline-flex;">
+                      <input type="hidden" name="_csrf" value={csrf} />
+                      <input type="hidden" name="action" value="delete_item" />
+                      <input type="hidden" name="item_id" value={item.id} />
+                      <button type="submit" class="item-btn delete" aria-label="Delete item" data-confirm={`Delete item "${item.name}"?`}>
+                        <Icon name="x" size={12} />
+                      </button>
+                    </form>
+                  </span>
+
+                  <!-- Inline edit item form -->
+                  <form method="POST" action={action} class="item-edit-box">
                     <input type="hidden" name="_csrf" value={csrf} />
-                    <input type="hidden" name="action" value="toggle_item" />
+                    <input type="hidden" name="action" value="update_item" />
                     <input type="hidden" name="item_id" value={item.id} />
-                    <button type="submit" title="Toggle availability">◐</button>
-                  </form>
-                  <form method="POST" action={action}>
-                    <input type="hidden" name="_csrf" value={csrf} />
-                    <input type="hidden" name="action" value="delete_item" />
-                    <input type="hidden" name="item_id" value={item.id} />
-                    <button type="submit" aria-label="Delete item">×</button>
+                    <input
+                      class="item-edit-input"
+                      name="name"
+                      value={item.name}
+                      required
+                    />
+                    <button type="submit" class="item-btn" style="color:var(--success);" title="Save name">
+                      <Icon name="check" size={12} />
+                    </button>
+                    <button type="button" class="item-btn" data-cancel-item-btn title="Cancel">
+                      <Icon name="x" size={12} />
+                    </button>
                   </form>
                 </span>
               ))}
-              {section.items.length === 0 && <span class="text-sm text-muted">No items in this section yet.</span>}
+              {section.items.length === 0 && <span class="text-xs text-muted" style="padding:4px 0;">No dishes added yet.</span>}
             </div>
-            <div style="padding:0 16px 16px;">
-              <form method="POST" action={action} class="admin-inline-form">
+
+            <!-- Compact Quick Add Item Bar -->
+            <div class="menu-admin-quick-add">
+              <form method="POST" action={action}>
                 <input type="hidden" name="_csrf" value={csrf} />
                 <input type="hidden" name="action" value="add_item" />
                 <input type="hidden" name="section_id" value={section.id} />
-                <div class="field" style="flex:1;">
-                  <label for={`item-${section.id}`}>New item</label>
-                  <input class="input" id={`item-${section.id}`} name="name" placeholder="Paneer Tikka Angara" required />
-                </div>
-                <button type="submit" class="btn btn-secondary btn-sm">Add item</button>
+                <input
+                  class="input"
+                  name="name"
+                  placeholder={`+ Add dish to ${section.title} (e.g., Paneer Tikka Angara)...`}
+                  required
+                />
+                <button type="submit" class="btn btn-secondary btn-xs" style="white-space:nowrap;">
+                  <Icon name="plus" size={13} /> Add dish
+                </button>
               </form>
             </div>
           </div>
@@ -244,7 +331,7 @@ const action = id ? `/admin/catering/${id}` : '/admin/catering/new';
 
         {sections.length === 0 && <p class="text-sm text-muted mb-4">No menu sections yet.</p>}
 
-        <form method="POST" action={action} class="admin-inline-form">
+        <form method="POST" action={action} class="admin-inline-form" style="margin-top:16px;">
           <input type="hidden" name="_csrf" value={csrf} />
           <input type="hidden" name="action" value="add_section" />
           <div class="field" style="flex:1;">

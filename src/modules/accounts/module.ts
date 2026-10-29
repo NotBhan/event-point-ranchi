@@ -38,7 +38,9 @@ export default defineModule({
 
           startSession(ctx.cookies, user.id, user.password_hash);
           setSuccess(ctx.cookies, `Welcome back, ${user.first_name || user.username}!`);
-          return redirect(safeNext(getString(ctx.form, 'next') || nextParam, '/'));
+          const target = getString(ctx.form, 'next') || nextParam;
+          const fallback = user.role === 'customer' ? '/' : '/admin';
+          return redirect(safeNext(target, fallback));
         }
 
         return { props: { error: null, next: nextParam, username: '' } };
@@ -68,7 +70,7 @@ export default defineModule({
 
           const user = userById(result.userId);
           if (user) startSession(ctx.cookies, user.id, user.password_hash);
-          setSuccess(ctx.cookies, 'Your account is ready. Welcome to Royal Palace!');
+          setSuccess(ctx.cookies, 'Your account is ready. Welcome to Event Point Ranchi!');
           return redirect(safeNext(getString(ctx.form, 'next') || nextParam, '/'));
         }
 

@@ -1,5 +1,5 @@
 export const site = {
-  name: 'Event Point',
+  name: 'Event Point Ranchi',
   legalName: 'Event Point Ranchi',
   tagline: 'Wedding Mandap, Stage Designs, Furniture & Event Equipment Planning',
   shortDescription:

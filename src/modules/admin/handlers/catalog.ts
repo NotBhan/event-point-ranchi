@@ -3,12 +3,12 @@ import { getInt, getString, redirect } from '../../../core/http';
 import type { PageContext } from '../../../core/types';
 import {
   addGalleryCategory,
-  addGalleryItem,
   addGuestPricing,
   addHomeFeature,
   addMenuItem,
   addMenuSection,
   addPackageOption,
+  batchUploadGalleryAdmin,
   deleteCatering,
   deleteGalleryCategory,
   deleteGalleryItem,
@@ -27,8 +27,11 @@ import {
   loadContentAdmin,
   loadHallAdmin,
   loadRoomAdmin,
+  replaceGalleryItemAdmin,
   saveCatering,
   saveContactInfo,
+  saveGalleryItemCategory,
+  saveGalleryItemTitle,
   saveHall,
   saveHomepage,
   savePageSettings,
@@ -40,6 +43,8 @@ import {
   toggleHall,
   toggleMenuItem,
   toggleRoom,
+  updateMenuItem,
+  updateMenuSection,
 } from '../service';
 import { runFormAction } from './shared';
 
@@ -173,8 +178,10 @@ export async function cateringForm(ctx: PageContext) {
       ctx,
       {
         add_section: () => addMenuSection(id, ctx.form),
+        update_section: () => updateMenuSection(getInt(ctx.form, 'section_id'), ctx.form),
         delete_section: () => deleteMenuSection(getInt(ctx.form, 'section_id')),
         add_item: () => addMenuItem(getInt(ctx.form, 'section_id'), ctx.form),
+        update_item: () => updateMenuItem(getInt(ctx.form, 'item_id'), ctx.form),
         delete_item: () => deleteMenuItem(getInt(ctx.form, 'item_id')),
         toggle_item: () => toggleMenuItem(getInt(ctx.form, 'item_id')),
         add_pricing: () => addGuestPricing(id, ctx.form),
@@ -231,16 +238,21 @@ export function galleryAdmin(ctx: PageContext) {
       {
         add_category: () => addGalleryCategory(ctx.form),
         delete_category: () => deleteGalleryCategory(getInt(ctx.form, 'category_id')),
-        toggle_category: () => toggleGalleryCategory(getInt(ctx.form, 'category_id')),
-        add_item: () => addGalleryItem(ctx.form),
+        toggle_category: () => ({ active: toggleGalleryCategory(getInt(ctx.form, 'category_id')) }),
+        add_item: () => batchUploadGalleryAdmin(ctx.form),
+        replace_item: () => replaceGalleryItemAdmin(getInt(ctx.form, 'item_id'), ctx.form),
+        save_item_title: () => ({ title: saveGalleryItemTitle(getInt(ctx.form, 'item_id'), ctx.form) }),
+        change_item_category: () => ({ categoryId: saveGalleryItemCategory(getInt(ctx.form, 'item_id'), ctx.form) }),
         delete_item: () => deleteGalleryItem(getInt(ctx.form, 'item_id')),
-        toggle_item: () => toggleGalleryItem(getInt(ctx.form, 'item_id')),
+        toggle_item: () => ({ active: toggleGalleryItem(getInt(ctx.form, 'item_id')) }),
       },
       { redirectTo: '/admin/gallery' },
     );
   }
 
-  return { props: listGalleryAdmin() };
+  const page = Math.max(1, parseInt(ctx.url.searchParams.get('page') || '1', 10) || 1);
+  const categoryId = parseInt(ctx.url.searchParams.get('category') || '0', 10) || 0;
+  return { props: listGalleryAdmin({ page, perPage: 18, categoryId }) };
 }
 
 /* ---------------- Content ---------------- */

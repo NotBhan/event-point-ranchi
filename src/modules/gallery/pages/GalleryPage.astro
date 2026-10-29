@@ -11,6 +11,8 @@ interface Props {
 
 const { data } = Astro.props;
 const { settings, categories, items } = data;
+const DEFAULT_PAGE_SIZE = 8;
+const totalInitialPages = Math.ceil(items.length / DEFAULT_PAGE_SIZE);
 ---
 
 <BaseLayout title="Gallery | Event Point Ranchi" description={settings.hero_subtitle}>
@@ -23,13 +25,36 @@ const { settings, categories, items } = data;
     </div>
   </section>
 
-  <section class="section">
+  <section class="section" id="gallerySection">
     <div class="container">
       <div class="filter-bar" data-gallery-filters>
-        <button type="button" class="filter-btn active" data-gallery-filter="all">All</button>
+        <button type="button" class="filter-btn active" data-gallery-filter="all">
+          <span>All</span>
+          <span class="filter-count">{items.length}</span>
+        </button>
         {categories.map((category) => (
-          <button type="button" class="filter-btn" data-gallery-filter={String(category.id)}>{category.name}</button>
+          <button type="button" class="filter-btn" data-gallery-filter={String(category.id)} data-category-slug={category.slug}>
+            <span>{category.name}</span>
+            <span class="filter-count">{category.count}</span>
+          </button>
         ))}
+      </div>
+
+      <div class="gallery-toolbar" data-gallery-toolbar>
+        <div class="gallery-count-badge">
+          Showing <strong data-range-start>{items.length > 0 ? 1 : 0}</strong>–<strong data-range-end>{Math.min(items.length, DEFAULT_PAGE_SIZE)}</strong> of <strong data-total-count>{items.length}</strong> designs
+        </div>
+        <div class="gallery-view-options">
+          <label class="page-size-label">
+            <span>Per page:</span>
+            <select class="page-size-select" data-page-size-select aria-label="Designs per page">
+              <option value="8" selected>8</option>
+              <option value="12">12</option>
+              <option value="16">16</option>
+              <option value="all">All</option>
+            </select>
+          </label>
+        </div>
       </div>
 
       {items.length === 0 ? (
@@ -39,22 +64,97 @@ const { settings, categories, items } = data;
           <p>Our team is uploading new photographs from recent events.</p>
         </div>
       ) : (
-        <div class="gallery-grid">
-          {items.map((item) => (
+        <>
+          <div class="gallery-empty-state" data-gallery-empty style="display: none;">
+            <div class="empty-icon"><Icon name="image" size={28} /></div>
+            <h3>No designs in this category</h3>
+            <p>Try selecting another category or view all designs in our collection.</p>
+            <button type="button" class="filter-btn active" data-reset-filter>
+              <span>View all designs</span>
+            </button>
+          </div>
+
+          <div class="pinterest-masonry" data-gallery-masonry>
+            {items.map((item, index) => (
+              <article
+                class="pinterest-pin"
+                data-gallery-item
+                data-gallery-index={index}
+                data-gallery-category={item.category_id}
+                data-gallery-slug={item.category_slug}
+                data-lightbox
+                data-src={imageUrl(item.image)}
+                data-caption={`${item.title} (${item.category_name})`}
+                tabindex="0"
+                role="button"
+                aria-label={`View ${item.title || 'event design'} in high resolution`}
+              >
+                <div class="pin-media-wrapper">
+                  <img
+                    src={imageUrl(item.image)}
+                    alt={item.title || 'Event Point Ranchi celebration design'}
+                    loading={index < 4 ? 'eager' : 'lazy'}
+                  />
+                  <div class="pin-hover-overlay">
+                    <div class="pin-overlay-top">
+                      <span class="pin-category-pill">{item.category_name}</span>
+                      <span class="pin-zoom-pill">
+                        <Icon name="zoom-in" size={13} />
+                        <span>Expand</span>
+                      </span>
+                    </div>
+                    <div class="pin-overlay-bottom">
+                      <span class="pin-tap-hint">Click to enlarge</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="pin-content">
+                  <div class="pin-category-text">{item.category_name}</div>
+                  <h3 class="pin-title">{item.title || 'Celebration Styling'}</h3>
+                  <div class="pin-footer">
+                    <span class="pin-location">Event Point · Ranchi</span>
+                    <span class="pin-action-icon">
+                      <Icon name="expand" size={13} />
+                    </span>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <nav class="gallery-pagination" data-gallery-pagination aria-label="Gallery pagination">
+            <button type="button" class="pagination-btn pagination-prev" data-page-prev disabled aria-label="Previous page">
+              <Icon name="arrow-left" size={15} />
+              <span>Previous</span>
+            </button>
+
+            <div class="pagination-pages" data-page-numbers>
+              {Array.from({ length: totalInitialPages }, (_, i) => i + 1).map((pageNum) => (
+                <button
+                  type="button"
+                  class:list={['page-num-btn', { active: pageNum === 1 }]}
+                  data-page={pageNum}
+                  aria-label={`Page ${pageNum}`}
+                  aria-current={pageNum === 1 ? 'page' : undefined}
+                >
+                  {pageNum}
+                </button>
+              ))}
+            </div>
+
             <button
               type="button"
-              class="gallery-tile"
-              data-gallery-item
-              data-gallery-category={item.category_id}
-              data-lightbox
-              data-src={imageUrl(item.image)}
-              data-caption={item.title}
+              class="pagination-btn pagination-next"
+              data-page-next
+              disabled={totalInitialPages <= 1}
+              aria-label="Next page"
             >
-              <img src={imageUrl(item.image)} alt={item.title || 'Gallery image'} loading="lazy" />
-              <span class="gallery-overlay">{item.title || 'View image'}</span>
+              <span>Next</span>
+              <Icon name="arrow-right" size={15} />
             </button>
-          ))}
-        </div>
+          </nav>
+        </>
       )}
     </div>
   </section>

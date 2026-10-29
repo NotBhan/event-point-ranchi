@@ -6,6 +6,7 @@ import Icon from '../../../components/Icon.astro';
 import { imageUrl } from '../../../core/http';
 import { site } from '../../../core/config';
 import type { HomeData } from '../service';
+import { getHomepageContent } from '../../../core/sanity/service';
 
 interface Props {
   data: HomeData;
@@ -14,179 +15,195 @@ interface Props {
 const { data } = Astro.props;
 const { heroImage, mandaps, stages, equipment, galleryCategories, galleryItems, stats } = data;
 
-const steps = [
-  ['01', 'Share your date & venue', 'Tell us the event type, date, guest count and location in Ranchi.'],
-  ['02', 'Select mandap & stage', 'Choose a design or request custom dimensions for your venue.'],
-  ['03', 'Build your equipment list', 'Add chairs, tables, lounge seating, lighting and essentials with quantities.'],
-  ['04', 'Receive a quotation', 'Our team checks availability and sends an itemised quotation — not an auto-booking.'],
-  ['05', 'Confirm in writing', 'Dates and stock are held only after you confirm the quotation with us.'],
-];
+const homepageContent = await getHomepageContent(heroImage ?? undefined);
+
+const steps = homepageContent.steps.map((s) => [s.stepNumber, s.title, s.description]);
 ---
 
 <BaseLayout
   title="Event Point Ranchi | Wedding Mandaps, Stage Designs & Event Equipment"
-  description="Wedding mandap, stage designs, furniture and event equipment planning in Ranchi. Build your requirements and request a quotation from Event Point."
+  description="Wedding mandap, stage designs, furniture and event equipment planning in Ranchi. Build your requirements and request a quotation from Event Point Ranchi."
 >
   <section class="hero wedding-hero">
-    {heroImage && <img class="hero-media" src={imageUrl(heroImage)} alt="" />}
+    {homepageContent.heroImage && <img class="hero-media" src={imageUrl(homepageContent.heroImage)} alt="" />}
     <div class="container hero-inner">
       <span class="eyebrow" style="color:var(--gold-bright);">Ranchi · Wedding setup studio</span>
-      <h1>Create the Wedding Setup You've Always Imagined.</h1>
-      <p>
-        Mandaps, stage designs, furniture and event equipment — planned and delivered by one Ranchi
-        team. Choose what you love, add your dimensions and send a single, complete requirement.
-      </p>
+      <h1>{homepageContent.heroHeading}</h1>
+      <p>{homepageContent.heroSubtitle}</p>
       <div class="hero-actions">
-        <a href="/mandaps" class="btn btn-gold btn-lg">
-          Explore Mandaps <Icon name="arrow-right" size={16} />
+        <a href={homepageContent.primaryCta.url} class="btn btn-gold btn-lg">
+          {homepageContent.primaryCta.label} <Icon name="arrow-right" size={16} />
         </a>
-        <a href="/plan" class="btn btn-secondary btn-lg">Plan Your Event</a>
+        <a href={homepageContent.secondaryCta.url} class="btn btn-secondary btn-lg">{homepageContent.secondaryCta.label}</a>
       </div>
-      <div class="hero-meta">
-        <div><strong>{stats.mandaps}</strong><span>Mandap designs</span></div>
-        <div><strong>{stats.stages}</strong><span>Stage concepts</span></div>
-        <div><strong>{stats.equipment}</strong><span>Equipment items</span></div>
-        <div><strong>{stats.gallery}</strong><span>Portfolio moments</span></div>
-      </div>
+      {homepageContent.sectionsVisibility.stats && (
+        <div class="hero-meta">
+          <div><strong>{stats.mandaps}</strong><span>Mandap designs</span></div>
+          <div><strong>{stats.stages}</strong><span>Stage concepts</span></div>
+          <div><strong>{stats.equipment}</strong><span>Equipment items</span></div>
+          <div><strong>{stats.gallery}</strong><span>Portfolio moments</span></div>
+        </div>
+      )}
     </div>
   </section>
 
-  <section class="section" aria-labelledby="home-mandaps">
-    <div class="container">
-      <div class="section-head split-head">
-        <div>
-          <span class="eyebrow">Mandap collection</span>
-          <h2 id="home-mandaps">Ceremony settings with honest dimensions.</h2>
-          <p>
-            Traditional, floral and contemporary mandaps with clear footprints, material notes and
-            custom sizing on request.
-          </p>
+  {homepageContent.promotionalBanner?.enabled && (
+    <section class="promotional-banner" style="background:var(--burgundy-deep, #460511);color:#fff;padding:16px 0;">
+      <div class="container" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span style="background:var(--gold-bright, #d4af37);color:#460511;font-weight:700;font-size:11px;padding:3px 8px;border-radius:4px;text-transform:uppercase;">{homepageContent.promotionalBanner.badge}</span>
+          <strong>{homepageContent.promotionalBanner.headline}</strong>
+          {homepageContent.promotionalBanner.description && <span style="opacity:0.85;font-size:14px;">{homepageContent.promotionalBanner.description}</span>}
         </div>
-        <a href="/mandaps" class="btn btn-secondary">View all mandaps <Icon name="arrow-right" size={15} /></a>
+        <a href={homepageContent.promotionalBanner.ctaUrl} class="btn btn-gold btn-sm">{homepageContent.promotionalBanner.ctaLabel}</a>
       </div>
-      <div class="catalogue-grid catalogue-grid-mandaps">
-        {mandaps.map((mandap) => <MandapCard mandap={mandap} />)}
-      </div>
-    </div>
-  </section>
+    </section>
+  )}
 
-  <section class="section section-warm" aria-labelledby="home-stages">
-    <div class="container">
-      <div class="section-head split-head">
-        <div>
-          <span class="eyebrow">Stage design studio</span>
-          <h2 id="home-stages">Reception stages built for the photograph.</h2>
-          <p>
-            Royal, Mughal, botanical and LED concepts — each with a standard footprint and styling
-            notes you can take to your venue.
-          </p>
+  {homepageContent.sectionsVisibility.mandaps && (
+    <section class="section" aria-labelledby="home-mandaps">
+      <div class="container">
+        <div class="section-head split-head">
+          <div>
+            <span class="eyebrow">Mandap collection</span>
+            <h2 id="home-mandaps">Ceremony settings with honest dimensions.</h2>
+            <p>
+              Traditional, floral and contemporary mandaps with clear footprints, material notes and
+              custom sizing on request.
+            </p>
+          </div>
+          <a href="/mandaps" class="btn btn-secondary">View all mandaps <Icon name="arrow-right" size={15} /></a>
         </div>
-        <a href="/stages" class="btn btn-secondary">Explore stage designs <Icon name="arrow-right" size={15} /></a>
-      </div>
-      <div class="catalogue-grid catalogue-grid-stages">
-        {stages.map((stage) => <StageCard stage={stage} />)}
-      </div>
-    </div>
-  </section>
-
-  <section class="section" aria-labelledby="home-equipment">
-    <div class="container">
-      <div class="section-head split-head">
-        <div>
-          <span class="eyebrow">Furniture &amp; equipment</span>
-          <h2 id="home-equipment">Build a practical equipment list.</h2>
-          <p>
-            Six curated categories with quantities, finishes and specifications. Add items directly
-            to your requirements and adjust quantities in the planner.
-          </p>
+        <div class="catalogue-grid catalogue-grid-mandaps">
+          {mandaps.map((mandap) => <MandapCard mandap={mandap} />)}
         </div>
-        <a href="/equipment" class="btn btn-secondary">Browse the catalogue <Icon name="arrow-right" size={15} /></a>
       </div>
+    </section>
+  )}
 
-      <div class="equipment-preview-grid">
-        {equipment.map((category) => (
-          <article class="equipment-preview-card">
-            <div class="equipment-preview-head">
-              <span class="equipment-group-icon"><Icon name={category.icon} size={19} /></span>
-              <div>
-                <h3>{category.name}</h3>
-                <p>{category.itemCount} items in catalogue</p>
+  {homepageContent.sectionsVisibility.stages && (
+    <section class="section section-warm" aria-labelledby="home-stages">
+      <div class="container">
+        <div class="section-head split-head">
+          <div>
+            <span class="eyebrow">Stage design studio</span>
+            <h2 id="home-stages">Reception stages built for the photograph.</h2>
+            <p>
+              Royal, Mughal, botanical and LED concepts — each with a standard footprint and styling
+              notes you can take to your venue.
+            </p>
+          </div>
+          <a href="/stages" class="btn btn-secondary">Explore stage designs <Icon name="arrow-right" size={15} /></a>
+        </div>
+        <div class="catalogue-grid catalogue-grid-stages">
+          {stages.map((stage) => <StageCard stage={stage} />)}
+        </div>
+      </div>
+    </section>
+  )}
+
+  {homepageContent.sectionsVisibility.equipment && (
+    <section class="section" aria-labelledby="home-equipment">
+      <div class="container">
+        <div class="section-head split-head">
+          <div>
+            <span class="eyebrow">Furniture &amp; equipment</span>
+            <h2 id="home-equipment">Build a practical equipment list.</h2>
+            <p>
+              Six curated categories with quantities, finishes and specifications. Add items directly
+              to your requirements and adjust quantities in the planner.
+            </p>
+          </div>
+          <a href="/equipment" class="btn btn-secondary">Browse the catalogue <Icon name="arrow-right" size={15} /></a>
+        </div>
+
+        <div class="equipment-preview-grid">
+          {equipment.map((category) => (
+            <article class="equipment-preview-card">
+              <div class="equipment-preview-head">
+                <span class="equipment-group-icon"><Icon name={category.icon} size={19} /></span>
+                <div>
+                  <h3>{category.name}</h3>
+                  <p>{category.itemCount} items in catalogue</p>
+                </div>
               </div>
-            </div>
-            <ul class="equipment-preview-list">
-              {category.items.map((item) => (
-                <li>
-                  <div>
-                    <strong>{item.name}</strong>
-                    <small>{item.description}</small>
-                  </div>
-                  <button
-                    type="button"
-                    class="preview-add"
-                    data-add-equipment
-                    data-id={item.id}
-                    data-slug={item.slug}
-                    data-name={item.name}
-                    data-category={category.name}
-                    data-category-slug={category.slug}
-                    data-unit={item.unit}
-                    data-specifications={item.specifications}
-                    data-image={item.image ?? ''}
-                    data-min={item.min_quantity}
-                    data-quantity={item.default_quantity}
-                    aria-label={`Add ${item.name} to requirements`}
-                  >
-                    <Icon name="plus" size={13} /> Add
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <a href={`/equipment?category=${category.slug}`} class="text-link">Browse {category.name.toLowerCase()}</a>
-          </article>
-        ))}
-      </div>
-    </div>
-  </section>
-
-  <section class="section section-warm" aria-labelledby="home-gallery">
-    <div class="container">
-      <div class="section-head split-head">
-        <div>
-          <span class="eyebrow">Photography &amp; gallery</span>
-          <h2 id="home-gallery">A closer look at the details.</h2>
-          <p>Mandap carvings, stage florals, furniture settings and real celebrations in and around Ranchi.</p>
+              <ul class="equipment-preview-list">
+                {category.items.map((item) => (
+                  <li>
+                    <div>
+                      <strong>{item.name}</strong>
+                      <small>{item.description}</small>
+                    </div>
+                    <button
+                      type="button"
+                      class="preview-add"
+                      data-add-equipment
+                      data-id={item.id}
+                      data-slug={item.slug}
+                      data-name={item.name}
+                      data-category={category.name}
+                      data-category-slug={category.slug}
+                      data-unit={item.unit}
+                      data-specifications={item.specifications}
+                      data-image={item.image ?? ''}
+                      data-min={item.min_quantity}
+                      data-quantity={item.default_quantity}
+                      aria-label={`Add ${item.name} to requirements`}
+                    >
+                      <Icon name="plus" size={13} /> Add
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <a href={`/equipment?category=${category.slug}`} class="text-link">Browse {category.name.toLowerCase()}</a>
+            </article>
+          ))}
         </div>
-        <a href="/gallery" class="btn btn-secondary">Open full gallery <Icon name="arrow-right" size={15} /></a>
       </div>
+    </section>
+  )}
 
-      <div class="home-gallery-filters" data-home-gallery-filters aria-label="Filter gallery by category">
-        <button type="button" class="filter-btn active" data-home-gallery-filter="all">All photographs</button>
-        {galleryCategories.map((category) => (
-          <button type="button" class="filter-btn" data-home-gallery-filter={String(category.id)}>{category.name}</button>
-        ))}
-      </div>
+  {homepageContent.sectionsVisibility.gallery && (
+    <section class="section section-warm" aria-labelledby="home-gallery">
+      <div class="container">
+        <div class="section-head split-head">
+          <div>
+            <span class="eyebrow">Photography &amp; gallery</span>
+            <h2 id="home-gallery">A closer look at the details.</h2>
+            <p>Mandap carvings, stage florals, furniture settings and real celebrations in and around Ranchi.</p>
+          </div>
+          <a href="/gallery" class="btn btn-secondary">Open full gallery <Icon name="arrow-right" size={15} /></a>
+        </div>
 
-      <div class="gallery-grid home-gallery-grid">
-        {galleryItems.map((item) => (
-          <button
-            type="button"
-            class="gallery-tile"
-            data-home-gallery-item
-            data-home-gallery-category={String(galleryCategories.find((category) => category.slug === item.categorySlug)?.id ?? '')}
-            data-lightbox
-            data-src={imageUrl(item.image)}
-            data-caption={item.title}
-          >
-            <img src={imageUrl(item.image)} alt={item.title} loading="lazy" />
-            <span class="gallery-overlay">
-              <span>{item.title}</span>
-              <small>{item.category}</small>
-            </span>
-          </button>
-        ))}
+        <div class="home-gallery-filters" data-home-gallery-filters aria-label="Filter gallery by category">
+          <button type="button" class="filter-btn active" data-home-gallery-filter="all">All photographs</button>
+          {galleryCategories.map((category) => (
+            <button type="button" class="filter-btn" data-home-gallery-filter={String(category.id)}>{category.name}</button>
+          ))}
+        </div>
+
+        <div class="gallery-grid home-gallery-grid">
+          {galleryItems.map((item) => (
+            <button
+              type="button"
+              class="gallery-tile"
+              data-home-gallery-item
+              data-home-gallery-category={String(galleryCategories.find((category) => category.slug === item.categorySlug)?.id ?? '')}
+              data-lightbox
+              data-src={imageUrl(item.image)}
+              data-caption={item.title}
+            >
+              <img src={imageUrl(item.image)} alt={item.title} loading="lazy" />
+              <span class="gallery-overlay">
+                <span>{item.title}</span>
+                <small>{item.category}</small>
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
-    </div>
-  </section>
+    </section>
+  )}
 
   <section class="section section-dark" aria-labelledby="home-process">
     <div class="container">

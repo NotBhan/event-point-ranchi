@@ -1,7 +1,18 @@
 ---
 import { site } from '../core/config';
 import { getNav } from '../core/registry';
+import type { MergedSiteSettings } from '../core/sanity/service';
 import Icon from './Icon.astro';
+
+interface Props {
+  settings?: MergedSiteSettings;
+}
+
+const { settings } = Astro.props;
+const brandName = settings?.name || site.name;
+const logoUrl = settings?.logo || site.logo;
+const phone = settings?.phone || site.phone;
+const phoneHref = `tel:${phone.replace(/\s/g, '')}`;
 
 const auth = Astro.locals.auth;
 const csrf = Astro.locals.csrf;
@@ -9,7 +20,6 @@ const path = Astro.url.pathname;
 const nav = getNav();
 
 const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWith(href));
-const phoneHref = `tel:${site.phone.replace(/\s/g, '')}`;
 ---
 
 <div class="announcement-bar">
@@ -23,30 +33,57 @@ const phoneHref = `tel:${site.phone.replace(/\s/g, '')}`;
     </span>
     <a class="announcement-item announcement-phone" href={phoneHref}>
       <Icon name="phone" size={13} />
-      {site.phone}
+      {phone}
     </a>
   </div>
 </div>
 
 <header class="site-header" id="siteHeader">
   <div class="container header-inner">
-    <a href="/" class="brand" aria-label={`${site.name} home`}>
-      <img src={site.logo} alt={site.name} width="42" height="42" />
+    <a href="/" class="brand" aria-label={`${brandName} home`}>
+      <img src={logoUrl} alt={brandName} width="42" height="42" />
       <span class="brand-text">
-        <strong>{site.name}</strong>
+        <strong>{brandName}</strong>
         <span>Mandap · Stage · Equipment</span>
       </span>
     </a>
 
     <nav class="nav-menu" id="primaryNav" aria-label="Primary navigation">
-      {nav.map((item) => (
-        <a href={item.href} class:list={['nav-link', { active: isActive(item.href) }]}>{item.label}</a>
-      ))}
-      <div class="nav-mobile-actions">
-        <a href="/plan" class="btn btn-primary btn-block">Plan Your Event</a>
-        <a href="/plan" class="btn btn-secondary btn-block">
-          <Icon name="receipt" size={15} /> View requirements
+      <div class="nav-drawer-head">
+        <div class="nav-drawer-brand">
+          <img src={logoUrl} alt="" width="32" height="32" />
+          <div class="nav-drawer-brand-text">
+            <strong>{brandName}</strong>
+            <span>Mandap · Stage · Equipment</span>
+          </div>
+        </div>
+        <button type="button" class="nav-close-btn" data-nav-close aria-label="Close menu">
+          <Icon name="x" size={18} strokeWidth={2.2} />
+        </button>
+      </div>
+
+      <div class="nav-drawer-links">
+        {nav.map((item) => (
+          <a href={item.href} class:list={['nav-link', { active: isActive(item.href) }]}>
+            <span>{item.label}</span>
+            <Icon name="chevron-right" size={14} class="nav-link-arrow" />
+          </a>
+        ))}
+      </div>
+
+      <div class="nav-drawer-footer">
+        <a class="nav-drawer-phone" href={phoneHref}>
+          <Icon name="phone" size={14} />
+          <span>Call: {phone}</span>
         </a>
+        <div class="nav-mobile-actions">
+          <a href="/plan" class="btn btn-primary btn-block">Plan Your Event</a>
+          <a href="/plan" class="btn btn-secondary btn-block nav-requirements-btn">
+            <Icon name="receipt" size={15} />
+            <span>View requirements</span>
+            <span class="requirements-count" data-requirements-count>0</span>
+          </a>
+        </div>
       </div>
     </nav>
 

@@ -1,21 +1,72 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
+import Icon from '../../../components/Icon.astro';
 import { imageUrl } from '../../../core/http';
+import { formatBytes } from '../../../core/storage/config';
+import ImageUploadDropzone from '../../../components/admin/ImageUploadDropzone.astro';
 import type { listGalleryAdmin } from '../service';
 
 interface Props {
   categories: ReturnType<typeof listGalleryAdmin>['categories'];
   items: ReturnType<typeof listGalleryAdmin>['items'];
+  pagination: ReturnType<typeof listGalleryAdmin>['pagination'];
+  storageUsage: ReturnType<typeof listGalleryAdmin>['storageUsage'];
 }
 
-const { categories, items } = Astro.props;
+const { categories, items, pagination, storageUsage } = Astro.props;
 const csrf = Astro.locals.csrf;
+const totalImageCount = categories.reduce((sum, category) => sum + category.item_count, 0);
+
+const levelBadge: Record<string, string> = {
+  ok: 'badge-success',
+  warning: 'badge-warning',
+  critical: 'badge-danger',
+  blocked: 'badge-danger',
+};
+
+const levelLabel: Record<string, string> = {
+  ok: 'Healthy',
+  warning: 'Warning',
+  critical: 'Critical',
+  blocked: 'Full',
+};
+
+const usagePercent = Math.min(100, storageUsage.usagePercent);
 ---
 
-<AdminLayout title="Gallery" description={`${items.length} images across ${categories.length} categories.`}>
+<AdminLayout title="Gallery" description={`${pagination.totalCount} images across ${categories.length} categories.`}>
+  <div class="admin-panel" style="margin-bottom:20px;">
+    <div class="admin-panel-head">
+      <div>
+        <h2>Gallery quota</h2>
+        <p>{formatBytes(storageUsage.usedBytes)} of {formatBytes(storageUsage.limitBytes)} used across {storageUsage.objectCount} stored images.</p>
+      </div>
+      <span class:list={['badge', levelBadge[storageUsage.level]]}>{levelLabel[storageUsage.level]}</span>
+    </div>
+    <div class="admin-panel-body">
+      <div
+        class="storage-meter"
+        role="progressbar"
+        aria-label="Gallery storage usage"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow={Math.min(100, Math.round(storageUsage.usagePercent))}
+      >
+        <span
+          class:list={['storage-meter-fill', `is-${storageUsage.level}`]}
+          style={`width:${usagePercent}%`}
+        ></span>
+      </div>
+      <div class="storage-meter-meta">
+        <span>{storageUsage.usagePercent.toFixed(1)}% of the {formatBytes(storageUsage.limitBytes)} gallery quota</span>
+        <span>{formatBytes(storageUsage.availableBytes)} available</span>
+      </div>
+    </div>
+  </div>
+
   <div class="admin-grid-2">
     <div class="admin-panel">
-      <div class="admin-panel-head"><div><h2>Upload an image</h2><p>JPG, PNG, WEBP or AVIF up to 8 MB.</p></div></div>
+      <div class="admin-panel-head"><div><h2>Upload images</h2><p>JPG, PNG or WebP up to 8 MB each. Select multiple files to batch upload.</p></div></div>
       <div class="admin-panel-body">
         <form method="POST" action="/admin/gallery" class="admin-form-grid" enctype="multipart/form-data">
           <input type="hidden" name="_csrf" value={csrf} />
@@ -32,21 +83,25 @@ const csrf = Astro.locals.csrf;
 
           <div class="field">
             <label for="title">Caption</label>
-            <input class="input" id="title" name="title" placeholder="Grand ballroom at golden hour" />
+            <input class="input" id="title" name="title" placeholder="Optional — filenames are used for batches" />
           </div>
+
+          <ImageUploadDropzone
+            name="images"
+            id="images"
+            label="Images"
+            hint="Drop one or more photos, or browse to select a batch. Each file becomes a gallery item."
+            aspectHeight="160px"
+            multiple
+            maxFiles={20}
+          />
 
           <div class="field">
-            <label for="image">Image *</label>
-            <input class="input" type="file" id="image" name="image" accept="image/*" required />
-            <span class="hint" data-file-name>Choose a photo to upload.</span>
+            <label for="gallery_image_path">…or paste an existing image path for a single item</label>
+            <input class="input" id="gallery_image_path" name="image_path" placeholder="/storage/gallery/example.webp" />
           </div>
 
-          <div class="field">
-            <label for="image_path">…or paste an existing image path</label>
-            <input class="input" id="image_path" name="image_path" placeholder="/images/archive/example.jpg" />
-          </div>
-
-          <button type="submit" class="btn btn-primary">Add to gallery</button>
+          <button type="submit" class="btn btn-primary">Upload to gallery</button>
         </form>
       </div>
     </div>
@@ -63,7 +118,7 @@ const csrf = Astro.locals.csrf;
               </div>
               <div class="admin-row-actions">
                 <span class:list={['badge', category.is_active ? 'badge-success' : 'badge-muted']}>{category.is_active ? 'live' : 'hidden'}</span>
-                <form method="POST" action="/admin/gallery">
+                <form method="POST" action="/admin/gallery" data-ajax>
                   <input type="hidden" name="_csrf" value={csrf} />
                   <input type="hidden" name="action" value="toggle_category" />
                   <input type="hidden" name="category_id" value={category.id} />
@@ -98,6 +153,23 @@ const csrf = Astro.locals.csrf;
   <div class="admin-panel">
     <div class="admin-panel-head"><div><h2>Images</h2><p>Newest first. Click toggle to hide an image without deleting it.</p></div></div>
     <div class="admin-panel-body">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;align-items:center;">
+        <a
+          href="/admin/gallery?page=1"
+          class:list={['btn btn-sm', pagination.selectedCategory === 0 ? 'btn-primary' : 'btn-secondary']}
+        >
+          All Images ({totalImageCount})
+        </a>
+        {categories.map((category) => (
+          <a
+            href={`/admin/gallery?category=${category.id}&page=1`}
+            class:list={['btn btn-sm', pagination.selectedCategory === category.id ? 'btn-primary' : 'btn-secondary']}
+          >
+            {category.name} ({category.item_count})
+          </a>
+        ))}
+      </div>
+
       {items.length === 0 ? (
         <div class="admin-empty">No images uploaded yet.</div>
       ) : (
@@ -106,11 +178,42 @@ const csrf = Astro.locals.csrf;
             <div style="border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden;background:var(--surface);">
               <img src={imageUrl(item.image)} alt={item.title} style="width:100%;height:130px;object-fit:cover;" loading="lazy" />
               <div style="padding:10px 12px;">
-                <div style="font-size:12.5px;color:var(--ink-2);min-height:34px;">{item.title || 'Untitled'}</div>
+                <form method="POST" action="/admin/gallery" class="admin-caption-form" data-ajax>
+                  <input type="hidden" name="_csrf" value={csrf} />
+                  <input type="hidden" name="action" value="save_item_title" />
+                  <input type="hidden" name="item_id" value={item.id} />
+                  <input
+                    class="input"
+                    name="title"
+                    value={item.title}
+                    placeholder="Add a caption"
+                    aria-label="Image caption"
+                    required
+                  />
+                  <button type="submit" class="icon-btn" aria-label="Save caption" title="Save caption">
+                    <Icon name="check" size={15} />
+                  </button>
+                </form>
+                <form method="POST" action="/admin/gallery" enctype="multipart/form-data" style="margin-top:8px;">
+                  <input type="hidden" name="_csrf" value={csrf} />
+                  <input type="hidden" name="action" value="replace_item" />
+                  <input type="hidden" name="item_id" value={item.id} />
+                  <input type="hidden" name="image_path" value={item.image} />
+                  <label class="btn btn-secondary btn-sm gallery-replace-btn">
+                    <Icon name="upload" size={13} /> Replace photo
+                    <input
+                      type="file"
+                      name="image"
+                      accept="image/jpeg,image/png,image/webp"
+                      class="gallery-replace-input"
+                      onchange="this.form.requestSubmit()"
+                    />
+                  </label>
+                </form>
                 <div class="admin-row-actions" style="margin-top:8px;justify-content:space-between;">
                   <span class:list={['badge', item.is_active ? 'badge-success' : 'badge-muted']}>{item.is_active ? 'live' : 'hidden'}</span>
                   <div style="display:flex;gap:6px;">
-                    <form method="POST" action="/admin/gallery">
+                    <form method="POST" action="/admin/gallery" data-ajax>
                       <input type="hidden" name="_csrf" value={csrf} />
                       <input type="hidden" name="action" value="toggle_item" />
                       <input type="hidden" name="item_id" value={item.id} />
@@ -126,9 +229,63 @@ const csrf = Astro.locals.csrf;
                     </form>
                   </div>
                 </div>
+                <form method="POST" action="/admin/gallery" class="admin-category-form" data-ajax style="margin-top:8px;">
+                  <input type="hidden" name="_csrf" value={csrf} />
+                  <input type="hidden" name="action" value="change_item_category" />
+                  <input type="hidden" name="item_id" value={item.id} />
+                  <label class="text-xs text-muted" style="display:block;margin-bottom:2px;font-weight:500;">Category</label>
+                  <select
+                    class="select"
+                    name="category_id"
+                    onchange="this.form.requestSubmit()"
+                    aria-label="Change category"
+                    style="font-size:12px;padding:4px 8px;width:100%;height:32px;"
+                  >
+                    {categories.map((category) => (
+                      <option value={category.id} selected={category.id === item.category_id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </form>
               </div>
             </div>
           ))}
+        </div>
+
+        <div class="flex-between wrap gap-3" style="margin-top:20px;padding-top:14px;border-top:1px solid var(--line);">
+          <div class="text-sm text-muted">
+            Showing {pagination.startItem}–{pagination.endItem} of {pagination.totalCount} images
+          </div>
+          {pagination.totalPages > 1 && (
+            <div style="display:flex;gap:6px;align-items:center;">
+              {pagination.page > 1 ? (
+                <a
+                  href={`/admin/gallery?page=${pagination.page - 1}${pagination.selectedCategory ? `&category=${pagination.selectedCategory}` : ''}`}
+                  class="btn btn-secondary btn-sm"
+                >
+                  ← Previous
+                </a>
+              ) : (
+                <span class="btn btn-secondary btn-sm" style="opacity:0.5;pointer-events:none;">← Previous</span>
+              )}
+
+              <span class="text-xs text-muted" style="padding:0 8px;">
+                Page {pagination.page} of {pagination.totalPages}
+              </span>
+
+              {pagination.page < pagination.totalPages ? (
+                <a
+                  href={`/admin/gallery?page=${pagination.page + 1}${pagination.selectedCategory ? `&category=${pagination.selectedCategory}` : ''}`}
+                  class="btn btn-secondary btn-sm"
+                >
+                  Next →
+                </a>
+              ) : (
+                <span class="btn btn-secondary btn-sm" style="opacity:0.5;pointer-events:none;">Next →</span>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

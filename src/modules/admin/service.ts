@@ -1,6 +1,16 @@
 import { all, one, run } from '../../core/db';
 import { getBoolean, getInt, getString, parseMoneyToPaise, uniqueSlug } from '../../core/http';
-import { saveUploadedImage, UploadError } from '../../core/uploads';
+import { formatBytes } from '../../core/storage/config';
+import type { StorageDriver } from '../../core/storage/filebase';
+import type { QuotaUsage, QuotaWarningLevel, StorageCategory } from '../../core/storage/quota';
+import {
+  imageStorage,
+  type ImageEntityType,
+  type ReconcileStorageReport,
+  type RetryPendingDeletionsReport,
+  type StorageUsageSummary,
+} from '../../core/storage/service';
+import { getStorageUsage, saveUploadedImage, UploadError } from '../../core/uploads';
 
 export { UploadError };
 
@@ -439,6 +449,13 @@ export function addMenuSection(packageId: number, form: FormData | null): void {
   run(`INSERT INTO menu_categories (section_id, title, sort) VALUES (?, ?, 1)`, [sectionId, `${title} selection`]);
 }
 
+export function updateMenuSection(sectionId: number, form: FormData | null): void {
+  const title = getString(form, 'title');
+  const maxSelection = getInt(form, 'max_selection', 3);
+  if (!title) return;
+  run('UPDATE menu_sections SET title = ?, max_selection = ? WHERE id = ?', [title, maxSelection, sectionId]);
+}
+
 export function deleteMenuSection(sectionId: number): void {
   run('DELETE FROM menu_sections WHERE id = ?', [sectionId]);
 }
@@ -454,6 +471,12 @@ export function addMenuItem(sectionId: number, form: FormData | null): void {
     category?.id ??
     run(`INSERT INTO menu_categories (section_id, title, sort) VALUES (?, 'Selection', 1)`, [sectionId]).lastId;
   run('INSERT INTO menu_items (category_id, name, is_available) VALUES (?, ?, 1)', [categoryId, name]);
+}
+
+export function updateMenuItem(itemId: number, form: FormData | null): void {
+  const name = getString(form, 'name');
+  if (!name) return;
+  run('UPDATE menu_items SET name = ? WHERE id = ?', [name, itemId]);
 }
 
 export function deleteMenuItem(itemId: number): void {
@@ -491,16 +514,50 @@ export function deletePackageOption(table: 'catering_features' | 'banner_feature
 
 /* ============================ Gallery ============================ */
 
-export function listGalleryAdmin() {
+export function listGalleryAdmin(options?: { page?: number; perPage?: number; categoryId?: number }) {
+  const page = Math.max(1, options?.page ?? 1);
+  const perPage = Math.max(1, Math.min(100, options?.perPage ?? 18));
+  const categoryId = options?.categoryId ?? 0;
+
   const categories = all<{ id: number; name: string; is_active: number; item_count: number }>(
     `SELECT gc.id, gc.name, gc.is_active,
             (SELECT COUNT(*) FROM gallery_items gi WHERE gi.category_id = gc.id) AS item_count
      FROM gallery_categories gc ORDER BY gc.sort, gc.name`,
   );
-  const items = all<{ id: number; title: string; image: string; category_id: number; is_active: number; created_at: string }>(
-    'SELECT id, title, image, category_id, is_active, created_at FROM gallery_items ORDER BY id DESC LIMIT 120',
+
+  const whereClause = categoryId > 0 ? 'WHERE category_id = ?' : '';
+  const queryParams = categoryId > 0 ? [categoryId] : [];
+
+  const totalRow = one<{ count: number }>(
+    `SELECT COUNT(*) AS count FROM gallery_items ${whereClause}`,
+    queryParams,
   );
-  return { categories, items };
+  const totalCount = Number(totalRow?.count ?? 0);
+  const totalPages = Math.max(1, Math.ceil(totalCount / perPage));
+  const currentPage = Math.min(page, totalPages);
+  const offset = (currentPage - 1) * perPage;
+
+  const items = all<{ id: number; title: string; image: string; category_id: number; is_active: number; created_at: string }>(
+    `SELECT id, title, image, category_id, is_active, created_at FROM gallery_items ${whereClause} ORDER BY id DESC LIMIT ? OFFSET ?`,
+    [...queryParams, perPage, offset],
+  );
+
+  const storageUsage = getStorageUsage('gallery');
+
+  return {
+    categories,
+    items,
+    pagination: {
+      page: currentPage,
+      perPage,
+      totalCount,
+      totalPages,
+      selectedCategory: categoryId,
+      startItem: totalCount === 0 ? 0 : offset + 1,
+      endItem: Math.min(offset + items.length, totalCount),
+    },
+    storageUsage,
+  };
 }
 
 export function addGalleryCategory(form: FormData | null): void {
@@ -519,29 +576,310 @@ export function deleteGalleryCategory(id: number): void {
   run('DELETE FROM gallery_categories WHERE id = ?', [id]);
 }
 
-export function toggleGalleryCategory(id: number): void {
+export function toggleGalleryCategory(id: number): boolean {
   run('UPDATE gallery_categories SET is_active = CASE is_active WHEN 1 THEN 0 ELSE 1 END WHERE id = ?', [id]);
+  return Boolean(one<{ is_active: number }>('SELECT is_active FROM gallery_categories WHERE id = ?', [id])?.is_active);
 }
 
-export async function addGalleryItem(form: FormData | null): Promise<void> {
+export interface GalleryUploadFailure {
+  filename: string;
+  error: string;
+}
+
+export interface GalleryBatchUploadResult {
+  uploaded: number;
+  itemIds: number[];
+  failures: GalleryUploadFailure[];
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message || error.name : String(error);
+}
+
+function imageFilesFrom(form: FormData | null, fields: string[]): File[] {
+  if (!form) return [];
+
+  const files: File[] = [];
+
+  for (const field of fields) {
+    for (const value of form.getAll(field)) {
+      if (typeof value === 'string') continue;
+      if (typeof Blob === 'undefined' || !(value instanceof Blob) || !value.size) continue;
+      files.push(value as File);
+    }
+  }
+
+  return files;
+}
+
+function galleryCaption(title: string, file: File, index: number, total: number): string {
+  if (title) return total > 1 ? `${title} ${index + 1}` : title;
+
+  const base = file.name
+    .replace(/\.[^.]+$/, '')
+    .replace(/[-_]+/g, ' ')
+    .trim();
+
+  return base || `Gallery image ${index + 1}`;
+}
+
+export async function batchUploadGalleryAdmin(
+  form: FormData | null,
+): Promise<GalleryBatchUploadResult> {
   const categoryId = getInt(form, 'category_id', 0);
   if (!categoryId) throw new Error('Choose a gallery category.');
-  const uploaded = await saveUploadedImage(form, 'image', 'gallery');
-  const image = uploaded ?? getString(form, 'image_path');
-  if (!image) throw new Error('Upload an image or paste an image path.');
-  run('INSERT INTO gallery_items (category_id, title, image, is_active) VALUES (?, ?, ?, 1)', [
-    categoryId,
-    getString(form, 'title'),
-    image,
-  ]);
+
+  const category = one<{ id: number }>('SELECT id FROM gallery_categories WHERE id = ?', [categoryId]);
+  if (!category) throw new Error('The selected gallery category no longer exists.');
+
+  const title = getString(form, 'title');
+  const files = imageFilesFrom(form, ['images', 'image', 'files']);
+  const pasted = getString(form, 'image_path');
+  const result: GalleryBatchUploadResult = { uploaded: 0, itemIds: [], failures: [] };
+
+  if (files.length === 0) {
+    if (!pasted) throw new Error('Choose at least one image to upload.');
+
+    const itemId = run(
+      'INSERT INTO gallery_items (category_id, title, image, is_active) VALUES (?, ?, ?, 1)',
+      [categoryId, title || 'Gallery image', pasted],
+    ).lastId;
+
+    return { uploaded: 1, itemIds: [itemId], failures: [] };
+  }
+
+  for (const [index, file] of files.entries()) {
+    const itemId = run(
+      'INSERT INTO gallery_items (category_id, title, image, is_active) VALUES (?, ?, ?, 1)',
+      [categoryId, galleryCaption(title, file, index, files.length), ''],
+    ).lastId;
+
+    try {
+      const stored = await imageStorage.uploadImage(file, {
+        entityType: 'gallery_item',
+        entityId: itemId,
+        slot: 'primary',
+        filename: file.name,
+      });
+
+      run('UPDATE gallery_items SET image = ? WHERE id = ?', [stored.publicUrl, itemId]);
+      result.uploaded += 1;
+      result.itemIds.push(itemId);
+    } catch (error) {
+      run('DELETE FROM gallery_items WHERE id = ?', [itemId]);
+      result.failures.push({
+        filename: file.name || `image-${index + 1}`,
+        error: errorMessage(error),
+      });
+    }
+  }
+
+  if (result.uploaded === 0) {
+    throw new Error(result.failures[0]?.error ?? 'The images could not be uploaded.');
+  }
+
+  return result;
+}
+
+export interface GalleryImageUpdate {
+  itemId: number;
+  image: string;
+}
+
+export async function replaceGalleryItemAdmin(
+  itemId: number,
+  form: FormData | null,
+): Promise<GalleryImageUpdate> {
+  const item = one<{ id: number; image: string }>(
+    'SELECT id, image FROM gallery_items WHERE id = ?',
+    [itemId],
+  );
+
+  if (!item) throw new Error('Gallery image not found.');
+
+  const uploaded = await saveUploadedImage(form, 'image', 'gallery', {
+    entityType: 'gallery_item',
+    entityId: itemId,
+    slot: 'primary',
+  });
+  const pasted = getString(form, 'image_path');
+  const image = uploaded ?? (pasted && pasted !== item.image ? pasted : '');
+
+  if (!image) throw new Error('Choose a replacement image.');
+
+  run('UPDATE gallery_items SET image = ? WHERE id = ?', [image, itemId]);
+  return { itemId, image };
+}
+
+export function saveGalleryItemTitle(id: number, form: FormData | null): string {
+  const title = getString(form, 'title');
+  if (!title) throw new Error('Add a caption for the image.');
+  run('UPDATE gallery_items SET title = ? WHERE id = ?', [title, id]);
+  return title;
+}
+
+export function saveGalleryItemCategory(id: number, form: FormData | null): number {
+  const categoryId = getInt(form, 'category_id', 0);
+  if (!categoryId) throw new Error('Choose a valid category.');
+  run('UPDATE gallery_items SET category_id = ? WHERE id = ?', [categoryId, id]);
+  return categoryId;
 }
 
 export function deleteGalleryItem(id: number): void {
   run('DELETE FROM gallery_items WHERE id = ?', [id]);
 }
 
-export function toggleGalleryItem(id: number): void {
+export function toggleGalleryItem(id: number): boolean {
   run('UPDATE gallery_items SET is_active = CASE is_active WHEN 1 THEN 0 ELSE 1 END WHERE id = ?', [id]);
+  return Boolean(one<{ is_active: number }>('SELECT is_active FROM gallery_items WHERE id = ?', [id])?.is_active);
+}
+
+/* ============================ Catalog media ============================ */
+
+export interface CatalogImageUpdate {
+  id: number;
+  image: string;
+}
+
+async function updateCatalogImageAdmin(
+  table: 'mandaps' | 'stages' | 'equipment_items',
+  entityType: ImageEntityType,
+  label: string,
+  id: number,
+  form: FormData | null,
+): Promise<CatalogImageUpdate> {
+  if (!Number.isInteger(id) || id <= 0) throw new Error(`Invalid ${label.toLowerCase()} id.`);
+
+  const row = one<{ id: number; image: string | null }>(
+    `SELECT id, image FROM ${table} WHERE id = ?`,
+    [id],
+  );
+  if (!row) throw new Error(`${label} not found.`);
+
+  const uploaded = await saveUploadedImage(form, 'image', table, {
+    entityType,
+    entityId: id,
+    slot: 'primary',
+  });
+  const pasted = getString(form, 'image_path');
+  const image = uploaded ?? (pasted && pasted !== (row.image ?? '') ? pasted : '');
+
+  if (!image) throw new Error(`Choose an image for this ${label.toLowerCase()}.`);
+
+  run(`UPDATE ${table} SET image = ? WHERE id = ?`, [image, id]);
+  return { id, image };
+}
+
+export function updateMandapImageAdmin(id: number, form: FormData | null): Promise<CatalogImageUpdate> {
+  return updateCatalogImageAdmin('mandaps', 'mandap', 'Mandap', id, form);
+}
+
+export function updateStageImageAdmin(id: number, form: FormData | null): Promise<CatalogImageUpdate> {
+  return updateCatalogImageAdmin('stages', 'stage', 'Stage', id, form);
+}
+
+export function updateEquipmentImageAdmin(id: number, form: FormData | null): Promise<CatalogImageUpdate> {
+  return updateCatalogImageAdmin('equipment_items', 'equipment', 'Equipment item', id, form);
+}
+
+/* ============================ Storage ============================ */
+
+export interface StorageCategoryCard {
+  category: StorageCategory;
+  label: string;
+  description: string;
+  usage: QuotaUsage;
+  formattedUsed: string;
+  formattedLimit: string;
+  formattedAvailable: string;
+  formattedReserved: string;
+  activeCount: number;
+  pendingDeletionCount: number;
+  level: QuotaWarningLevel;
+  usagePercent: number;
+}
+
+export interface StorageDashboardData {
+  gallery: StorageCategoryCard;
+  asset: StorageCategoryCard;
+  usage: StorageUsageSummary;
+  pendingDeletionCount: number;
+  driver: StorageDriver;
+  isConfigured: boolean;
+}
+
+function storageCategoryCounts(category: StorageCategory): {
+  active: number;
+  pendingDeletion: number;
+} {
+  const row = one<{ active: number | null; pending_deletion: number | null }>(
+    `SELECT
+       COALESCE(SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END), 0) AS active,
+       COALESCE(SUM(CASE WHEN status = 'pending_deletion' THEN 1 ELSE 0 END), 0) AS pending_deletion
+     FROM storage_objects
+     WHERE storage_category = ?`,
+    [category],
+  );
+
+  return {
+    active: Number(row?.active ?? 0),
+    pendingDeletion: Number(row?.pending_deletion ?? 0),
+  };
+}
+
+function storageCategoryCard(
+  category: StorageCategory,
+  label: string,
+  description: string,
+  usage: QuotaUsage,
+): StorageCategoryCard {
+  const counts = storageCategoryCounts(category);
+
+  return {
+    category,
+    label,
+    description,
+    usage,
+    formattedUsed: formatBytes(usage.usedBytes),
+    formattedLimit: formatBytes(usage.limitBytes),
+    formattedAvailable: formatBytes(usage.availableBytes),
+    formattedReserved: formatBytes(usage.reservedBytes),
+    activeCount: counts.active,
+    pendingDeletionCount: counts.pendingDeletion,
+    level: usage.level,
+    usagePercent: usage.usagePercent,
+  };
+}
+
+export function loadStorageDashboard(): StorageDashboardData {
+  const usage = imageStorage.getStorageUsage();
+
+  return {
+    gallery: storageCategoryCard(
+      'gallery',
+      'Gallery',
+      'Photos published to the public gallery.',
+      usage.gallery,
+    ),
+    asset: storageCategoryCard(
+      'asset',
+      'Other Assets',
+      'Mandaps, stages, equipment and site branding.',
+      usage.asset,
+    ),
+    usage,
+    pendingDeletionCount: usage.pendingDeletionCount,
+    driver: usage.driver,
+    isConfigured: usage.isConfigured,
+  };
+}
+
+export async function reconcileStorageAdmin(): Promise<ReconcileStorageReport> {
+  return imageStorage.reconcileStorage();
+}
+
+export async function retryCleanupAdmin(limit?: number): Promise<RetryPendingDeletionsReport> {
+  return imageStorage.retryPendingDeletions(limit === undefined ? {} : { limit });
 }
 
 /* ============================ Customers ============================ */

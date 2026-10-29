@@ -2,7 +2,9 @@ import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import schemaSql from './schema.sql?raw';
+import { hashPassword, verifyPassword } from './password';
 import { seedDatabase } from './seed';
+import { initStorageSchema } from './storage/schema';
 
 let database: DatabaseSync | null = null;
 
@@ -25,14 +27,115 @@ export function getDb(): DatabaseSync {
   mkdirSync(dataDir(), { recursive: true });
   const db = new DatabaseSync(join(dataDir(), 'event-point.db'));
   db.exec(schemaSql);
+  migrateTrafficEvents(db);
+  migrateUsersRole(db);
+  initStorageSchema(db);
 
   const row = db.prepare('SELECT COUNT(*) AS count FROM users').get() as { count: number };
   if (!row || Number(row.count) === 0) {
     seedDatabase(db);
   }
 
+  ensureAdminUser(db);
+  ensureEditorUser(db);
+
   database = db;
   return db;
+}
+
+function migrateUsersRole(db: DatabaseSync): void {
+  const tableSql = (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").get() as { sql?: string })?.sql || '';
+  if (tableSql && !tableSql.includes("'editor'")) {
+    db.exec(`
+      PRAGMA foreign_keys = OFF;
+      CREATE TABLE users_migrated (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        username      TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        email         TEXT UNIQUE COLLATE NOCASE,
+        password_hash TEXT NOT NULL,
+        first_name    TEXT NOT NULL DEFAULT '',
+        role          TEXT NOT NULL DEFAULT 'customer' CHECK (role IN ('customer', 'editor', 'admin', 'superadmin', 'developer')),
+        is_active     INTEGER NOT NULL DEFAULT 1,
+        created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      INSERT INTO users_migrated (id, username, email, password_hash, first_name, role, is_active, created_at)
+        SELECT id, username, email, password_hash, first_name, role, is_active, created_at FROM users;
+      DROP TABLE users;
+      ALTER TABLE users_migrated RENAME TO users;
+      PRAGMA foreign_keys = ON;
+    `);
+  }
+}
+
+function migrateTrafficEvents(db: DatabaseSync): void {
+  const columns = db.prepare('PRAGMA table_info(traffic_events)').all() as Array<{ name: string }>;
+  const existing = new Set(columns.map((column) => column.name));
+
+  for (const column of ['utm_source', 'utm_medium', 'utm_campaign']) {
+    if (!existing.has(column)) {
+      db.exec(`ALTER TABLE traffic_events ADD COLUMN ${column} TEXT NOT NULL DEFAULT ''`);
+    }
+  }
+
+  db.exec('CREATE INDEX IF NOT EXISTS idx_traffic_events_campaign ON traffic_events(utm_source, utm_campaign)');
+}
+
+function ensureAdminUser(db: DatabaseSync): void {
+  const adminPassword =
+    process.env.ADMIN_PASSWORD ||
+    (typeof import.meta !== 'undefined' && import.meta.env?.ADMIN_PASSWORD) ||
+    'admin';
+
+  const existing = db
+    .prepare("SELECT id, password_hash, role, is_active FROM users WHERE username = 'admin' COLLATE NOCASE")
+    .get() as { id: number; password_hash: string; role: string; is_active: number } | undefined;
+
+  if (existing) {
+    if (
+      !verifyPassword(adminPassword, existing.password_hash) ||
+      existing.is_active !== 1 ||
+      existing.role !== 'developer'
+    ) {
+      db.prepare("UPDATE users SET password_hash = ?, role = 'developer', is_active = 1 WHERE id = ?").run(
+        hashPassword(adminPassword),
+        existing.id,
+      );
+    }
+    return;
+  }
+
+  db.prepare(
+    "INSERT INTO users (username, email, password_hash, first_name, role, is_active) VALUES ('admin', 'admin@eventpointranchi.com', ?, 'Administrator', 'developer', 1)",
+  ).run(hashPassword(adminPassword));
+}
+
+function ensureEditorUser(db: DatabaseSync): void {
+  const editorPassword =
+    process.env.EDITOR_PASSWORD ||
+    (typeof import.meta !== 'undefined' && import.meta.env?.EDITOR_PASSWORD) ||
+    'Editor@Royal2026!';
+
+  const existing = db
+    .prepare("SELECT id, password_hash, role, is_active FROM users WHERE username = 'content_editor' COLLATE NOCASE")
+    .get() as { id: number; password_hash: string; role: string; is_active: number } | undefined;
+
+  if (existing) {
+    if (
+      !verifyPassword(editorPassword, existing.password_hash) ||
+      existing.is_active !== 1 ||
+      existing.role !== 'editor'
+    ) {
+      db.prepare("UPDATE users SET password_hash = ?, role = 'editor', is_active = 1 WHERE id = ?").run(
+        hashPassword(editorPassword),
+        existing.id,
+      );
+    }
+    return;
+  }
+
+  db.prepare(
+    "INSERT INTO users (username, email, password_hash, first_name, role, is_active) VALUES ('content_editor', 'editor@eventpointranchi.com', ?, 'Content Editor', 'editor', 1)",
+  ).run(hashPassword(editorPassword));
 }
 
 export function cleanParams(params: unknown[]): unknown[] {
