@@ -182,19 +182,26 @@
   overflow: hidden;
   background: var(--surface-2);
   width: 100%;
+  aspect-ratio: 4 / 3;
   border-radius: 18px 18px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .pin-media-wrapper img {
   display: block;
   width: 100%;
-  height: auto;
+  min-width: 100%;
+  max-width: 100%;
+  height: 100%;
   object-fit: cover;
+  object-position: center;
   transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .pinterest-pin:hover .pin-media-wrapper img {
-  transform: scale(1.035);
+  transform: scale(1.04);
 }
 
 /* Pinterest Floating Hover Overlay */
