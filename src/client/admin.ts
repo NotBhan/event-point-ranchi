@@ -196,15 +196,59 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function selectedDropzoneFiles(dropzone: HTMLElement, files: FileList | null): File[] {
+  if (!files || files.length === 0) return [];
+
+  const images = Array.from(files).filter((file) => file.type.startsWith('image/'));
+  if (dropzone.dataset.multiple !== 'true') return images.slice(0, 1);
+
+  const maxFiles = Number.parseInt(dropzone.dataset.maxFiles ?? '', 10);
+  return Number.isFinite(maxFiles) && maxFiles > 0 ? images.slice(0, maxFiles) : images;
+}
+
+function renderDropzoneFileList(dropzone: HTMLElement, files: File[]): void {
+  const list = dropzone.querySelector<HTMLElement>('[data-multi-list]');
+  if (!list) return;
+
+  list.replaceChildren();
+
+  if (dropzone.dataset.multiple !== 'true' || files.length <= 1) {
+    list.style.display = 'none';
+    return;
+  }
+
+  for (const file of files) {
+    const row = document.createElement('div');
+    row.className = 'admin-dropzone-file';
+
+    const thumb = document.createElement('img');
+    thumb.className = 'admin-dropzone-file-thumb';
+    thumb.src = URL.createObjectURL(file);
+    thumb.alt = '';
+
+    const name = document.createElement('span');
+    name.className = 'admin-dropzone-file-name';
+    name.textContent = file.name;
+
+    const size = document.createElement('span');
+    size.className = 'admin-dropzone-file-size';
+    size.textContent = formatFileSize(file.size);
+
+    row.append(thumb, name, size);
+    list.append(row);
+  }
+
+  list.style.display = 'flex';
+}
+
 function handleDropzoneFiles(dropzone: HTMLElement, files: FileList | null): void {
-  if (!files || files.length === 0) return;
-  const file = files[0];
-  if (!file.type.startsWith('image/')) return;
+  const selected = selectedDropzoneFiles(dropzone, files);
+  if (selected.length === 0) return;
 
   const fileInput = dropzone.querySelector<HTMLInputElement>('.admin-dropzone-input');
-  if (fileInput && fileInput.files !== files) {
+  if (fileInput) {
     const dataTransfer = new DataTransfer();
-    dataTransfer.items.add(file);
+    for (const file of selected) dataTransfer.items.add(file);
     fileInput.files = dataTransfer.files;
   }
 
@@ -215,21 +259,25 @@ function handleDropzoneFiles(dropzone: HTMLElement, files: FileList | null): voi
   const statusName = dropzone.querySelector<HTMLElement>('[data-status-name]');
   const statusSize = dropzone.querySelector<HTMLElement>('[data-status-size]');
   const previewBadge = dropzone.querySelector<HTMLElement>('[data-preview-badge]');
+  const totalSize = selected.reduce((sum, file) => sum + file.size, 0);
 
   if (previewImg) {
-    const objectUrl = URL.createObjectURL(file);
-    previewImg.src = objectUrl;
+    previewImg.src = URL.createObjectURL(selected[0]);
   }
 
-  if (previewBadge) previewBadge.textContent = 'Selected photo';
+  if (previewBadge) {
+    previewBadge.textContent = selected.length > 1 ? `${selected.length} photos selected` : 'Selected photo';
+  }
   if (previewContainer) previewContainer.style.display = 'block';
   if (promptContainer) promptContainer.style.display = 'none';
 
   if (statusBar && statusName && statusSize) {
-    statusName.textContent = file.name;
-    statusSize.textContent = formatFileSize(file.size);
+    statusName.textContent = selected.length > 1 ? `${selected.length} images` : selected[0].name;
+    statusSize.textContent = formatFileSize(totalSize);
     statusBar.style.display = 'flex';
   }
+
+  renderDropzoneFileList(dropzone, selected);
 }
 
 function resetDropzone(dropzone: HTMLElement): void {
@@ -242,6 +290,12 @@ function resetDropzone(dropzone: HTMLElement): void {
   const promptContainer = dropzone.querySelector<HTMLElement>('[data-prompt-container]');
   const statusBar = dropzone.querySelector<HTMLElement>('[data-status-bar]');
   const previewBadge = dropzone.querySelector<HTMLElement>('[data-preview-badge]');
+  const fileList = dropzone.querySelector<HTMLElement>('[data-multi-list]');
+
+  if (fileList) {
+    fileList.replaceChildren();
+    fileList.style.display = 'none';
+  }
 
   if (initialSrc) {
     if (previewImg) previewImg.src = initialSrc;

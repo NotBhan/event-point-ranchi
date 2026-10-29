@@ -6,46 +6,58 @@ interface Props {
   name: string;
   id?: string;
   label?: string;
-  hint?: string;
+  hint?: string | false;
   currentImage?: string | null;
   fallbackName?: string;
   required?: boolean;
   aspectHeight?: string;
   class?: string;
+  multiple?: boolean;
+  maxFiles?: number;
+  maxSizeMb?: number;
+  accept?: string;
 }
 
 const {
   name,
   id = name,
   label,
-  hint = 'Upload replaces current image.',
+  hint = 'Upload replaces the current image.',
   currentImage = null,
   fallbackName = `${name}_path`,
   required = false,
   aspectHeight = '140px',
   class: className = '',
+  multiple = false,
+  maxFiles = 12,
+  maxSizeMb = 8,
+  accept = 'image/jpeg,image/png,image/webp',
 } = Astro.props;
 
 const hasExisting = Boolean(currentImage);
 const existingSrc = hasExisting ? imageUrl(currentImage) : '';
+const promptSub = `JPG, PNG or WebP up to ${maxSizeMb} MB${multiple ? ` · up to ${maxFiles} images` : ''}`;
 ---
 
 <div class:list={['field admin-image-field', className]}>
   {label && <label for={id}>{label} {required && <span style="color:var(--danger)">*</span>}</label>}
   <div
-    class:list={['admin-dropzone', { 'has-image': hasExisting }]}
+    class:list={['admin-dropzone', { 'has-image': hasExisting, 'is-multiple': multiple }]}
     data-image-dropzone
+    data-multiple={multiple ? 'true' : undefined}
+    data-max-files={multiple ? maxFiles : undefined}
     style={`--dropzone-height: ${aspectHeight};`}
   >
     <input
       type="file"
       id={id}
       name={name}
-      accept="image/*"
+      accept={accept}
+      multiple={multiple}
       required={required && !hasExisting}
       class="admin-dropzone-input"
     />
-    <input type="hidden" name={fallbackName} value={currentImage ?? ''} data-fallback-input />
+    {!multiple && <input type="hidden" name={fallbackName} value={currentImage ?? ''} data-fallback-input />}
 
     <!-- Current or newly selected preview -->
     <div class="admin-dropzone-preview" data-preview-container style={hasExisting ? '' : 'display:none;'}>
@@ -57,9 +69,11 @@ const existingSrc = hasExisting ? imageUrl(currentImage) : '';
         data-initial-src={existingSrc}
       />
       <div class="admin-dropzone-overlay">
-        <span class="admin-dropzone-badge" data-preview-badge>{hasExisting ? 'Current photo' : 'Selected photo'}</span>
+        <span class="admin-dropzone-badge" data-preview-badge>
+          {hasExisting ? 'Current photo' : multiple ? 'Selected photos' : 'Selected photo'}
+        </span>
         <span class="btn btn-secondary btn-xs admin-dropzone-change-btn">
-          <Icon name="upload" size={13} /> Change photo
+          <Icon name="upload" size={13} /> {multiple ? 'Add photos' : 'Change photo'}
         </span>
       </div>
     </div>
@@ -70,9 +84,9 @@ const existingSrc = hasExisting ? imageUrl(currentImage) : '';
         <Icon name="upload" size={24} />
       </div>
       <div class="admin-dropzone-text">
-        <strong>Drag & drop an image here</strong> or <span class="admin-dropzone-browse">browse files</span>
+        <strong>Drag &amp; drop {multiple ? 'images' : 'an image'} here</strong> or <span class="admin-dropzone-browse">browse files</span>
       </div>
-      <span class="admin-dropzone-sub">JPG, PNG, WebP up to 10MB</span>
+      <span class="admin-dropzone-sub">{promptSub}</span>
     </div>
 
     <!-- Live status bar with file details -->
@@ -83,6 +97,9 @@ const existingSrc = hasExisting ? imageUrl(currentImage) : '';
         <Icon name="x" size={13} />
       </button>
     </div>
+
+    <!-- Selected files list (multi-file mode) -->
+    <div class="admin-dropzone-files" data-multi-list style="display:none;"></div>
   </div>
   {hint && <span class="hint" data-file-hint>{hint}</span>}
 </div>

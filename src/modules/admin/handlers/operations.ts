@@ -15,6 +15,9 @@ import {
   loadCustomerAdmin,
   loadDashboard,
   loadEventEnquiry,
+  loadStorageDashboard,
+  reconcileStorageAdmin,
+  retryCleanupAdmin,
   updateBookingStatus,
   updateEventEnquiryStatus,
   updateInquiryStatus,
@@ -50,7 +53,19 @@ export async function adminLogout(ctx: PageContext) {
 export function dashboard(ctx: PageContext) {
   const denied = requireAdmin(ctx);
   if (denied) return denied;
-  return { props: loadDashboard() };
+
+  if (ctx.request.method === 'POST') {
+    return runFormAction(
+      ctx,
+      {
+        reconcile_storage: () => reconcileStorageAdmin(),
+        retry_cleanup: () => retryCleanupAdmin(),
+      },
+      { redirectTo: '/admin', successMessage: 'Storage maintenance finished.' },
+    );
+  }
+
+  return { props: { ...loadDashboard(), storage: loadStorageDashboard() } };
 }
 
 export function bookingsList(ctx: PageContext) {

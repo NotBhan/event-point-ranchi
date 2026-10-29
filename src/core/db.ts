@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import schemaSql from './schema.sql?raw';
 import { hashPassword, verifyPassword } from './password';
 import { seedDatabase } from './seed';
+import { initStorageSchema } from './storage/schema';
 
 let database: DatabaseSync | null = null;
 
@@ -27,6 +28,7 @@ export function getDb(): DatabaseSync {
   const db = new DatabaseSync(join(dataDir(), 'event-point.db'));
   db.exec(schemaSql);
   migrateTrafficEvents(db);
+  initStorageSchema(db);
 
   const row = db.prepare('SELECT COUNT(*) AS count FROM users').get() as { count: number };
   if (!row || Number(row.count) === 0) {

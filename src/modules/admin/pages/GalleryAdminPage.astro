@@ -2,6 +2,7 @@
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import Icon from '../../../components/Icon.astro';
 import { imageUrl } from '../../../core/http';
+import { formatBytes } from '../../../core/storage/config';
 import ImageUploadDropzone from '../../../components/admin/ImageUploadDropzone.astro';
 import type { listGalleryAdmin } from '../service';
 
@@ -15,27 +16,57 @@ interface Props {
 const { categories, items, pagination, storageUsage } = Astro.props;
 const csrf = Astro.locals.csrf;
 const totalImageCount = categories.reduce((sum, category) => sum + category.item_count, 0);
+
+const levelBadge: Record<string, string> = {
+  ok: 'badge-success',
+  warning: 'badge-warning',
+  critical: 'badge-danger',
+  blocked: 'badge-danger',
+};
+
+const levelLabel: Record<string, string> = {
+  ok: 'Healthy',
+  warning: 'Warning',
+  critical: 'Critical',
+  blocked: 'Full',
+};
+
+const usagePercent = Math.min(100, storageUsage.usagePercent);
 ---
 
 <AdminLayout title="Gallery" description={`${pagination.totalCount} images across ${categories.length} categories.`}>
-  <div class="admin-stats" style="margin-bottom:20px;">
-    <div class="stat-card" style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;">
+  <div class="admin-panel" style="margin-bottom:20px;">
+    <div class="admin-panel-head">
       <div>
-        <div class="eyebrow" style="margin-bottom:4px;">Gallery Storage</div>
-        <div style="display:flex;align-items:baseline;gap:8px;">
-          <strong style="font-size:1.6rem;color:var(--brand-maroon);margin-top:0;">{storageUsage.formatted}</strong>
-          <div class="text-sm text-muted">used across {storageUsage.fileCount} uploaded files</div>
-        </div>
+        <h2>Gallery quota</h2>
+        <p>{formatBytes(storageUsage.usedBytes)} of {formatBytes(storageUsage.limitBytes)} used across {storageUsage.objectCount} stored images.</p>
       </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
-        <div class="badge badge-gold">Local Filesystem</div>
-        <div class="text-xs text-muted">Cloudflare R2 storage ready</div>
+      <span class:list={['badge', levelBadge[storageUsage.level]]}>{levelLabel[storageUsage.level]}</span>
+    </div>
+    <div class="admin-panel-body">
+      <div
+        class="storage-meter"
+        role="progressbar"
+        aria-label="Gallery storage usage"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow={Math.min(100, Math.round(storageUsage.usagePercent))}
+      >
+        <span
+          class:list={['storage-meter-fill', `is-${storageUsage.level}`]}
+          style={`width:${usagePercent}%`}
+        ></span>
+      </div>
+      <div class="storage-meter-meta">
+        <span>{storageUsage.usagePercent.toFixed(1)}% of the {formatBytes(storageUsage.limitBytes)} gallery quota</span>
+        <span>{formatBytes(storageUsage.availableBytes)} available</span>
       </div>
     </div>
   </div>
+
   <div class="admin-grid-2">
     <div class="admin-panel">
-      <div class="admin-panel-head"><div><h2>Upload an image</h2><p>JPG, PNG, WEBP or AVIF up to 8 MB.</p></div></div>
+      <div class="admin-panel-head"><div><h2>Upload images</h2><p>JPG, PNG or WebP up to 8 MB each. Select multiple files to batch upload.</p></div></div>
       <div class="admin-panel-body">
         <form method="POST" action="/admin/gallery" class="admin-form-grid" enctype="multipart/form-data">
           <input type="hidden" name="_csrf" value={csrf} />
@@ -51,24 +82,26 @@ const totalImageCount = categories.reduce((sum, category) => sum + category.item
           </div>
 
           <div class="field">
-            <label for="title">Caption *</label>
-            <input class="input" id="title" name="title" placeholder="Grand ballroom at golden hour" required />
+            <label for="title">Caption</label>
+            <input class="input" id="title" name="title" placeholder="Optional — filenames are used for batches" />
           </div>
 
           <ImageUploadDropzone
-            name="image"
-            id="image"
-            label="Image"
-            hint="Drag and drop or browse photo to upload."
-            aspectHeight="130px"
+            name="images"
+            id="images"
+            label="Images"
+            hint="Drop one or more photos, or browse to select a batch. Each file becomes a gallery item."
+            aspectHeight="160px"
+            multiple
+            maxFiles={20}
           />
 
           <div class="field">
-            <label for="image_path">…or paste an existing image path</label>
-            <input class="input" id="image_path" name="image_path" placeholder="/images/archive/example.jpg" />
+            <label for="gallery_image_path">…or paste an existing image path for a single item</label>
+            <input class="input" id="gallery_image_path" name="image_path" placeholder="/images/archive/example.jpg" />
           </div>
 
-          <button type="submit" class="btn btn-primary">Add to gallery</button>
+          <button type="submit" class="btn btn-primary">Upload to gallery</button>
         </form>
       </div>
     </div>
@@ -160,6 +193,22 @@ const totalImageCount = categories.reduce((sum, category) => sum + category.item
                   <button type="submit" class="icon-btn" aria-label="Save caption" title="Save caption">
                     <Icon name="check" size={15} />
                   </button>
+                </form>
+                <form method="POST" action="/admin/gallery" enctype="multipart/form-data" style="margin-top:8px;">
+                  <input type="hidden" name="_csrf" value={csrf} />
+                  <input type="hidden" name="action" value="replace_item" />
+                  <input type="hidden" name="item_id" value={item.id} />
+                  <input type="hidden" name="image_path" value={item.image} />
+                  <label class="btn btn-secondary btn-sm gallery-replace-btn">
+                    <Icon name="upload" size={13} /> Replace photo
+                    <input
+                      type="file"
+                      name="image"
+                      accept="image/jpeg,image/png,image/webp"
+                      class="gallery-replace-input"
+                      onchange="this.form.requestSubmit()"
+                    />
+                  </label>
                 </form>
                 <div class="admin-row-actions" style="margin-top:8px;justify-content:space-between;">
                   <span class:list={['badge', item.is_active ? 'badge-success' : 'badge-muted']}>{item.is_active ? 'live' : 'hidden'}</span>
