@@ -2,7 +2,7 @@
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import ImageUploadDropzone from '../../../components/admin/ImageUploadDropzone.astro';
 import Icon from '../../../components/Icon.astro';
-import type { PageContent, MandapItem } from '../../../core/content/types';
+import type { PageContent, MandapItem, VideoPreviewItem } from '../../../core/content/types';
 
 interface Props {
   homepage?: { hero_title: string; hero_description: string; hero_image: string | null };
@@ -40,6 +40,7 @@ interface Props {
   }>;
   pagesContent?: PageContent[];
   mandaps?: MandapItem[];
+  videoPreviews?: VideoPreviewItem[];
 }
 
 const {
@@ -48,6 +49,7 @@ const {
   seoSettings = [],
   pagesContent = [],
   mandaps = [],
+  videoPreviews = [],
 } = Astro.props;
 
 const csrf = Astro.locals.csrf;
@@ -89,6 +91,11 @@ const pageContentMap = new Map(pagesContent.map((p) => [p.page_key, p]));
             <span>{page.label}</span>
           </button>
         ))}
+        <button type="button" class="studio-tab-btn" data-tab-target="videos" role="tab" aria-selected="false">
+          <Icon name="play" size={15} />
+          <span>Videos &amp; Reels</span>
+          <span class="tab-badge">{videoPreviews.length}</span>
+        </button>
         <button type="button" class="studio-tab-btn" data-tab-target="seo" role="tab" aria-selected="false">
           <Icon name="search" size={15} />
           <span>SEO Metadata</span>
@@ -573,6 +580,160 @@ const pageContentMap = new Map(pagesContent.map((p) => [p.page_key, p]));
             </div>
             <button type="submit" class="btn btn-secondary btn-sm">Add tile</button>
           </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== TAB: VIDEOS & REELS ==================== -->
+    <div id="tab-videos" class="studio-panel" role="tabpanel" style="display:none;">
+      <!-- Add New Video Preview Form -->
+      <form method="POST" action="/admin/content" enctype="multipart/form-data" class="admin-panel" style="margin-bottom: 24px;" data-track-changes>
+        <input type="hidden" name="_csrf" value={csrf} />
+        <input type="hidden" name="action" value="save_video_preview" />
+
+        <div class="admin-panel-head">
+          <div>
+            <h2>Add Video, Shorts or Reel Preview</h2>
+            <p>Paste a YouTube video, YouTube Shorts, or Instagram Reels URL. Aspect ratio, thumbnail, and player embed are auto-detected.</p>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">Add Video Preview</button>
+        </div>
+
+        <div class="admin-panel-body">
+          <div class="admin-form-grid">
+            <div class="field">
+              <label for="admin_video_url">Video or Reel URL *</label>
+              <input
+                class="input"
+                id="admin_video_url"
+                name="video_url"
+                type="url"
+                required
+                placeholder="https://www.youtube.com/watch?v=... or https://youtube.com/shorts/... or https://instagram.com/reel/..."
+              />
+              <span class="hint-text">Supported: YouTube (<code>watch?v=</code> or <code>youtu.be/</code>), YouTube Shorts (<code>/shorts/</code>), Instagram Reels (<code>/reel/</code>).</span>
+            </div>
+
+            <div class="admin-grid-2">
+              <div class="field">
+                <label for="admin_video_title">Title *</label>
+                <input class="input" id="admin_video_title" name="title" required placeholder="e.g. Grand Wedding Mandap & Event Setup Tour" />
+              </div>
+              <div class="field">
+                <label for="admin_aspect_ratio">Aspect Ratio</label>
+                <select class="select" id="admin_aspect_ratio" name="aspect_ratio">
+                  <option value="">Auto-detect from URL</option>
+                  <option value="16:9">16:9 (Horizontal - Standard YouTube)</option>
+                  <option value="9:16">9:16 (Vertical - Shorts / Reels)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="admin_video_desc">Description / Highlights</label>
+              <textarea class="textarea" id="admin_video_desc" name="description" rows="2" placeholder="Brief caption or event highlights..."></textarea>
+            </div>
+
+            <div class="field">
+              <label>Custom Poster Thumbnail (Optional Filebase Upload)</label>
+              <ImageUploadDropzone name="custom_thumbnail" currentImage={null} label="Drop custom poster image or click to upload (recommended for Instagram Reels)" />
+            </div>
+
+            <div class="admin-grid-3" style="align-items: center; padding-top: 8px;">
+              <div class="field">
+                <label for="admin_sort_order">Display Sort Order</label>
+                <input class="input" id="admin_sort_order" name="sort_order" type="number" value="0" />
+              </div>
+              <div class="field" style="padding-top: 18px;">
+                <label class="checkbox-label">
+                  <input type="checkbox" name="is_featured" value="1" />
+                  <span><strong>Highlight on Homepage</strong></span>
+                </label>
+              </div>
+              <div class="field" style="padding-top: 18px;">
+                <label class="checkbox-label">
+                  <input type="checkbox" name="is_published" value="1" checked />
+                  <span><strong>Publish immediately</strong></span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </form>
+
+      <!-- Existing Video Previews Grid -->
+      <div class="admin-panel">
+        <div class="admin-panel-head">
+          <div>
+            <h2>Existing Video Previews ({videoPreviews.length})</h2>
+            <p>Manage, preview, feature, or remove videos and reels displayed in the gallery and homepage.</p>
+          </div>
+        </div>
+        <div class="admin-panel-body">
+          {videoPreviews.length === 0 ? (
+            <div class="empty-state" style="padding: 32px 16px; text-align: center;">
+              <p class="text-muted">No video previews added yet. Use the form above to add your first YouTube or Instagram Reel preview.</p>
+            </div>
+          ) : (
+            <div class="admin-video-list" style="display: flex; flex-direction: column; gap: 14px;">
+              {videoPreviews.map((video) => (
+                <div class="admin-video-row flex-between" style="border: 1px solid var(--line); border-radius: var(--r-sm); padding: 14px; gap: 16px; align-items: center; background: var(--surface);">
+                  <div style="display: flex; gap: 14px; align-items: center; flex: 1; min-width: 0;">
+                    <div style={`width: 90px; height: ${video.aspect_ratio === '9:16' ? '120px' : '56px'}; border-radius: 6px; overflow: hidden; background: #2a1419; flex-shrink: 0; position: relative;`}>
+                      {video.thumbnail_url ? (
+                        <img src={video.thumbnail_url} alt={video.title} style="width: 100%; height: 100%; object-fit: cover;" />
+                      ) : (
+                        <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: var(--gold-bright);">
+                          <Icon name="play" size={20} />
+                        </div>
+                      )}
+                    </div>
+                    <div style="min-width: 0; flex: 1;">
+                      <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 4px; flex-wrap: wrap;">
+                        <span class={`badge ${video.platform === 'instagram_reels' ? 'badge-primary' : video.platform === 'youtube_shorts' ? 'badge-danger' : 'badge-gold'}`} style="font-size: 11px;">
+                          {video.platform === 'instagram_reels' ? 'Instagram Reel' : video.platform === 'youtube_shorts' ? 'Shorts' : 'YouTube'}
+                        </span>
+                        <span class="badge" style="background: var(--surface-2); font-size: 11px;">{video.aspect_ratio}</span>
+                        {video.is_featured && <span class="badge badge-gold" style="font-size: 11px;">★ Featured</span>}
+                        <span class={`badge ${video.is_published ? 'badge-success' : 'badge-muted'}`} style="font-size: 11px;">
+                          {video.is_published ? 'Published' : 'Draft'}
+                        </span>
+                      </div>
+                      <h4 style="margin: 0 0 4px; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{video.title}</h4>
+                      <p style="margin: 0; font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                        {video.video_url}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div style="display: flex; gap: 8px; align-items: center; flex-shrink: 0;">
+                    <a href={video.video_url} target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" title="Open source video">
+                      <Icon name="external-link" size={13} />
+                      <span>View</span>
+                    </a>
+
+                    <form method="POST" action="/admin/content">
+                      <input type="hidden" name="_csrf" value={csrf} />
+                      <input type="hidden" name="action" value="toggle_video_preview" />
+                      <input type="hidden" name="video_id" value={video.id} />
+                      <button type="submit" class="btn btn-secondary btn-sm" title={video.is_published ? 'Unpublish to draft' : 'Publish'}>
+                        {video.is_published ? 'Unpublish' : 'Publish'}
+                      </button>
+                    </form>
+
+                    <form method="POST" action="/admin/content">
+                      <input type="hidden" name="_csrf" value={csrf} />
+                      <input type="hidden" name="action" value="delete_video_preview" />
+                      <input type="hidden" name="video_id" value={video.id} />
+                      <button type="submit" class="icon-btn danger" data-confirm={`Delete "${video.title}"?`} aria-label="Delete video">
+                        <Icon name="trash" size={14} />
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

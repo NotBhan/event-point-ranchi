@@ -2,11 +2,12 @@
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import MandapCard from '../../../components/MandapCard.astro';
 import StageCard from '../../../components/StageCard.astro';
+import VideoPreviewCard from '../../../components/VideoPreviewCard.astro';
 import Icon from '../../../components/Icon.astro';
 import { imageUrl } from '../../../core/http';
 import { site } from '../../../core/config';
 import type { HomeData } from '../service';
-import { getHomepageContent, getPageContent } from '../../../core/content/service';
+import { getHomepageContent, getPageContent, getVideoPreviews } from '../../../core/content/service';
 
 interface Props {
   data: HomeData;
@@ -15,9 +16,10 @@ interface Props {
 const { data } = Astro.props;
 const { heroImage, mandaps, stages, equipment, galleryCategories, galleryItems, stats } = data;
 
-const [pageContent, homepageContent] = await Promise.all([
+const [pageContent, homepageContent, featuredVideos] = await Promise.all([
   getPageContent('home'),
   getHomepageContent(heroImage ?? undefined),
+  getVideoPreviews({ onlyPublished: true, featuredOnly: true, limit: 3 }),
 ]);
 
 const heroHeading = pageContent.title || homepageContent.heroHeading;
@@ -209,6 +211,28 @@ const steps = homepageContent.steps.map((s) => [s.stepNumber, s.title, s.descrip
                 <small>{item.category}</small>
               </span>
             </button>
+          ))}
+        </div>
+      </div>
+    </section>
+  )}
+
+  {featuredVideos.length > 0 && (
+    <section class="section section-warm" aria-labelledby="home-videos-heading">
+      <div class="container">
+        <div class="section-head flex-between" style="align-items: flex-end; margin-bottom: 2rem;">
+          <div>
+            <span class="eyebrow" style="color:var(--gold-deep);">Motion &amp; Highlights</span>
+            <h2 id="home-videos-heading">Celebrations in Motion</h2>
+            <p>Watch authentic event walk-throughs, floral mandap setups and festive stage moments.</p>
+          </div>
+          <a href="/gallery#videosSection" class="btn btn-secondary btn-sm" style="margin-bottom: 0.5rem;">
+            Explore all videos <Icon name="arrow-right" size={14} />
+          </a>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; align-items: start;">
+          {featuredVideos.map((video) => (
+            <VideoPreviewCard video={video} />
           ))}
         </div>
       </div>

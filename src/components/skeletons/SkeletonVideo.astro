@@ -1,0 +1,83 @@
+---
+import Skeleton from './Skeleton.astro';
+
+interface Props {
+  aspectRatio?: '16:9' | '9:16';
+  class?: string;
+}
+
+const { aspectRatio = '16:9', class: className = '' } = Astro.props;
+const isVertical = aspectRatio === '9:16';
+---
+
+<div
+  class:list={[
+    'skeleton-video-wrapper',
+    isVertical ? 'skeleton-video-9-16' : 'skeleton-video-16-9',
+    className,
+  ]}
+  role="status"
+  aria-busy="true"
+  aria-label="Loading video preview..."
+>
+  <div class="skeleton-video-media">
+    <Skeleton width="100%" height="100%" class="skeleton-shimmer" />
+    <div class="skeleton-play-btn">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+      </svg>
+    </div>
+  </div>
+  <div class="skeleton-video-info">
+    <Skeleton width="75%" height="1rem" borderRadius="3px" style="margin-bottom: 0.35rem;" />
+    <Skeleton width="45%" height="0.75rem" borderRadius="2px" />
+  </div>
+</div>
+
+<style>
+  .skeleton-video-wrapper {
+    position: relative;
+    background: var(--surface, #ffffff);
+    border: 1px solid var(--line, #e9e0d5);
+    border-radius: var(--r-md, 12px);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .skeleton-video-media {
+    position: relative;
+    width: 100%;
+    flex: 1;
+    overflow: hidden;
+    background: var(--skeleton-base, #ede6dc);
+  }
+
+  .skeleton-video-16-9 .skeleton-video-media {
+    aspect-ratio: 16 / 9;
+  }
+
+  .skeleton-video-9-16 .skeleton-video-media {
+    aspect-ratio: 9 / 16;
+  }
+
+  .skeleton-play-btn {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(0, 0, 0, 0.25);
+    pointer-events: none;
+  }
+
+  .skeleton-video-info {
+    padding: 0.875rem 1rem;
+    background: var(--surface, #ffffff);
+  }
+</style>

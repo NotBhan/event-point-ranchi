@@ -1,0 +1,34 @@
+---
+import Skeleton from './Skeleton.astro';
+
+interface Props {
+  class?: string;
+}
+
+const { class: className = '' } = Astro.props;
+---
+
+<article class:list={['package-row', 'skeleton-card', className]} role="status" aria-busy="true" aria-label="Loading catering package...">
+  <div class="package-row-media" style="position: relative; overflow: hidden; min-height: 220px; background: var(--skeleton-base, #ede6dc);">
+    <Skeleton width="100%" height="100%" class="skeleton-shimmer" />
+  </div>
+
+  <div class="package-row-body">
+    <Skeleton width="30px" height="1.25rem" borderRadius="3px" style="margin-bottom: 0.5rem;" />
+    <Skeleton width="60%" height="1.75rem" borderRadius="4px" style="margin-bottom: 0.5rem;" />
+    <Skeleton width="40%" height="1.5rem" borderRadius="4px" style="margin-bottom: 1rem;" />
+
+    <Skeleton width="90%" height="0.875rem" borderRadius="3px" style="margin-bottom: 0.35rem;" />
+    <Skeleton width="75%" height="0.875rem" borderRadius="3px" style="margin-bottom: 1rem;" />
+
+    <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.5rem;">
+      <Skeleton width="50%" height="0.75rem" borderRadius="2px" />
+      <Skeleton width="65%" height="0.75rem" borderRadius="2px" />
+      <Skeleton width="45%" height="0.75rem" borderRadius="2px" />
+    </div>
+
+    <div class="package-row-foot">
+      <Skeleton width="160px" height="2.5rem" borderRadius="6px" />
+    </div>
+  </div>
+</article>

@@ -276,3 +276,32 @@ export interface SeoSettings {
   canonical_url: string;
   og_image_url: string;
 }
+
+export type VideoPlatform = 'youtube' | 'youtube_shorts' | 'instagram_reels';
+
+export interface VideoPreviewItem {
+  id: number;
+  title: string;
+  description: string;
+  platform: VideoPlatform;
+  video_url: string;
+  video_id: string;
+  thumbnail_url: string;
+  aspect_ratio: '16:9' | '9:16';
+  is_featured: boolean;
+  is_published: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ParsedVideoUrl {
+  valid: boolean;
+  platform: VideoPlatform;
+  videoId: string;
+  aspectRatio: '16:9' | '9:16';
+  embedUrl: string;
+  defaultThumbnailUrl: string;
+  externalWatchUrl: string;
+  error?: string;
+}

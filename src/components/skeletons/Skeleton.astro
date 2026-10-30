@@ -1,0 +1,51 @@
+---
+import type { HTMLAttributes } from 'astro/types';
+
+interface Props extends HTMLAttributes<'div'> {
+  as?: 'div' | 'span' | 'p' | 'article' | 'section';
+  width?: string;
+  height?: string;
+  aspectRatio?: string;
+  borderRadius?: string;
+  variant?: 'shimmer' | 'pulse';
+  class?: string;
+  style?: string;
+  ariaLabel?: string;
+}
+
+const {
+  as: Tag = 'div',
+  width,
+  height,
+  aspectRatio,
+  borderRadius,
+  variant = 'shimmer',
+  class: className = '',
+  style: userStyle = '',
+  ariaLabel = 'Loading content...',
+  ...rest
+} = Astro.props;
+
+const styleObj: Record<string, string> = {};
+if (width) styleObj.width = width;
+if (height) styleObj.height = height;
+if (aspectRatio) styleObj['aspect-ratio'] = aspectRatio;
+if (borderRadius) styleObj['border-radius'] = borderRadius;
+
+const computedStyle = Object.entries(styleObj)
+  .map(([k, v]) => `${k}: ${v};`)
+  .join(' ');
+
+const finalStyle = [computedStyle, userStyle].filter(Boolean).join(' ');
+---
+
+<Tag
+  class:list={['skeleton-block', variant === 'shimmer' ? 'skeleton-shimmer' : 'skeleton-pulse', className]}
+  style={finalStyle || undefined}
+  role="status"
+  aria-busy="true"
+  aria-label={ariaLabel}
+  {...rest}
+>
+  <slot />
+</Tag>

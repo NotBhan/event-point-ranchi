@@ -22,6 +22,12 @@ import {
   validateCoordinates,
   validateExternalUrl,
   getMandapBySlug,
+  parseVideoUrl,
+  getVideoPreviews,
+  getVideoPreviewById,
+  saveVideoPreview,
+  deleteVideoPreview,
+  toggleVideoPreview,
 } from '../src/core/content/service';
 import { getNeonClient } from '../src/core/operational/neon-client';
 import {
@@ -340,4 +346,138 @@ test('12. Cloudflare D1 - Editable Business Contact Details & Dynamic Settings',
   assert.ok(typeof settings.latitude === 'number', 'Latitude should be a number');
   assert.ok(typeof settings.longitude === 'number', 'Longitude should be a number');
   assert.equal(settings.contactButtonsEnabled, true, 'Contact buttons should be enabled by default');
+});
+
+test('13. Video URL Parser - YouTube, YouTube Shorts & Instagram Reels extraction', () => {
+  // Standard YouTube Watch URL
+  const ytWatch = parseVideoUrl('https://www.youtube.com/watch?v=ScMzIvxBSi4');
+  assert.equal(ytWatch.valid, true, 'Standard YouTube URL must be valid');
+  assert.equal(ytWatch.platform, 'youtube', 'Platform should be youtube');
+  assert.equal(ytWatch.videoId, 'ScMzIvxBSi4', 'Video ID should match 11 chars');
+  assert.equal(ytWatch.aspectRatio, '16:9', 'Standard video must be 16:9');
+  assert.ok(ytWatch.embedUrl.includes('youtube-nocookie.com/embed/ScMzIvxBSi4'), 'Must use nocookie embed');
+
+  // Shortened YouTube URL with tracking parameters
+  const ytShortUrl = parseVideoUrl('https://youtu.be/dQw4w9WgXcQ?si=testing123');
+  assert.equal(ytShortUrl.valid, true, 'Shortened youtu.be URL must be valid');
+  assert.equal(ytShortUrl.platform, 'youtube');
+  assert.equal(ytShortUrl.videoId, 'dQw4w9WgXcQ');
+  assert.equal(ytShortUrl.aspectRatio, '16:9');
+
+  // YouTube Shorts URL
+  const ytShorts = parseVideoUrl('https://www.youtube.com/shorts/dQw4w9WgXcQ?feature=share');
+  assert.equal(ytShorts.valid, true, 'YouTube Shorts URL must be valid');
+  assert.equal(ytShorts.platform, 'youtube_shorts', 'Platform should be youtube_shorts');
+  assert.equal(ytShorts.videoId, 'dQw4w9WgXcQ');
+  assert.equal(ytShorts.aspectRatio, '9:16', 'Shorts must have 9:16 vertical aspect ratio');
+
+  // Instagram Reels URL
+  const instaReel = parseVideoUrl('https://www.instagram.com/reel/C3_abc123/?igsh=test1234');
+  assert.equal(instaReel.valid, true, 'Instagram Reel URL must be valid');
+  assert.equal(instaReel.platform, 'instagram_reels', 'Platform should be instagram_reels');
+  assert.equal(instaReel.videoId, 'C3_abc123');
+  assert.equal(instaReel.aspectRatio, '9:16', 'Instagram Reel must have 9:16 vertical aspect ratio');
+  assert.ok(instaReel.embedUrl.includes('instagram.com/reel/C3_abc123/embed/'));
+
+  // Invalid URL
+  const invalid = parseVideoUrl('https://unsupported-site.com/video/999');
+  assert.equal(invalid.valid, false, 'Unsupported URL should be marked invalid');
+  assert.ok(invalid.error, 'Should provide informative error message');
+});
+
+test('14. Cloudflare D1 - Video Previews retrieval, platform filtering & aspect ratios', async () => {
+  invalidateContentCache();
+  const allVideos = await getVideoPreviews({ onlyPublished: false });
+  assert.ok(Array.isArray(allVideos), 'getVideoPreviews must return an array');
+  assert.ok(allVideos.length >= 3, 'Should return at least the 3 seeded sample videos');
+
+  // Filter YouTube
+  const youtubeOnly = await getVideoPreviews({ platform: 'youtube', onlyPublished: false });
+  assert.ok(youtubeOnly.length > 0, 'Should find at least 1 standard YouTube video');
+  assert.ok(youtubeOnly.every((v) => v.platform === 'youtube'), 'All items must be youtube platform');
+  assert.ok(youtubeOnly.every((v) => v.aspect_ratio === '16:9'), 'Standard YouTube videos must be 16:9');
+
+  // Filter YouTube Shorts
+  const shortsOnly = await getVideoPreviews({ platform: 'youtube_shorts', onlyPublished: false });
+  assert.ok(shortsOnly.length > 0, 'Should find at least 1 YouTube Shorts video');
+  assert.ok(shortsOnly.every((v) => v.platform === 'youtube_shorts'), 'All items must be youtube_shorts platform');
+  assert.ok(shortsOnly.every((v) => v.aspect_ratio === '9:16'), 'Shorts must be 9:16');
+
+  // Filter Instagram Reels
+  const reelsOnly = await getVideoPreviews({ platform: 'instagram_reels', onlyPublished: false });
+  assert.ok(reelsOnly.length > 0, 'Should find at least 1 Instagram Reel preview');
+  assert.ok(reelsOnly.every((v) => v.platform === 'instagram_reels'), 'All items must be instagram_reels platform');
+  assert.ok(reelsOnly.every((v) => v.aspect_ratio === '9:16'), 'Reels must be 9:16');
+});
+
+test('15. Cloudflare D1 - Video Preview CRUD lifecycle (save, toggle, delete)', async () => {
+  const testTitle = `Test Live Video Walkthrough - ${Date.now()}`;
+  const testUrl = 'https://www.youtube.com/watch?v=ScMzIvxBSi4';
+
+  // 1. Create draft video preview
+  const created = await saveVideoPreview({
+    title: testTitle,
+    description: 'Testing video preview CRUD lifecycle in D1',
+    video_url: testUrl,
+    is_featured: false,
+    is_published: false,
+    sort_order: 999,
+  });
+  assert.ok(created.id > 0, 'Should return valid positive ID');
+
+  // 2. Read back
+  const readBack = await getVideoPreviewById(created.id);
+  assert.ok(readBack, 'Created video preview must be queryable by ID');
+  assert.equal(readBack.title, testTitle);
+  assert.equal(readBack.platform, 'youtube');
+  assert.equal(readBack.video_id, 'ScMzIvxBSi4');
+  assert.equal(readBack.aspect_ratio, '16:9');
+  assert.equal(readBack.is_published, false, 'Should initially be draft');
+
+  // 3. Toggle publish status
+  const toggled = await toggleVideoPreview(created.id);
+  assert.equal(toggled, true, 'Toggled status should be true (published)');
+  const readToggled = await getVideoPreviewById(created.id);
+  assert.equal(readToggled?.is_published, true, 'Database row should reflect published');
+
+  // 4. Delete video preview
+  await deleteVideoPreview(created.id);
+  const afterDelete = await getVideoPreviewById(created.id);
+  assert.equal(afterDelete, null, 'Video preview should be deleted');
+});
+
+test('16. Skeleton Loaders & Progressive Media Contract Verification', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+
+  // Verify skeletons.css
+  const cssPath = path.resolve(process.cwd(), 'src/styles/skeletons.css');
+  assert.ok(fs.existsSync(cssPath), 'src/styles/skeletons.css must exist');
+  const cssContent = fs.readFileSync(cssPath, 'utf8');
+
+  assert.ok(cssContent.includes('.skeleton-shimmer'), 'skeletons.css must have shimmer animation');
+  assert.ok(cssContent.includes('.skeleton-pulse'), 'skeletons.css must have pulse animation');
+  assert.ok(cssContent.includes('prefers-reduced-motion'), 'skeletons.css must support prefers-reduced-motion');
+  assert.ok(cssContent.includes('.media-with-skeleton'), 'skeletons.css must support progressive media container');
+  assert.ok(cssContent.includes('.is-loaded'), 'skeletons.css must handle .is-loaded state');
+  assert.ok(cssContent.includes('.is-failed'), 'skeletons.css must handle .is-failed fallback state');
+
+  // Verify Skeleton components exist
+  const expectedComponents = [
+    'src/components/skeletons/Skeleton.astro',
+    'src/components/skeletons/SkeletonBanner.astro',
+    'src/components/skeletons/SkeletonMandapCard.astro',
+    'src/components/skeletons/SkeletonStageCard.astro',
+    'src/components/skeletons/SkeletonEquipmentCard.astro',
+    'src/components/skeletons/SkeletonCateringCard.astro',
+    'src/components/skeletons/SkeletonGalleryItem.astro',
+    'src/components/skeletons/SkeletonVideo.astro',
+    'src/components/VideoPreviewCard.astro',
+    'src/client/image-loader.ts',
+  ];
+
+  for (const comp of expectedComponents) {
+    const fullPath = path.resolve(process.cwd(), comp);
+    assert.ok(fs.existsSync(fullPath), `${comp} must exist`);
+  }
 });

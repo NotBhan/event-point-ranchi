@@ -15,6 +15,9 @@ import type {
   GalleryCategory,
   GalleryItem,
   SeoSettings,
+  VideoPlatform,
+  VideoPreviewItem,
+  ParsedVideoUrl,
 } from './types';
 import { site } from '../config';
 
@@ -34,6 +37,9 @@ export type {
   GalleryCategory,
   GalleryItem,
   SeoSettings,
+  VideoPlatform,
+  VideoPreviewItem,
+  ParsedVideoUrl,
 };
 
 // In-memory cache for fast SSR page renders
@@ -977,4 +983,360 @@ export async function saveMandapLocation(
   );
 
   invalidateContentCache();
+}
+
+/**
+ * Validates and extracts video metadata from YouTube, YouTube Shorts, or Instagram Reels URLs.
+ */
+export function parseVideoUrl(rawUrl: string): ParsedVideoUrl {
+  if (!rawUrl || typeof rawUrl !== 'string') {
+    return {
+      valid: false,
+      platform: 'youtube',
+      videoId: '',
+      aspectRatio: '16:9',
+      embedUrl: '',
+      defaultThumbnailUrl: '',
+      externalWatchUrl: '',
+      error: 'Please provide a valid video URL.',
+    };
+  }
+
+  const trimmed = rawUrl.trim();
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://${trimmed}`);
+  } catch {
+    return {
+      valid: false,
+      platform: 'youtube',
+      videoId: '',
+      aspectRatio: '16:9',
+      embedUrl: '',
+      defaultThumbnailUrl: '',
+      externalWatchUrl: '',
+      error: 'Invalid URL format.',
+    };
+  }
+
+  const host = parsed.hostname.toLowerCase().replace(/^www\./, '').replace(/^m\./, '');
+  const pathname = parsed.pathname;
+
+  // 1. YouTube & YouTube Shorts
+  if (host === 'youtube.com' || host === 'youtu.be' || host === 'youtube-nocookie.com') {
+    // Check for YouTube Shorts: /shorts/{id}
+    const shortsMatch = pathname.match(/^\/shorts\/([a-zA-Z0-9_-]{11})/);
+    if (shortsMatch) {
+      const videoId = shortsMatch[1];
+      return {
+        valid: true,
+        platform: 'youtube_shorts',
+        videoId,
+        aspectRatio: '9:16',
+        embedUrl: `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&loop=1`,
+        defaultThumbnailUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+        externalWatchUrl: `https://www.youtube.com/shorts/${videoId}`,
+      };
+    }
+
+    // Check for standard YouTube watch: ?v={id}
+    if (pathname === '/watch' || pathname === '/watch_popup') {
+      const videoId = parsed.searchParams.get('v');
+      if (videoId && /^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
+        return {
+          valid: true,
+          platform: 'youtube',
+          videoId,
+          aspectRatio: '16:9',
+          embedUrl: `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0`,
+          defaultThumbnailUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+          externalWatchUrl: `https://www.youtube.com/watch?v=${videoId}`,
+        };
+      }
+    }
+
+    // Check for youtu.be/{id}
+    if (host === 'youtu.be') {
+      const shortId = pathname.slice(1).split('/')[0];
+      if (shortId && /^[a-zA-Z0-9_-]{11}$/.test(shortId)) {
+        return {
+          valid: true,
+          platform: 'youtube',
+          videoId: shortId,
+          aspectRatio: '16:9',
+          embedUrl: `https://www.youtube-nocookie.com/embed/${shortId}?autoplay=1&rel=0`,
+          defaultThumbnailUrl: `https://i.ytimg.com/vi/${shortId}/hqdefault.jpg`,
+          externalWatchUrl: `https://www.youtube.com/watch?v=${shortId}`,
+        };
+      }
+    }
+
+    // Check for /embed/{id} or /v/{id}
+    const embedMatch = pathname.match(/^\/(embed|v)\/([a-zA-Z0-9_-]{11})/);
+    if (embedMatch) {
+      const videoId = embedMatch[2];
+      return {
+        valid: true,
+        platform: 'youtube',
+        videoId,
+        aspectRatio: '16:9',
+        embedUrl: `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0`,
+        defaultThumbnailUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+        externalWatchUrl: `https://www.youtube.com/watch?v=${videoId}`,
+      };
+    }
+
+    return {
+      valid: false,
+      platform: 'youtube',
+      videoId: '',
+      aspectRatio: '16:9',
+      embedUrl: '',
+      defaultThumbnailUrl: '',
+      externalWatchUrl: '',
+      error: 'Could not extract valid 11-character YouTube video ID.',
+    };
+  }
+
+  // 2. Instagram Reels: /reel/{code}, /reels/{code}, /p/{code}
+  if (host === 'instagram.com') {
+    const reelMatch = pathname.match(/^\/(reel|reels|p)\/([a-zA-Z0-9_-]+)/);
+    if (reelMatch) {
+      const videoId = reelMatch[2];
+      return {
+        valid: true,
+        platform: 'instagram_reels',
+        videoId,
+        aspectRatio: '9:16',
+        embedUrl: `https://www.instagram.com/reel/${videoId}/embed/`,
+        defaultThumbnailUrl: '',
+        externalWatchUrl: `https://www.instagram.com/reel/${videoId}/`,
+      };
+    }
+
+    return {
+      valid: false,
+      platform: 'instagram_reels',
+      videoId: '',
+      aspectRatio: '9:16',
+      embedUrl: '',
+      defaultThumbnailUrl: '',
+      externalWatchUrl: '',
+      error: 'Could not extract valid Instagram Reel or post code.',
+    };
+  }
+
+  return {
+    valid: false,
+    platform: 'youtube',
+    videoId: '',
+    aspectRatio: '16:9',
+    embedUrl: '',
+    defaultThumbnailUrl: '',
+    externalWatchUrl: '',
+    error: 'Unsupported platform. Please provide a YouTube video, YouTube Shorts, or Instagram Reel URL.',
+  };
+}
+
+/**
+ * Returns video previews from Cloudflare D1 with optional filtering.
+ */
+export async function getVideoPreviews(options?: {
+  platform?: VideoPlatform;
+  onlyPublished?: boolean;
+  featuredOnly?: boolean;
+  limit?: number;
+}): Promise<VideoPreviewItem[]> {
+  const onlyPublished = options?.onlyPublished !== false;
+  const cacheKey = `video_previews:${options?.platform ?? 'all'}:${onlyPublished}:${options?.featuredOnly ?? false}:${options?.limit ?? 'all'}`;
+
+  return getCached<VideoPreviewItem[]>(cacheKey, async () => {
+    const d1 = getD1Client();
+    let sql = 'SELECT * FROM video_previews WHERE 1=1';
+    const params: unknown[] = [];
+
+    if (onlyPublished) {
+      sql += ' AND is_published = 1';
+    }
+
+    if (options?.featuredOnly) {
+      sql += ' AND is_featured = 1';
+    }
+
+    if (options?.platform) {
+      sql += ' AND platform = ?';
+      params.push(options.platform);
+    }
+
+    sql += ' ORDER BY sort_order ASC, id DESC';
+
+    if (options?.limit && options.limit > 0) {
+      sql += ' LIMIT ?';
+      params.push(options.limit);
+    }
+
+    const res = await d1.query<any>(sql, params);
+    return (res.results || []).map((row) => ({
+      id: row.id,
+      title: row.title || '',
+      description: row.description || '',
+      platform: row.platform as VideoPlatform,
+      video_url: row.video_url || '',
+      video_id: row.video_id || '',
+      thumbnail_url: row.thumbnail_url || '',
+      aspect_ratio: (row.aspect_ratio === '9:16' ? '9:16' : '16:9') as '16:9' | '9:16',
+      is_featured: Boolean(row.is_featured),
+      is_published: Boolean(row.is_published),
+      sort_order: Number(row.sort_order || 0),
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    }));
+  });
+}
+
+/**
+ * Returns a single video preview by ID.
+ */
+export async function getVideoPreviewById(id: number): Promise<VideoPreviewItem | null> {
+  const d1 = getD1Client();
+  const res = await d1.query<any>('SELECT * FROM video_previews WHERE id = ? LIMIT 1', [id]);
+  const row = res.results?.[0];
+  if (!row) return null;
+  return {
+    id: row.id,
+    title: row.title || '',
+    description: row.description || '',
+    platform: row.platform as VideoPlatform,
+    video_url: row.video_url || '',
+    video_id: row.video_id || '',
+    thumbnail_url: row.thumbnail_url || '',
+    aspect_ratio: (row.aspect_ratio === '9:16' ? '9:16' : '16:9') as '16:9' | '9:16',
+    is_featured: Boolean(row.is_featured),
+    is_published: Boolean(row.is_published),
+    sort_order: Number(row.sort_order || 0),
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+/**
+ * Saves or updates a video preview in Cloudflare D1.
+ */
+export async function saveVideoPreview(data: {
+  id?: number;
+  title: string;
+  description?: string;
+  platform?: VideoPlatform;
+  video_url: string;
+  video_id?: string;
+  thumbnail_url?: string;
+  aspect_ratio?: '16:9' | '9:16';
+  is_featured?: boolean;
+  is_published?: boolean;
+  sort_order?: number;
+}): Promise<{ id: number }> {
+  if (!data.title || data.title.trim() === '') {
+    throw new Error('Title is required for video preview.');
+  }
+  if (!data.video_url || data.video_url.trim() === '') {
+    throw new Error('Video URL is required.');
+  }
+
+  // Parse and validate URL
+  const parsed = parseVideoUrl(data.video_url);
+  if (!parsed.valid) {
+    throw new Error(parsed.error || 'Invalid video URL.');
+  }
+
+  const platform = data.platform || parsed.platform;
+  const videoId = data.video_id || parsed.videoId;
+  const aspectRatio = data.aspect_ratio || parsed.aspectRatio;
+  const thumbnailUrl = data.thumbnail_url || parsed.defaultThumbnailUrl;
+  const isFeatured = data.is_featured ? 1 : 0;
+  const isPublished = data.is_published !== undefined ? (data.is_published ? 1 : 0) : 1;
+  const sortOrder = data.sort_order ?? 0;
+  const description = data.description ?? '';
+
+  const d1 = getD1Client();
+
+  if (data.id) {
+    await d1.query(
+      `UPDATE video_previews SET
+         title = ?,
+         description = ?,
+         platform = ?,
+         video_url = ?,
+         video_id = ?,
+         thumbnail_url = ?,
+         aspect_ratio = ?,
+         is_featured = ?,
+         is_published = ?,
+         sort_order = ?,
+         updated_at = datetime('now')
+       WHERE id = ?`,
+      [
+        data.title.trim(),
+        description.trim(),
+        platform,
+        data.video_url.trim(),
+        videoId,
+        thumbnailUrl.trim(),
+        aspectRatio,
+        isFeatured,
+        isPublished,
+        sortOrder,
+        data.id,
+      ],
+    );
+    invalidateContentCache();
+    return { id: data.id };
+  } else {
+    const res = await d1.query(
+      `INSERT INTO video_previews (
+         title, description, platform, video_url, video_id, thumbnail_url,
+         aspect_ratio, is_featured, is_published, sort_order, created_at, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+      [
+        data.title.trim(),
+        description.trim(),
+        platform,
+        data.video_url.trim(),
+        videoId,
+        thumbnailUrl.trim(),
+        aspectRatio,
+        isFeatured,
+        isPublished,
+        sortOrder,
+      ],
+    );
+    invalidateContentCache();
+    const id = res.meta?.last_row_id || 0;
+    return { id };
+  }
+}
+
+/**
+ * Deletes a video preview from Cloudflare D1.
+ */
+export async function deleteVideoPreview(id: number): Promise<void> {
+  const d1 = getD1Client();
+  await d1.query('DELETE FROM video_previews WHERE id = ?', [id]);
+  invalidateContentCache();
+}
+
+/**
+ * Toggles a video preview publish status in Cloudflare D1.
+ */
+export async function toggleVideoPreview(id: number): Promise<boolean> {
+  const d1 = getD1Client();
+  const current = await d1.query<any>('SELECT is_published FROM video_previews WHERE id = ? LIMIT 1', [id]);
+  const row = current.results?.[0];
+  if (!row) throw new Error('Video preview not found.');
+  const nextVal = row.is_published ? 0 : 1;
+  await d1.query("UPDATE video_previews SET is_published = ?, updated_at = datetime('now') WHERE id = ?", [
+    nextVal,
+    id,
+  ]);
+  invalidateContentCache();
+  return Boolean(nextVal);
 }

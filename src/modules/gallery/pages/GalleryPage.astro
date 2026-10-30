@@ -1,9 +1,10 @@
 ---
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import Icon from '../../../components/Icon.astro';
+import VideoPreviewCard from '../../../components/VideoPreviewCard.astro';
 import { imageUrl } from '../../../core/http';
 import type { GalleryPageData } from '../service';
-import { getPageContent } from '../../../core/content/service';
+import { getPageContent, getVideoPreviews } from '../../../core/content/service';
 import '../gallery.css';
 
 interface Props {
@@ -12,7 +13,10 @@ interface Props {
 
 const { data } = Astro.props;
 const { settings, categories, items } = data;
-const pageContent = await getPageContent('gallery');
+const [pageContent, videoPreviews] = await Promise.all([
+  getPageContent('gallery'),
+  getVideoPreviews({ onlyPublished: true }),
+]);
 
 const heroTitle = pageContent.title || settings.hero_title;
 const heroSubtitle = pageContent.subtitle || settings.hero_subtitle;
@@ -101,12 +105,17 @@ const totalInitialPages = Math.ceil(items.length / DEFAULT_PAGE_SIZE);
                 role="button"
                 aria-label={`View ${item.title || 'event design'} in high resolution`}
               >
-                <div class="pin-media-wrapper">
+                <div class="pin-media-wrapper media-with-skeleton">
+                  <div class="skeleton-placeholder skeleton-shimmer" role="status" aria-busy="true" aria-label="Loading image..."></div>
                   <img
                     src={imageUrl(item.image)}
                     alt={item.title || 'Event Point Ranchi celebration design'}
                     loading={index < 4 ? 'eager' : 'lazy'}
                   />
+                  <div class="skeleton-error-fallback" role="alert">
+                    <Icon name="image" size={24} />
+                    <span>Image preview unavailable</span>
+                  </div>
                   <div class="pin-hover-overlay">
                     <div class="pin-overlay-top">
                       <span class="pin-category-pill">{item.category_name}</span>
@@ -171,7 +180,85 @@ const totalInitialPages = Math.ceil(items.length / DEFAULT_PAGE_SIZE);
     </div>
   </section>
 
+  {videoPreviews.length > 0 && (
+    <section class="section section-warm" id="videosSection" aria-labelledby="videos-heading">
+      <div class="container">
+        <div class="section-head text-center" style="max-width: 680px; margin-inline: auto; margin-bottom: 2rem;">
+          <span class="eyebrow" style="color: var(--gold-deep, #a9862f);">Cinematic Experiences</span>
+          <h2 id="videos-heading">Wedding Moments &amp; Decor in Motion</h2>
+          <p>
+            Experience our royal mandaps, ambient evening lighting, and reception stage reveal moments
+            through full YouTube walkthroughs, Shorts, and Instagram Reels.
+          </p>
+        </div>
+
+        <!-- Video Platform Filter Pills -->
+        <div class="filter-bar" data-video-filters style="margin-bottom: 2rem; justify-content: center;">
+          <button type="button" class="filter-btn active" data-video-filter="all">
+            <span>All Videos</span>
+            <span class="filter-count">{videoPreviews.length}</span>
+          </button>
+          {videoPreviews.some((v) => v.platform === 'youtube') && (
+            <button type="button" class="filter-btn" data-video-filter="youtube">
+              <span>YouTube Tours</span>
+              <span class="filter-count">{videoPreviews.filter((v) => v.platform === 'youtube').length}</span>
+            </button>
+          )}
+          {videoPreviews.some((v) => v.platform === 'youtube_shorts') && (
+            <button type="button" class="filter-btn" data-video-filter="youtube_shorts">
+              <span>Shorts</span>
+              <span class="filter-count">{videoPreviews.filter((v) => v.platform === 'youtube_shorts').length}</span>
+            </button>
+          )}
+          {videoPreviews.some((v) => v.platform === 'instagram_reels') && (
+            <button type="button" class="filter-btn" data-video-filter="instagram_reels">
+              <span>Instagram Reels</span>
+              <span class="filter-count">{videoPreviews.filter((v) => v.platform === 'instagram_reels').length}</span>
+            </button>
+          )}
+        </div>
+
+        <!-- Responsive Video Grid -->
+        <div
+          class="video-showcase-grid"
+          data-video-grid
+          style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; align-items: start;"
+        >
+          {videoPreviews.map((video) => (
+            <div data-video-item data-platform={video.platform}>
+              <VideoPreviewCard video={video} />
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )}
+
   <script>
     import '../../../client/gallery';
+
+    function setupVideoFilters() {
+      const filterBtns = document.querySelectorAll<HTMLButtonElement>('[data-video-filter]');
+      const videoItems = document.querySelectorAll<HTMLElement>('[data-video-item]');
+
+      filterBtns.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const selected = btn.dataset.videoFilter;
+          filterBtns.forEach((b) => b.classList.toggle('active', b === btn));
+
+          videoItems.forEach((item) => {
+            const matches = selected === 'all' || item.dataset.platform === selected;
+            item.style.display = matches ? 'block' : 'none';
+          });
+        });
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', setupVideoFilters);
+    } else {
+      setupVideoFilters();
+    }
+    document.addEventListener('astro:page-load', setupVideoFilters);
   </script>
 </BaseLayout>

@@ -280,4 +280,24 @@ CREATE TABLE IF NOT EXISTS seo_settings (
 );
 
 CREATE INDEX IF NOT EXISTS idx_seo_settings_page ON seo_settings(page_key);
+
+CREATE TABLE IF NOT EXISTS video_previews (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  title         TEXT NOT NULL,
+  description   TEXT NOT NULL DEFAULT '',
+  platform      TEXT NOT NULL, -- 'youtube' | 'youtube_shorts' | 'instagram_reels'
+  video_url     TEXT NOT NULL,
+  video_id      TEXT NOT NULL DEFAULT '',
+  thumbnail_url TEXT NOT NULL DEFAULT '',
+  aspect_ratio  TEXT NOT NULL DEFAULT '16:9', -- '16:9' | '9:16'
+  is_featured   INTEGER NOT NULL DEFAULT 0,
+  is_published  INTEGER NOT NULL DEFAULT 1,
+  sort_order    INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_video_previews_platform ON video_previews(platform);
+CREATE INDEX IF NOT EXISTS idx_video_previews_published ON video_previews(is_published);
+CREATE INDEX IF NOT EXISTS idx_video_previews_sort ON video_previews(sort_order);
 `;

@@ -20,6 +20,10 @@ import {
   saveMandapLocation,
   validateCoordinates,
   validateExternalUrl,
+  getVideoPreviews,
+  saveVideoPreview,
+  deleteVideoPreview,
+  toggleVideoPreview,
 } from '../../core/content/service';
 
 export { UploadError };
@@ -994,6 +998,9 @@ export async function loadContentAdmin() {
   // Load mandaps from D1 with location fields
   const mandaps = await getMandaps(true);
 
+  // Load all video previews (published and draft) from D1
+  const videoPreviews = await getVideoPreviews({ onlyPublished: false });
+
   const homepage = one<{ hero_title: string; hero_description: string; hero_image: string | null }>(
     'SELECT hero_title, hero_description, hero_image FROM homepage WHERE id = 1',
   );
@@ -1006,7 +1013,7 @@ export async function loadContentAdmin() {
   const contact = one<{ address: string; phone: string; email: string }>(
     'SELECT address, phone, email FROM contact_info WHERE id = 1',
   );
-  return { homepage, features, pages, contact, siteSettings, seoSettings, pagesContent, mandaps };
+  return { homepage, features, pages, contact, siteSettings, seoSettings, pagesContent, mandaps, videoPreviews };
 }
 
 export async function saveSiteSettings(form: FormData | null): Promise<void> {
@@ -1156,6 +1163,47 @@ export async function saveMandapLocationAdmin(form: FormData | null): Promise<vo
     directions_url,
     show_location,
   });
+}
+
+export async function saveVideoPreviewAdmin(form: FormData | null): Promise<void> {
+  const videoIdNum = getInt(form, 'id') || undefined;
+  const title = getString(form, 'title');
+  const description = getString(form, 'description');
+  const video_url = getString(form, 'video_url');
+  const aspect_ratio_str = getString(form, 'aspect_ratio');
+  const aspect_ratio = aspect_ratio_str === '9:16' ? '9:16' : aspect_ratio_str === '16:9' ? '16:9' : undefined;
+
+  // Optional custom thumbnail upload via Filebase
+  const uploaded = await saveUploadedImage(form, 'custom_thumbnail', 'content');
+  const thumbnail_url = (uploaded ?? getString(form, 'thumbnail_url')) || undefined;
+
+  const is_featured = form?.has('is_featured');
+  const is_published = form?.has('is_published');
+  const sort_order = getInt(form, 'sort_order') || 0;
+
+  await saveVideoPreview({
+    id: videoIdNum,
+    title,
+    description,
+    video_url,
+    thumbnail_url,
+    aspect_ratio,
+    is_featured,
+    is_published,
+    sort_order,
+  });
+}
+
+export async function deleteVideoPreviewAdmin(form: FormData | null): Promise<void> {
+  const id = getInt(form, 'video_id');
+  if (!id) throw new Error('Video preview ID is required for deletion.');
+  await deleteVideoPreview(id);
+}
+
+export async function toggleVideoPreviewAdmin(form: FormData | null): Promise<boolean> {
+  const id = getInt(form, 'video_id');
+  if (!id) throw new Error('Video preview ID is required to toggle.');
+  return await toggleVideoPreview(id);
 }
 
 export async function saveSeoSettings(form: FormData | null): Promise<void> {

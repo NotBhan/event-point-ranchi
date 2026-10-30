@@ -1,0 +1,374 @@
+---
+import Icon from './Icon.astro';
+import { parseVideoUrl } from '../core/content/service';
+import type { VideoPreviewItem } from '../core/content/types';
+
+interface Props {
+  video: VideoPreviewItem;
+  class?: string;
+  eagerThumbnail?: boolean;
+}
+
+const { video, class: className = '', eagerThumbnail = false } = Astro.props;
+
+const parsed = parseVideoUrl(video.video_url);
+const isVertical = video.aspect_ratio === '9:16' || parsed.aspectRatio === '9:16';
+const effectiveThumbnail = video.thumbnail_url || parsed.defaultThumbnailUrl;
+const platformLabel =
+  video.platform === 'youtube_shorts'
+    ? 'YouTube Shorts'
+    : video.platform === 'instagram_reels'
+      ? 'Instagram Reel'
+      : 'YouTube';
+
+const platformBadgeClass =
+  video.platform === 'instagram_reels'
+    ? 'platform-badge-instagram'
+    : video.platform === 'youtube_shorts'
+      ? 'platform-badge-shorts'
+      : 'platform-badge-youtube';
+---
+
+<article
+  class:list={[
+    'video-preview-card',
+    isVertical ? 'video-card-vertical' : 'video-card-horizontal',
+    className,
+  ]}
+  data-video-card
+  data-platform={video.platform}
+  data-video-id={video.video_id || parsed.videoId}
+  data-embed-url={parsed.embedUrl}
+  data-aspect-ratio={video.aspect_ratio}
+>
+  <div class="video-media-facade">
+    <!-- Media skeleton wrapper -->
+    <div class="media-with-skeleton video-facade-cover" style="width: 100%; height: 100%;">
+      <div class="skeleton-placeholder skeleton-shimmer" role="status" aria-busy="true" aria-label={`Loading preview for ${video.title}`}></div>
+      {effectiveThumbnail ? (
+        <img
+          src={effectiveThumbnail}
+          alt={video.title}
+          loading={eagerThumbnail ? 'eager' : 'lazy'}
+        />
+      ) : (
+        <div class="video-default-poster">
+          {video.platform === 'instagram_reels' ? (
+            <div class="instagram-poster-content">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+                <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+                <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+              </svg>
+              <span>Watch on Instagram</span>
+            </div>
+          ) : (
+            <div class="youtube-poster-content">
+              <Icon name="play" size={44} />
+              <span>Event Point Ranchi</span>
+            </div>
+          )}
+        </div>
+      )}
+      <div class="skeleton-error-fallback" role="alert">
+        <Icon name="play" size={28} />
+        <span>Preview unavailable</span>
+      </div>
+    </div>
+
+    <!-- Platform Badge -->
+    <span class:list={['video-platform-badge', platformBadgeClass]}>
+      {platformLabel}
+    </span>
+
+    <!-- Play button overlay -->
+    <button
+      type="button"
+      class="video-play-btn"
+      data-play-trigger
+      aria-label={`Play video: ${video.title}`}
+    >
+      <span class="play-icon-disc">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="5 3 19 12 5 21 5 3"></polygon>
+        </svg>
+      </span>
+      <span class="sr-only">Play video</span>
+    </button>
+
+    <!-- Dynamic Player Container (populated on click) -->
+    <div class="video-embed-container" data-embed-container style="display: none;"></div>
+  </div>
+
+  <div class="video-details">
+    <div class="video-meta-top">
+      <h3 class="video-title" title={video.title}>{video.title}</h3>
+      <a
+        href={parsed.externalWatchUrl || video.video_url}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="video-external-link"
+        aria-label={`Open ${video.title} on ${platformLabel} (opens in new tab)`}
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+          <polyline points="15 3 21 3 21 9"></polyline>
+          <line x1="10" y1="14" x2="21" y2="3"></line>
+        </svg>
+      </a>
+    </div>
+
+    {video.description && (
+      <p class="video-description">{video.description}</p>
+    )}
+  </div>
+</article>
+
+<style>
+  .video-preview-card {
+    background: var(--surface, #ffffff);
+    border: 1px solid var(--line, #e9e0d5);
+    border-radius: var(--r-md, 12px);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 16px rgba(42, 20, 25, 0.04);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .video-preview-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(42, 20, 25, 0.08);
+  }
+
+  .video-card-vertical {
+    width: 100%;
+    max-width: 320px;
+    margin-inline: auto;
+  }
+
+  .video-media-facade {
+    position: relative;
+    width: 100%;
+    background: #110408;
+    overflow: hidden;
+  }
+
+  .video-card-horizontal .video-media-facade {
+    aspect-ratio: 16 / 9;
+  }
+
+  .video-card-vertical .video-media-facade {
+    aspect-ratio: 9 / 16;
+  }
+
+  .video-facade-cover {
+    position: absolute;
+    inset: 0;
+  }
+
+  .video-default-poster {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #2e0a12 0%, #540d1a 100%);
+    color: #f7f0dc;
+    text-align: center;
+  }
+
+  .instagram-poster-content,
+  .youtube-poster-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    font-weight: 500;
+    font-size: 0.875rem;
+  }
+
+  .video-platform-badge {
+    position: absolute;
+    top: 0.75rem;
+    left: 0.75rem;
+    padding: 0.25rem 0.625rem;
+    border-radius: var(--r-xs, 4px);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #ffffff;
+    z-index: 3;
+    pointer-events: none;
+    backdrop-filter: blur(4px);
+  }
+
+  .platform-badge-youtube {
+    background: #cc0000;
+  }
+
+  .platform-badge-shorts {
+    background: #e62117;
+  }
+
+  .platform-badge-instagram {
+    background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+  }
+
+  .video-play-btn {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.25);
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 4;
+    transition: background 0.2s ease;
+  }
+
+  .video-play-btn:hover {
+    background: rgba(0, 0, 0, 0.4);
+  }
+
+  .video-play-btn:focus-visible {
+    outline: 3px solid var(--gold-bright, #c8a251);
+    outline-offset: -3px;
+  }
+
+  .play-icon-disc {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.95);
+    color: var(--brand-maroon, #721224);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease;
+    padding-left: 3px;
+  }
+
+  .video-play-btn:hover .play-icon-disc {
+    transform: scale(1.12);
+    background: #ffffff;
+    color: #e62117;
+  }
+
+  .video-embed-container {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background: #000000;
+    z-index: 5;
+  }
+
+  .video-embed-container iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+  }
+
+  .video-details {
+    padding: 1rem 1.125rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    flex: 1;
+  }
+
+  .video-meta-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .video-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--ink, #2a1419);
+    line-height: 1.35;
+    margin: 0;
+  }
+
+  .video-external-link {
+    color: var(--muted, #8d7f82);
+    padding: 0.25rem;
+    border-radius: var(--r-xs, 4px);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s ease, background 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .video-external-link:hover {
+    color: var(--brand-maroon, #721224);
+    background: var(--surface-2, #f5f0e6);
+  }
+
+  .video-description {
+    font-size: 0.8125rem;
+    color: var(--body, #65585b);
+    line-height: 1.45;
+    margin: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+</style>
+
+<script>
+  function setupVideoCards() {
+    const cards = document.querySelectorAll<HTMLElement>('[data-video-card]');
+
+    cards.forEach((card) => {
+      const playBtn = card.querySelector<HTMLButtonElement>('[data-play-trigger]');
+      const embedContainer = card.querySelector<HTMLElement>('[data-embed-container]');
+      const embedUrl = card.dataset.embedUrl;
+
+      if (!playBtn || !embedContainer || !embedUrl) return;
+
+      const activatePlayer = () => {
+        if (embedContainer.querySelector('iframe')) return;
+
+        // Create secure sandboxed iframe
+        const iframe = document.createElement('iframe');
+        iframe.setAttribute('src', embedUrl);
+        iframe.setAttribute('title', card.querySelector('.video-title')?.textContent || 'Video Player');
+        iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
+        iframe.setAttribute('allowfullscreen', 'true');
+        iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation');
+        iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+        iframe.style.width = '100%';
+        iframe.style.height = '100%';
+        iframe.style.border = 'none';
+
+        embedContainer.innerHTML = '';
+        embedContainer.appendChild(iframe);
+        embedContainer.style.display = 'block';
+        playBtn.style.display = 'none';
+      };
+
+      playBtn.addEventListener('click', activatePlayer);
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupVideoCards);
+  } else {
+    setupVideoCards();
+  }
+
+  document.addEventListener('astro:page-load', setupVideoCards);
+</script>
