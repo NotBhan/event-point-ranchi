@@ -1,4 +1,4 @@
-export type PaymentGatewayProvider = 'razorpay' | 'phonepe';
+export type PaymentGatewayProvider = 'phonepe';
 
 export type PaymentLifecycleStatus =
   | 'created'
@@ -28,11 +28,10 @@ export interface CreateOrderParams {
 
 export interface CreateOrderResult {
   provider: PaymentGatewayProvider;
-  orderId: string; // Razorpay order_id or PhonePe merchantTransactionId
+  orderId: string; // PhonePe merchantTransactionId
   amountPaise: number;
   currency: string;
   checkoutUrl?: string; // Hosted checkout page redirect for PhonePe
-  keyId?: string; // Public client key ID for Razorpay Standard Checkout
   internalReference: string;
   instrumentPayload?: Record<string, unknown>;
 }

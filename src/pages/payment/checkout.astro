@@ -68,7 +68,7 @@ const defaultGateway = paymentService.getDefaultProvider();
 
 <BaseLayout
   title={`Secure Checkout | Booking #${booking.id} | ${brandName}`}
-  description="Complete your booking advance or balance payment securely via Razorpay or PhonePe with 256-bit encryption."
+  description="Complete your booking advance or balance payment securely via PhonePe with 256-bit encryption."
 >
   <section class="page-hero">
     <div class="container">
@@ -278,9 +278,6 @@ const defaultGateway = paymentService.getDefaultProvider();
     </div>
   </section>
 
-  <!-- Razorpay Hosted SDK Loader -->
-  <script is:inline src="https://checkout.razorpay.com/v1/checkout.js"></script>
-
   <!-- Client Payment Handling Script -->
   <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -324,7 +321,7 @@ const defaultGateway = paymentService.getDefaultProvider();
         }
 
         const paymentType = (document.querySelector('input[name="paymentType"]:checked') as HTMLInputElement)?.value;
-        const provider = (document.querySelector('input[name="gatewayProvider"]:checked') as HTMLInputElement)?.value || 'razorpay';
+        const provider = 'phonepe';
 
         let customAmountPaise: number | undefined = undefined;
         if (paymentType === 'partial') {
@@ -337,7 +334,7 @@ const defaultGateway = paymentService.getDefaultProvider();
         }
 
         payButton.disabled = true;
-        payButton.innerHTML = '<span>Initiating Secure Session...</span>';
+        payButton.innerHTML = '<span>Initiating PhonePe Session...</span>';
 
         try {
           // 1. Create order on server
@@ -357,73 +354,13 @@ const defaultGateway = paymentService.getDefaultProvider();
             throw new Error(createData.message || 'Failed to initialize payment.');
           }
 
-          const { order, internalReference } = createData;
+          const { order } = createData;
 
-          // 2. Invoke Gateway Interface
-          if (provider === 'phonepe' && order.checkoutUrl) {
-            // Redirect to PhonePe hosted checkout
+          // 2. Redirect to PhonePe hosted checkout page
+          if (order && order.checkoutUrl) {
             window.location.href = order.checkoutUrl;
-          } else if (provider === 'razorpay') {
-            // Open Razorpay Standard Checkout modal
-            if (typeof (window as any).Razorpay === 'undefined') {
-              throw new Error('Razorpay SDK failed to load. Please check your internet connection or use PhonePe.');
-            }
-
-            const rzpOptions = {
-              key: order.keyId,
-              amount: order.amountPaise,
-              currency: order.currency || 'INR',
-              name: 'Event Point Ranchi',
-              description: order.instrumentPayload?.description || `Booking #${bookingId}`,
-              order_id: order.orderId,
-              prefill: order.instrumentPayload?.prefill || {},
-              notes: order.instrumentPayload?.notes || {},
-              theme: { color: '#721224' },
-              handler: async (response: any) => {
-                payButton.innerHTML = '<span>Verifying Payment...</span>';
-                try {
-                  const verifyRes = await fetch('/api/payment/verify', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      provider: 'razorpay',
-                      orderId: response.razorpay_order_id,
-                      paymentId: response.razorpay_payment_id,
-                      signature: response.razorpay_signature,
-                      merchantTransactionId: internalReference,
-                    }),
-                  });
-
-                  const verifyData = await verifyRes.json();
-                  if (!verifyRes.ok || verifyData.status !== 'success') {
-                    throw new Error(verifyData.message || 'Payment verification failed.');
-                  }
-
-                  window.location.href = `/payment/status?bookingId=${bookingId}&ref=${encodeURIComponent(internalReference)}&paymentId=${encodeURIComponent(response.razorpay_payment_id)}`;
-                } catch (verifyErr: any) {
-                  showAlert(`Payment received but verification flagged: ${verifyErr.message}`);
-                  payButton.disabled = false;
-                  payButton.innerHTML = '<span>Retry Verification</span>';
-                }
-              },
-              modal: {
-                ondismiss: () => {
-                  payButton.disabled = false;
-                  payButton.innerHTML = '<span>Proceed to Secure Pay</span>';
-                  showAlert('Payment window closed. Your booking is safe and you can retry at any time.', false);
-                },
-              },
-            };
-
-            const rzp = new (window as any).Razorpay(rzpOptions);
-            rzp.on('payment.failed', (failResponse: any) => {
-              showAlert(`Payment failed: ${failResponse.error?.description || 'Gateway transaction declined.'}`);
-              payButton.disabled = false;
-              payButton.innerHTML = '<span>Retry Payment</span>';
-            });
-            rzp.open();
           } else {
-            throw new Error('Unsupported payment configuration.');
+            throw new Error('Payment gateway did not return a valid checkout redirect URL.');
           }
         } catch (err: any) {
           showAlert(err.message || 'Payment initiation failed.');

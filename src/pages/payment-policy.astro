@@ -49,7 +49,7 @@ const email = settings.email || 'info@eventpointranchi.com';
             <strong>Booking Advance (25%):</strong> To lock your event date on our calendar and reserve equipment inventory, an initial advance deposit of 25% of the quotation amount is required.
           </li>
           <li>
-            <strong>Server-Side Verification & Status Lock:</strong> Once you complete payment through the provider's hosted checkout (Razorpay or PhonePe), our server independently verifies the gateway cryptographic signature and confirms capture with the payment processor. Only upon verified capture does the booking status transition to <em>Confirmed</em>.
+            <strong>Server-Side Verification & Status Lock:</strong> Once you complete payment through PhonePe's hosted checkout, our server independently verifies the gateway cryptographic signature and confirms capture with the payment processor. Only upon verified capture does the booking status transition to <em>Confirmed</em>.
           </li>
           <li>
             <strong>Partial Payments & Balance Settlement:</strong> You may make flexible partial payments at any time before the celebration. The final outstanding balance must be settled prior to service delivery or on-site handover.
@@ -60,13 +60,13 @@ const email = settings.email || 'info@eventpointranchi.com';
       <article id="supported-payment-methods">
         <h2>2. Supported Payment Gateways & Instruments</h2>
         <p>
-          We offer multi-gateway redundancy via India's most trusted RBI-licensed Payment Aggregators:
+          We accept payments via India's trusted RBI-licensed Payment Aggregator <strong>PhonePe</strong>:
         </p>
         <ul class="spec-list">
           <li><Icon name="check-circle" size={15} /> <strong>UPI (Unified Payments Interface):</strong> Instant, zero-surcharge payments via Google Pay, PhonePe, Paytm, BHIM, Cred, and all BHIM-UPI applications.</li>
           <li><Icon name="check-circle" size={15} /> <strong>Debit & Credit Cards:</strong> All domestic Visa, MasterCard, RuPay, and American Express cards with mandatory Two-Factor Authentication (OTP / 3D Secure).</li>
           <li><Icon name="check-circle" size={15} /> <strong>Net Banking:</strong> Secure direct internet banking across 50+ scheduled Indian commercial banks (SBI, HDFC, ICICI, Axis, PNB, etc.).</li>
-          <li><Icon name="check-circle" size={15} /> <strong>Provider Independence:</strong> Customers can freely choose between <strong>Razorpay</strong> and <strong>PhonePe</strong> during checkout.</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Direct Gateway Checkout:</strong> Payments are securely routed via PhonePe's certified payment gateway with 256-bit encryption.</li>
         </ul>
       </article>
 

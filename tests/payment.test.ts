@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createHmac, createHash } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { registerHooks } from 'node:module';
 import { test } from 'node:test';
@@ -20,7 +20,6 @@ try {
     },
   });
 } catch {}
-const { RazorpayProvider } = await import('../src/core/payment/providers/razorpay');
 const { PhonePeProvider } = await import('../src/core/payment/providers/phonepe');
 const { getPaymentService } = await import('../src/core/payment/payment-service');
 const {
@@ -37,74 +36,8 @@ const {
 } = await import('../src/core/operational/service');
 const { paymentsList, paymentDetail } = await import('../src/modules/admin/handlers/operations');
 
-test('1. Razorpay Provider - Signature Verification & Webhook Authentication', async () => {
-  const keyId = 'rzp_test_sampleKey123';
-  const keySecret = 'sampleSecret456Key789';
-  const webhookSecret = 'whsec_sampleRazorpayWebhookSecret';
 
-  const provider = new RazorpayProvider({
-    keyId,
-    keySecret,
-    webhookSecret,
-  });
-
-  const orderId = 'order_DAv135XYZ999';
-  const paymentId = 'pay_HJa832ABC111';
-
-  // Valid payment HMAC-SHA256 signature
-  const validPaymentSignature = createHmac('sha256', keySecret)
-    .update(`${orderId}|${paymentId}`)
-    .digest('hex');
-
-  // Verify signature mismatch is rejected immediately without API call
-  const tamperedResult = await provider.verifyPayment({
-    provider: 'razorpay',
-    orderId,
-    paymentId: 'pay_TAMPERED',
-    signature: validPaymentSignature,
-  });
-  assert.equal(tamperedResult.isValid, false, 'Tampered payment ID must fail verification');
-  assert.equal(tamperedResult.failureCode, 'INVALID_SIGNATURE');
-
-  // Valid webhook signature verification
-  const rawWebhookPayload = JSON.stringify({
-    event: 'payment.captured',
-    payload: {
-      payment: {
-        entity: {
-          id: paymentId,
-          order_id: orderId,
-          amount: 2500000,
-          status: 'captured',
-          method: 'upi',
-        },
-      },
-    },
-  });
-
-  const validWebhookSignature = createHmac('sha256', webhookSecret)
-    .update(rawWebhookPayload)
-    .digest('hex');
-
-  const validWebhookResult = await provider.verifyWebhook({
-    headers: { 'x-razorpay-signature': validWebhookSignature },
-    rawBody: rawWebhookPayload,
-  });
-  assert.equal(validWebhookResult.isValid, true, 'Valid webhook signature must verify');
-  assert.equal(validWebhookResult.paymentId, paymentId);
-  assert.equal(validWebhookResult.amountPaise, 2500000);
-  assert.equal(validWebhookResult.status, 'captured');
-
-  // Tampered webhook payload verification failure
-  const tamperedWebhookPayload = rawWebhookPayload.replace('2500000', '1000000');
-  const tamperedWebhookResult = await provider.verifyWebhook({
-    headers: { 'x-razorpay-signature': validWebhookSignature },
-    rawBody: tamperedWebhookPayload,
-  });
-  assert.equal(tamperedWebhookResult.isValid, false, 'Tampered webhook payload must fail verification');
-});
-
-test('2. PhonePe Provider - SHA-256 Checksum Calculation & Webhook Decoding', async () => {
+test('1. PhonePe Provider - SHA-256 Checksum Calculation & Webhook Decoding', async () => {
   const merchantId = 'PGTESTPAYUAT';
   const saltKey = '099eb0cd-02cf-4e2a-8aca-3e6c6aff0399';
   const saltIndex = '1';
@@ -185,7 +118,7 @@ test('2. PhonePe Provider - SHA-256 Checksum Calculation & Webhook Decoding', as
   assert.equal(invalidChecksumResult.isValid, false, 'Invalid checksum must be rejected');
 });
 
-test('3. Booking Financial Lifecycle - Advances, Partials, Balance & Overpayment Prevention', async () => {
+test('2. Booking Financial Lifecycle - Advances, Partials, Balance & Overpayment Prevention', async () => {
   // Step 1: Create a test booking with total amount of ₹100,000 (10,000,000 paise)
   const totalAmountPaise = 10000000;
   const booking = await createBooking({
@@ -204,12 +137,12 @@ test('3. Booking Financial Lifecycle - Advances, Partials, Balance & Overpayment
   assert.equal(Number(booking.outstanding_balance), totalAmountPaise);
   assert.equal(booking.payment_status, 'unpaid');
 
-  // Step 2: Simulate Payment 1 - Advance payment of ₹25,000 (2,500,000 paise)
+  // Step 2: Simulate Payment 1 - Advance payment of ₹25,000 (2,500,000 paise) via PhonePe
   const payment1 = await createPaymentRecord({
     bookingId: booking.id,
     customerId: 1,
-    provider: 'razorpay',
-    providerOrderId: 'order_test_adv_1',
+    provider: 'phonepe',
+    providerOrderId: 'TX_PHONEPE_ADV_1',
     internalTransactionReference: `EP_ADV_${booking.id}_${Date.now()}`,
     paymentType: 'advance',
     amountPaise: 2500000,
@@ -219,7 +152,7 @@ test('3. Booking Financial Lifecycle - Advances, Partials, Balance & Overpayment
     id: payment1.id,
     status: 'captured',
     paymentMethod: 'upi',
-    providerPaymentId: 'pay_test_adv_1',
+    providerPaymentId: 'T_PHONEPE_ADV_1',
     verifiedAt: new Date().toISOString(),
   });
 
@@ -229,12 +162,12 @@ test('3. Booking Financial Lifecycle - Advances, Partials, Balance & Overpayment
   assert.equal(Number(updatedBookingAfterAdv.outstanding_balance), 7500000, 'Outstanding balance should be ₹75,000');
   assert.equal(updatedBookingAfterAdv.payment_status, 'partially_paid');
 
-  // Step 3: Simulate Payment 2 - Partial milestone payment of ₹25,000 (2,500,000 paise)
+  // Step 3: Simulate Payment 2 - Partial milestone payment of ₹25,000 (2,500,000 paise) via PhonePe
   const payment2 = await createPaymentRecord({
     bookingId: booking.id,
     customerId: 1,
     provider: 'phonepe',
-    providerOrderId: 'order_test_part_2',
+    providerOrderId: 'TX_PHONEPE_PART_2',
     internalTransactionReference: `EP_PART_${booking.id}_${Date.now()}`,
     paymentType: 'partial',
     amountPaise: 2500000,
@@ -263,7 +196,7 @@ test('3. Booking Financial Lifecycle - Advances, Partials, Balance & Overpayment
         bookingId: booking.id,
         paymentType: 'partial',
         customAmountPaise: 6000000,
-        provider: 'razorpay',
+        provider: 'phonepe',
         originUrl: 'http://localhost:4321',
       });
     },
@@ -271,12 +204,12 @@ test('3. Booking Financial Lifecycle - Advances, Partials, Balance & Overpayment
     'Payment exceeding outstanding balance must be rejected'
   );
 
-  // Step 5: Simulate Payment 3 - Full balance settlement of remaining ₹50,000 (5,000,000 paise)
+  // Step 5: Simulate Payment 3 - Full balance settlement of remaining ₹50,000 (5,000,000 paise) via PhonePe
   const payment3 = await createPaymentRecord({
     bookingId: booking.id,
     customerId: 1,
-    provider: 'razorpay',
-    providerOrderId: 'order_test_bal_3',
+    provider: 'phonepe',
+    providerOrderId: 'TX_PHONEPE_BAL_3',
     internalTransactionReference: `EP_BAL_${booking.id}_${Date.now()}`,
     paymentType: 'balance',
     amountPaise: 5000000,
@@ -285,8 +218,8 @@ test('3. Booking Financial Lifecycle - Advances, Partials, Balance & Overpayment
   await updatePaymentVerification({
     id: payment3.id,
     status: 'captured',
-    paymentMethod: 'card',
-    providerPaymentId: 'pay_test_bal_3',
+    paymentMethod: 'upi',
+    providerPaymentId: 'T_PHONEPE_BAL_3',
     verifiedAt: new Date().toISOString(),
   });
 
@@ -297,9 +230,9 @@ test('3. Booking Financial Lifecycle - Advances, Partials, Balance & Overpayment
   assert.equal(finalBooking.payment_status, 'paid');
 });
 
-test('4. Webhook Idempotency & Deduplication Protection', async () => {
-  const provider = 'razorpay';
-  const providerEventId = `evt_test_${Date.now()}`;
+test('3. Webhook Idempotency & Deduplication Protection', async () => {
+  const provider = 'phonepe';
+  const providerEventId = `evt_phonepe_${Date.now()}`;
   const payloadHash = createHash('sha256').update(providerEventId).digest('hex');
 
   // First time recording webhook
@@ -326,13 +259,13 @@ test('4. Webhook Idempotency & Deduplication Protection', async () => {
   assert.equal(updatedEvent.processing_status, 'processed');
 });
 
-test('5. Refund Accounting & Over-Refund Prevention', async () => {
-  // Create a payment of ₹20,000 (2,000,000 paise)
+test('4. Refund Accounting & Over-Refund Prevention', async () => {
+  // Create a payment of ₹20,000 (2,000,000 paise) via PhonePe
   const payment = await createPaymentRecord({
     bookingId: 1,
     customerId: 1,
-    provider: 'razorpay',
-    providerOrderId: 'order_refund_test',
+    provider: 'phonepe',
+    providerOrderId: 'TX_REFUND_TEST',
     internalTransactionReference: `EP_REFTEST_${Date.now()}`,
     paymentType: 'partial',
     amountPaise: 2000000,
@@ -341,7 +274,7 @@ test('5. Refund Accounting & Over-Refund Prevention', async () => {
   await updatePaymentVerification({
     id: payment.id,
     status: 'captured',
-    providerPaymentId: 'pay_captured_for_refund',
+    providerPaymentId: 'T_PHONEPE_CAPTURED',
     verifiedAt: new Date().toISOString(),
   });
 
@@ -349,7 +282,7 @@ test('5. Refund Accounting & Over-Refund Prevention', async () => {
   const refund1 = await createRefundRecord({
     paymentId: payment.id,
     bookingId: 1,
-    providerRefundId: 'rfnd_test_01',
+    providerRefundId: 'rfnd_phonepe_01',
     amountPaise: 500000,
     reason: 'Guest count reduction',
     status: 'processed',
@@ -360,7 +293,7 @@ test('5. Refund Accounting & Over-Refund Prevention', async () => {
   const refund2 = await createRefundRecord({
     paymentId: payment.id,
     bookingId: 1,
-    providerRefundId: 'rfnd_test_02',
+    providerRefundId: 'rfnd_phonepe_02',
     amountPaise: 1000000,
     reason: 'Service item cancellation',
     status: 'processed',
@@ -384,7 +317,7 @@ test('5. Refund Accounting & Over-Refund Prevention', async () => {
   );
 });
 
-test('6. Admin RBAC Security - Unauthenticated Requests Denied', async () => {
+test('5. Admin RBAC Security - Unauthenticated Requests Denied', async () => {
   const unauthenticatedContext: any = {
     auth: { isAuthenticated: false, user: null },
     url: new URL('http://localhost:4321/admin/payments'),

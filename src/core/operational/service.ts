@@ -84,7 +84,7 @@ export interface PaymentRow {
   id: number;
   booking_id: number;
   customer_id: number | null;
-  provider: 'razorpay' | 'phonepe';
+  provider: 'phonepe';
   provider_order_id: string | null;
   provider_payment_id: string | null;
   internal_transaction_reference: string;
@@ -497,7 +497,7 @@ export async function updateBookingFinancials(
 export async function createPaymentRecord(data: {
   bookingId: number;
   customerId?: number | null;
-  provider: 'razorpay' | 'phonepe';
+  provider: 'phonepe';
   providerOrderId?: string | null;
   providerPaymentId?: string | null;
   internalTransactionReference: string;
@@ -786,7 +786,6 @@ export interface PaymentMetrics {
   totalRefundedPaise: number;
   outstandingBalancePaise: number;
   providerStats: {
-    razorpay: { count: number; totalPaise: number };
     phonepe: { count: number; totalPaise: number };
   };
 }
@@ -809,7 +808,6 @@ export async function getPaymentMetrics(): Promise<PaymentMetrics> {
   let failedCount = 0;
   let refundedCount = 0;
   const providerStats = {
-    razorpay: { count: 0, totalPaise: 0 },
     phonepe: { count: 0, totalPaise: 0 },
   };
 
@@ -818,10 +816,7 @@ export async function getPaymentMetrics(): Promise<PaymentMetrics> {
     if (p.status === 'captured') {
       totalCollectedPaise += amount;
       successfulCount++;
-      if (p.provider === 'razorpay') {
-        providerStats.razorpay.count++;
-        providerStats.razorpay.totalPaise += amount;
-      } else if (p.provider === 'phonepe') {
+      if (p.provider === 'phonepe') {
         providerStats.phonepe.count++;
         providerStats.phonepe.totalPaise += amount;
       }

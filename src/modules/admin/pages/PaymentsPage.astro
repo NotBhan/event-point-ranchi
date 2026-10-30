@@ -35,7 +35,6 @@ const statusTabs = [
 
 const providerTabs = [
   ['all', 'All Gateways'],
-  ['razorpay', 'Razorpay'],
   ['phonepe', 'PhonePe'],
 ];
 ---
@@ -73,10 +72,10 @@ const providerTabs = [
     </div>
 
     <div class="admin-panel" style="padding:1.25rem;">
-      <small class="text-muted" style="text-transform:uppercase;font-size:0.75rem;font-weight:600;letter-spacing:0.05em;">Gateway Split</small>
+      <small class="text-muted" style="text-transform:uppercase;font-size:0.75rem;font-weight:600;letter-spacing:0.05em;">Payment Gateway</small>
       <div style="font-size:0.95rem;margin-top:0.35rem;display:flex;flex-direction:column;gap:0.2rem;">
-        <div><strong>Razorpay:</strong> {formatMoney(metrics.providerStats?.razorpay?.totalPaise || 0)}</div>
-        <div><strong>PhonePe:</strong> {formatMoney(metrics.providerStats?.phonepe?.totalPaise || 0)}</div>
+        <div><strong>PhonePe PG V1</strong></div>
+        <div class="text-xs text-muted">{formatMoney(metrics.providerStats?.phonepe?.totalPaise || 0)} settled</div>
       </div>
     </div>
   </div>

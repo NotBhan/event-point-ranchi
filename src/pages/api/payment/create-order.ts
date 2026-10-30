@@ -31,7 +31,7 @@ export const POST: APIRoute = async ({ request, url }) => {
     }
 
     const customAmountPaise = body.customAmountPaise ? Number(body.customAmountPaise) : undefined;
-    const provider: PaymentGatewayProvider = body.provider || 'razorpay';
+    const provider: PaymentGatewayProvider = 'phonepe';
 
     const originUrl = url.origin || `${url.protocol}//${url.host}`;
 

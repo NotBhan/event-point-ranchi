@@ -6,7 +6,6 @@ import type {
   RefundResult,
   WebhookEventResult,
 } from './types';
-import { RazorpayProvider } from './providers/razorpay';
 import { PhonePeProvider } from './providers/phonepe';
 import {
   getBookingById,
@@ -31,40 +30,22 @@ import {
 import { getNeonClient } from '../operational/neon-client';
 
 export class PaymentService {
-  private razorpay: RazorpayProvider;
   private phonepe: PhonePeProvider;
 
   constructor() {
-    this.razorpay = new RazorpayProvider();
     this.phonepe = new PhonePeProvider();
   }
 
-  public getProvider(name: PaymentGatewayProvider): PaymentProvider {
-    if (name === 'razorpay') return this.razorpay;
-    if (name === 'phonepe') return this.phonepe;
-    throw new Error(`Unsupported payment provider: ${name}`);
+  public getProvider(_name?: string): PaymentProvider {
+    return this.phonepe;
   }
 
   public getDefaultProvider(): PaymentGatewayProvider {
-    const configured = (
-      process.env.PAYMENT_DEFAULT_PROVIDER ||
-      (typeof import.meta !== 'undefined' && import.meta.env?.PAYMENT_DEFAULT_PROVIDER) ||
-      'razorpay'
-    ).toLowerCase();
-
-    if (configured === 'phonepe' && this.phonepe.isConfigured()) return 'phonepe';
-    if (this.razorpay.isConfigured()) return 'razorpay';
-    if (this.phonepe.isConfigured()) return 'phonepe';
-    return 'razorpay';
+    return 'phonepe';
   }
 
   public getAvailableProviders(): Array<{ id: PaymentGatewayProvider; label: string; isConfigured: boolean }> {
     return [
-      {
-        id: 'razorpay',
-        label: 'Razorpay (Cards, UPI, Netbanking, Wallets)',
-        isConfigured: this.razorpay.isConfigured(),
-      },
       {
         id: 'phonepe',
         label: 'PhonePe (UPI, QR, Cards, Netbanking)',
