@@ -915,3 +915,141 @@ export async function listPayments(filters?: {
 
   return { payments: listRes.rows, total };
 }
+
+export interface PaymentReceiptRow {
+  id: number;
+  payment_id: number;
+  booking_id: number;
+  receipt_number: string;
+  verification_token: string;
+  verification_token_hash: string;
+  amount_paise: number;
+  status: 'issued' | 'refunded' | 'superseded';
+  pdf_storage_key: string | null;
+  issued_at: string;
+  created_at: string;
+}
+
+export interface EnquiryQrTokenRow {
+  id: number;
+  enquiry_id: number | null;
+  contact_inquiry_id: number | null;
+  reference_code: string;
+  token: string;
+  token_hash: string;
+  created_at: string;
+  revoked_at: string | null;
+}
+
+export async function createPaymentReceiptRecord(params: {
+  paymentId: number;
+  bookingId: number;
+  receiptNumber: string;
+  verificationToken: string;
+  verificationTokenHash: string;
+  amountPaise: number;
+  status?: 'issued' | 'refunded' | 'superseded';
+  pdfStorageKey?: string | null;
+}): Promise<PaymentReceiptRow> {
+  const neon = getNeonClient();
+  const res = await neon.query<PaymentReceiptRow>(
+    `INSERT INTO payment_receipts 
+       (payment_id, booking_id, receipt_number, verification_token, verification_token_hash, amount_paise, status, pdf_storage_key)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     RETURNING *`,
+    [
+      params.paymentId,
+      params.bookingId,
+      params.receiptNumber,
+      params.verificationToken,
+      params.verificationTokenHash,
+      params.amountPaise,
+      params.status || 'issued',
+      params.pdfStorageKey || null,
+    ]
+  );
+  return res.rows[0];
+}
+
+export async function getPaymentReceiptByPaymentId(paymentId: number): Promise<PaymentReceiptRow | null> {
+  const neon = getNeonClient();
+  const res = await neon.query<PaymentReceiptRow>(
+    'SELECT * FROM payment_receipts WHERE payment_id = $1 ORDER BY id DESC LIMIT 1',
+    [paymentId]
+  );
+  return res.rows[0] || null;
+}
+
+export async function getPaymentReceiptByTokenHash(tokenHash: string): Promise<PaymentReceiptRow | null> {
+  const neon = getNeonClient();
+  const res = await neon.query<PaymentReceiptRow>(
+    'SELECT * FROM payment_receipts WHERE verification_token_hash = $1 LIMIT 1',
+    [tokenHash]
+  );
+  return res.rows[0] || null;
+}
+
+export async function getPaymentReceiptByNumber(receiptNumber: string): Promise<PaymentReceiptRow | null> {
+  const neon = getNeonClient();
+  const res = await neon.query<PaymentReceiptRow>(
+    'SELECT * FROM payment_receipts WHERE receipt_number = $1 LIMIT 1',
+    [receiptNumber]
+  );
+  return res.rows[0] || null;
+}
+
+export async function updatePaymentReceiptStatus(id: number, status: 'issued' | 'refunded' | 'superseded'): Promise<void> {
+  const neon = getNeonClient();
+  await neon.query('UPDATE payment_receipts SET status = $1 WHERE id = $2', [status, id]);
+}
+
+export async function createEnquiryQrTokenRecord(params: {
+  enquiryId?: number | null;
+  contactInquiryId?: number | null;
+  referenceCode: string;
+  token: string;
+  tokenHash: string;
+}): Promise<EnquiryQrTokenRow> {
+  const neon = getNeonClient();
+  const res = await neon.query<EnquiryQrTokenRow>(
+    `INSERT INTO enquiry_qr_tokens (enquiry_id, contact_inquiry_id, reference_code, token, token_hash)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING *`,
+    [
+      params.enquiryId || null,
+      params.contactInquiryId || null,
+      params.referenceCode,
+      params.token,
+      params.tokenHash,
+    ]
+  );
+  return res.rows[0];
+}
+
+export async function getEnquiryQrTokenByHash(tokenHash: string): Promise<EnquiryQrTokenRow | null> {
+  const neon = getNeonClient();
+  const res = await neon.query<EnquiryQrTokenRow>(
+    'SELECT * FROM enquiry_qr_tokens WHERE token_hash = $1 AND revoked_at IS NULL LIMIT 1',
+    [tokenHash]
+  );
+  return res.rows[0] || null;
+}
+
+export async function getEnquiryQrTokenByReference(referenceCode: string): Promise<EnquiryQrTokenRow | null> {
+  const neon = getNeonClient();
+  const res = await neon.query<EnquiryQrTokenRow>(
+    'SELECT * FROM enquiry_qr_tokens WHERE reference_code = $1 AND revoked_at IS NULL ORDER BY id DESC LIMIT 1',
+    [referenceCode]
+  );
+  return res.rows[0] || null;
+}
+
+export async function getEnquiryQrTokenByEnquiryId(enquiryId: number): Promise<EnquiryQrTokenRow | null> {
+  const neon = getNeonClient();
+  const res = await neon.query<EnquiryQrTokenRow>(
+    'SELECT * FROM enquiry_qr_tokens WHERE enquiry_id = $1 AND revoked_at IS NULL ORDER BY id DESC LIMIT 1',
+    [enquiryId]
+  );
+  return res.rows[0] || null;
+}
+

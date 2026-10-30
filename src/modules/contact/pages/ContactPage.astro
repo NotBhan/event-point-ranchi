@@ -13,6 +13,7 @@ const { info, sent } = Astro.props;
 const csrf = Astro.locals.csrf;
 
 const eventOptions = ['Wedding', 'Reception', 'Engagement', 'Birthday', 'Corporate event', 'Conference', 'Other'];
+const today = new Date().toISOString().slice(0, 10);
 ---
 
 <BaseLayout title="Contact us | Event Point Ranchi" description="Talk to Event Point Ranchi about wedding mandaps, stage designs, furniture and event equipment in Ranchi.">
@@ -83,26 +84,59 @@ const eventOptions = ['Wedding', 'Reception', 'Engagement', 'Birthday', 'Corpora
           </div>
         )}
 
-        <form method="POST" action="/contact" class="form-grid">
+        <form method="POST" action="/contact" class="form-grid" id="contactForm" novalidate>
           <input type="hidden" name="_csrf" value={csrf} />
 
+          <p class="form-required-legend">
+            <span class="required-indicator" aria-hidden="true">*</span> Indicates required fields
+          </p>
+
           <div class="form-grid cols-2">
-            <div class="field">
-              <label for="name">Full name *</label>
-              <input class="input" id="name" name="name" required placeholder="Aarav Sharma" />
+            <div class="field" data-field-wrap="name">
+              <label for="name">
+                Full name <span class="required-indicator" aria-hidden="true">*</span>
+              </label>
+              <input
+                class="input"
+                id="name"
+                name="name"
+                required
+                aria-required="true"
+                placeholder="Aarav Sharma"
+              />
             </div>
-            <div class="field">
-              <label for="phone">Phone number *</label>
-              <input class="input" id="phone" name="phone" required placeholder="98765 43210" inputmode="tel" />
+            <div class="field" data-field-wrap="phone">
+              <label for="phone">
+                Phone number <span class="required-indicator" aria-hidden="true">*</span>
+              </label>
+              <input
+                class="input"
+                id="phone"
+                name="phone"
+                required
+                aria-required="true"
+                placeholder="9876543210"
+                inputmode="tel"
+              />
             </div>
           </div>
 
           <div class="form-grid cols-2">
-            <div class="field">
-              <label for="email">Email address *</label>
-              <input class="input" id="email" name="email" type="email" required placeholder="you@example.com" />
+            <div class="field" data-field-wrap="email">
+              <label for="email">
+                Email address <span class="required-indicator" aria-hidden="true">*</span>
+              </label>
+              <input
+                class="input"
+                id="email"
+                name="email"
+                type="email"
+                required
+                aria-required="true"
+                placeholder="you@example.com"
+              />
             </div>
-            <div class="field">
+            <div class="field" data-field-wrap="event_type">
               <label for="event_type">Event type</label>
               <select class="select" id="event_type" name="event_type">
                 {eventOptions.map((option) => <option value={option}>{option}</option>)}
@@ -111,17 +145,24 @@ const eventOptions = ['Wedding', 'Reception', 'Engagement', 'Birthday', 'Corpora
           </div>
 
           <div class="form-grid cols-2">
-            <div class="field">
+            <div class="field" data-field-wrap="event_date">
               <label for="event_date">Expected event date</label>
-              <input class="input" id="event_date" name="event_date" type="date" />
+              <input class="input" id="event_date" name="event_date" type="date" min={today} />
             </div>
-            <div class="field">
+            <div class="field" data-field-wrap="guest_count">
               <label for="guest_count">Estimated guests</label>
-              <input class="input" id="guest_count" name="guest_count" type="number" min="1" placeholder="e.g. 400" />
+              <input
+                class="input"
+                id="guest_count"
+                name="guest_count"
+                type="number"
+                min="1"
+                placeholder="e.g. 400"
+              />
             </div>
           </div>
 
-          <div class="field">
+          <div class="field" data-field-wrap="message">
             <label for="message">Your requirements</label>
             <textarea
               class="textarea"
@@ -139,4 +180,92 @@ const eventOptions = ['Wedding', 'Reception', 'Engagement', 'Birthday', 'Corpora
       </div>
     </div>
   </section>
+
+  <script>
+    const form = document.getElementById('contactForm') as HTMLFormElement | null;
+    if (form) {
+      function setFieldError(fieldInput: HTMLElement, message: string) {
+        fieldInput.classList.add('is-invalid');
+        const parent = fieldInput.closest('.field');
+        if (parent) {
+          let errSpan = parent.querySelector('.field-error-msg');
+          if (!errSpan) {
+            errSpan = document.createElement('span');
+            errSpan.className = 'field-error-msg';
+            parent.appendChild(errSpan);
+          }
+          errSpan.textContent = message;
+        }
+      }
+
+      function clearFieldError(fieldInput: HTMLElement) {
+        fieldInput.classList.remove('is-invalid');
+        const parent = fieldInput.closest('.field');
+        if (parent) {
+          const errSpan = parent.querySelector('.field-error-msg');
+          if (errSpan) errSpan.remove();
+        }
+      }
+
+      // Clear error on user input
+      form.querySelectorAll('input, select, textarea').forEach((el) => {
+        el.addEventListener('input', () => clearFieldError(el as HTMLElement));
+        el.addEventListener('change', () => clearFieldError(el as HTMLElement));
+      });
+
+      form.addEventListener('submit', (event) => {
+        let firstInvalid: HTMLElement | null = null;
+
+        const nameInput = form.querySelector('#name') as HTMLInputElement;
+        if (nameInput && (!nameInput.value || nameInput.value.trim().length < 2)) {
+          setFieldError(nameInput, 'Please enter your full name (at least 2 characters).');
+          if (!firstInvalid) firstInvalid = nameInput;
+        } else if (nameInput) {
+          clearFieldError(nameInput);
+        }
+
+        const phoneInput = form.querySelector('#phone') as HTMLInputElement;
+        const phoneRegex = /^[6-9]\d{9}$/;
+        const cleanPhone = phoneInput ? phoneInput.value.replace(/\D/g, '') : '';
+        if (phoneInput && !phoneRegex.test(cleanPhone)) {
+          setFieldError(phoneInput, 'Enter a valid 10-digit Indian mobile number (e.g., 9876543210).');
+          if (!firstInvalid) firstInvalid = phoneInput;
+        } else if (phoneInput) {
+          clearFieldError(phoneInput);
+        }
+
+        const emailInput = form.querySelector('#email') as HTMLInputElement;
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (emailInput && (!emailInput.value || !emailRegex.test(emailInput.value.trim()))) {
+          setFieldError(emailInput, 'Enter a valid email address.');
+          if (!firstInvalid) firstInvalid = emailInput;
+        } else if (emailInput) {
+          clearFieldError(emailInput);
+        }
+
+        const dateInput = form.querySelector('#event_date') as HTMLInputElement;
+        const todayStr = new Date().toISOString().slice(0, 10);
+        if (dateInput && dateInput.value && dateInput.value < todayStr) {
+          setFieldError(dateInput, 'Event date cannot be in the past.');
+          if (!firstInvalid) firstInvalid = dateInput;
+        } else if (dateInput) {
+          clearFieldError(dateInput);
+        }
+
+        const guestInput = form.querySelector('#guest_count') as HTMLInputElement;
+        if (guestInput && guestInput.value && (Number(guestInput.value) <= 0 || !Number.isInteger(Number(guestInput.value)))) {
+          setFieldError(guestInput, 'Estimated guests must be a positive integer.');
+          if (!firstInvalid) firstInvalid = guestInput;
+        } else if (guestInput) {
+          clearFieldError(guestInput);
+        }
+
+        if (firstInvalid) {
+          event.preventDefault();
+          (firstInvalid as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+          (firstInvalid as HTMLElement).focus();
+        }
+      });
+    }
+  </script>
 </BaseLayout>

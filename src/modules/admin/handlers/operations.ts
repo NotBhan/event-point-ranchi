@@ -251,3 +251,12 @@ export async function paymentDetail(ctx: PageContext) {
   return { props: data };
 }
 
+export function scanEnquiry(ctx: PageContext) {
+  const denied = requireAdmin(ctx);
+  if (denied) return denied;
+
+  const initialToken = ctx.url.searchParams.get('token') || ctx.url.searchParams.get('ref') || '';
+  return { props: { initialToken } };
+}
+
+

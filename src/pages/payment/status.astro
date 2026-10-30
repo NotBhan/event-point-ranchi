@@ -52,6 +52,8 @@ if (payment && (payment.status === 'created' || payment.status === 'pending')) {
   }
 }
 
+import { getReceiptService } from '../../core/payment/receipt-service';
+
 if (payment) {
   booking = await getBookingById(payment.booking_id);
   invoice = await getInvoiceByPaymentId(payment.id);
@@ -70,6 +72,16 @@ if (booking?.customer_id) {
     [booking.customer_id]
   );
   if (custRes.rows[0]) customer = custRes.rows[0];
+}
+
+let receiptData: any = null;
+if (payment && isCaptured) {
+  try {
+    const receiptService = getReceiptService(Astro.url.origin);
+    receiptData = await receiptService.getOrCreateReceipt(payment.id, Astro.url.origin);
+  } catch (err: any) {
+    console.warn('[Receipt Generation Warning]:', err.message);
+  }
 }
 ---
 
@@ -94,7 +106,7 @@ if (booking?.customer_id) {
   </section>
 
   <section class="section">
-    <div class="container" style="max-width:760px;">
+    <div class="container print-receipt-container" style="max-width:760px;">
       {verificationMessage && (
         <div class="alert alert-info" style="margin-bottom:20px;padding:12px 16px;background:rgba(212,175,55,0.1);border-radius:var(--r-md);font-size:13.5px;color:var(--gold-ink);">
           {verificationMessage}
@@ -102,23 +114,33 @@ if (booking?.customer_id) {
       )}
 
       {isCaptured ? (
-        <div class="panel" style="padding:32px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow-sm);">
-          <div style="display:flex;align-items:center;gap:16px;border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:24px;">
-            <div style="width:52px;height:52px;border-radius:50%;background:rgba(46,125,50,0.12);color:#2e7d32;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-              <Icon name="check-circle" size={32} />
+        <div class="panel print-receipt-card" style="padding:32px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow-sm);">
+          <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:24px;flex-wrap:wrap;gap:16px;">
+            <div style="display:flex;align-items:center;gap:16px;">
+              <div style="width:52px;height:52px;border-radius:50%;background:rgba(46,125,50,0.12);color:#2e7d32;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <Icon name="check-circle" size={32} />
+              </div>
+              <div>
+                <span style="font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#2e7d32;">
+                  Official Payment Acknowledgement Receipt
+                </span>
+                <h2 style="font-size:1.4rem;margin:2px 0 0;">{formatMoney(payment.amount_paise)} Received</h2>
+                <small style="font-size:11.5px;color:var(--muted);">(Payment Acknowledgement Receipt - Not a GST Tax Invoice)</small>
+              </div>
             </div>
-            <div>
-              <span style="font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#2e7d32;">
-                Official Digital Payment Receipt
-              </span>
-              <h2 style="font-size:1.4rem;margin:2px 0 0;">{formatMoney(payment.amount_paise)} Received</h2>
-            </div>
+
+            {receiptData?.receipt && (
+              <div style="text-align:right;">
+                <span style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);">Receipt No:</span>
+                <strong style="font-family:var(--font-mono);font-size:13px;color:var(--gold-ink);">{receiptData.receipt.receipt_number}</strong>
+              </div>
+            )}
           </div>
 
           <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));gap:16px 24px;font-size:13.5px;line-height:1.6;margin-bottom:24px;">
             <div>
               <span style="color:var(--muted);display:block;">Receipt Number:</span>
-              <strong style="font-family:var(--font-mono);">{invoice?.invoice_number || `REC-${payment.id}`}</strong>
+              <strong style="font-family:var(--font-mono);">{receiptData?.receipt.receipt_number || invoice?.invoice_number || `REC-${payment.id}`}</strong>
             </div>
             <div>
               <span style="color:var(--muted);display:block;">Internal Reference:</span>
@@ -130,11 +152,11 @@ if (booking?.customer_id) {
             </div>
             <div>
               <span style="color:var(--muted);display:block;">Payer:</span>
-              <strong>{customer.name} {customer.phone ? `(${customer.phone})` : ''}</strong>
+              <strong>{customer.name} {customer.phone ? `(${receiptData?.customer.maskedPhone || customer.phone})` : ''}</strong>
             </div>
             <div>
               <span style="color:var(--muted);display:block;">Payment Gateway:</span>
-              <strong style="text-transform:capitalize;">{payment.provider} {payment.payment_method ? `(${payment.payment_method})` : ''}</strong>
+              <strong style="text-transform:capitalize;">PhonePe ({payment.payment_type.toUpperCase()})</strong>
             </div>
             <div>
               <span style="color:var(--muted);display:block;">Gateway Transaction ID:</span>
@@ -145,6 +167,33 @@ if (booking?.customer_id) {
               <strong>{new Date(payment.verified_at || payment.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</strong>
             </div>
           </div>
+
+          <!-- QR Verification Callout Box -->
+          {receiptData?.qrDataUrl && (
+            <div style="display:flex;align-items:center;gap:20px;background:var(--canvas-warm);border:1px solid var(--line);border-radius:var(--r-md);padding:18px 20px;margin-bottom:24px;flex-wrap:wrap;">
+              <a href={receiptData.verificationUrl} target="_blank" rel="noopener">
+                <img
+                  src={receiptData.qrDataUrl}
+                  alt={`QR Code for Receipt ${receiptData.receipt.receipt_number}`}
+                  style="width:110px;height:110px;border-radius:var(--r-sm);border:1px solid var(--line);background:#fff;padding:4px;flex-shrink:0;"
+                />
+              </a>
+              <div style="flex:1;min-width:220px;">
+                <span style="font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--gold-ink);display:block;margin-bottom:3px;">
+                  Public Verification QR Code
+                </span>
+                <strong style="font-size:14px;color:var(--ink);display:block;margin-bottom:4px;">
+                  Scan with any camera to verify authenticity
+                </strong>
+                <p style="font-size:12.5px;color:var(--muted);margin:0 0 8px;line-height:1.4;">
+                  Direct verification link: <a href={receiptData.verificationUrl} class="text-link" target="_blank" rel="noopener" style="word-break:break-all;">{receiptData.verificationUrl}</a>
+                </p>
+                <span style="font-size:11.5px;color:#2e7d32;display:flex;align-items:center;gap:4px;">
+                  <Icon name="shield" size={13} /> Authenticated against Neon operational database
+                </span>
+              </div>
+            </div>
+          )}
 
           {booking && (
             <div style="background:var(--canvas-warm);border:1px solid var(--line);border-radius:var(--r-md);padding:16px 20px;margin-bottom:28px;">
@@ -167,17 +216,27 @@ if (booking?.customer_id) {
           )}
 
           <div style="display:flex;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:20px;">
+            {receiptData?.receipt?.verification_token && (
+              <a
+                href={`/api/payment/receipt/download?token=${encodeURIComponent(receiptData.receipt.verification_token)}`}
+                class="btn btn-primary"
+                download
+              >
+                <Icon name="download" size={14} /> Download PDF Receipt (A4)
+              </a>
+            )}
             <button type="button" onclick="window.print()" class="btn btn-secondary">
-              <Icon name="external" size={14} /> Print Receipt
+              <Icon name="print" size={14} /> Print Receipt
             </button>
             {booking && (
-              <a href={`/booking/${booking.id}/quotation?token=${encodeURIComponent(booking.access_token)}`} class="btn btn-primary">
+              <a href={`/booking/${booking.id}/quotation?token=${encodeURIComponent(booking.access_token)}`} class="btn btn-ghost">
                 View Quotation Overview &rarr;
               </a>
             )}
           </div>
         </div>
       ) : isFailed ? (
+
         <div class="panel" style="padding:32px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);text-align:center;">
           <div style="width:56px;height:56px;border-radius:50%;background:rgba(211,47,47,0.1);color:#d32f2f;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
             <Icon name="x" size={32} />

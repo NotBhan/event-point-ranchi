@@ -85,6 +85,9 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
       <div class="plan-layout">
         <form class="plan-form panel" id="planForm" data-csrf={csrf} data-today={today} novalidate>
           <div class="plan-error" data-plan-error role="alert" tabindex="-1" hidden></div>
+          <p class="form-required-legend">
+            <span class="required-indicator" aria-hidden="true">*</span> Indicates required fields
+          </p>
 
           <section class="plan-step" data-plan-step="1" aria-labelledby="plan-step-1-title">
             <header class="plan-step-head">
@@ -94,36 +97,44 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
             </header>
 
             <div class="form-grid cols-2">
-              <div class="field">
-                <label for="eventType">Event type *</label>
-                <select class="select" id="eventType" name="eventType" required>
+              <div class="field" data-field-wrap="eventType">
+                <label for="eventType">
+                  Event type <span class="required-indicator" aria-hidden="true">*</span>
+                </label>
+                <select class="select" id="eventType" name="eventType" required aria-required="true">
                   <option value="">Select an event type</option>
                   {eventTypes.map((type) => <option value={type}>{type}</option>)}
                 </select>
               </div>
-              <div class="field">
-                <label for="guestCount">Estimated guest count *</label>
-                <input class="input" id="guestCount" name="guestCount" type="number" min="1" max="100000" step="1" inputmode="numeric" placeholder="e.g. 250" required />
+              <div class="field" data-field-wrap="guestCount">
+                <label for="guestCount">
+                  Estimated guest count <span class="required-indicator" aria-hidden="true">*</span>
+                </label>
+                <input class="input" id="guestCount" name="guestCount" type="number" min="1" max="100000" step="1" inputmode="numeric" placeholder="e.g. 250" required aria-required="true" />
               </div>
-              <div class="field">
-                <label for="eventDate">Event date *</label>
-                <input class="input" id="eventDate" name="eventDate" type="date" min={today} required />
+              <div class="field" data-field-wrap="eventDate">
+                <label for="eventDate">
+                  Event date <span class="required-indicator" aria-hidden="true">*</span>
+                </label>
+                <input class="input" id="eventDate" name="eventDate" type="date" min={today} required aria-required="true" />
               </div>
-              <div class="field">
+              <div class="field" data-field-wrap="endDate">
                 <label for="endDate">End date <span class="label-optional">(if multi-day)</span></label>
                 <input class="input" id="endDate" name="endDate" type="date" min={today} />
               </div>
-              <div class="field">
+              <div class="field" data-field-wrap="eventTime">
                 <label for="eventTime">Start time <span class="label-optional">(optional)</span></label>
                 <input class="input" id="eventTime" name="eventTime" type="time" />
               </div>
-              <div class="field">
-                <label for="venueLocation">Venue or location in Ranchi *</label>
-                <input class="input" id="venueLocation" name="venueLocation" type="text" placeholder="e.g. Harmu Ground, Ranchi" required />
+              <div class="field" data-field-wrap="venueLocation">
+                <label for="venueLocation">
+                  Venue or location in Ranchi <span class="required-indicator" aria-hidden="true">*</span>
+                </label>
+                <input class="input" id="venueLocation" name="venueLocation" type="text" placeholder="e.g. Harmu Ground, Ranchi" required aria-required="true" />
               </div>
             </div>
 
-            <div class="field">
+            <div class="field" data-field-wrap="eventDescription">
               <label for="eventDescription">Tell us about the event <span class="label-optional">(optional)</span></label>
               <textarea class="textarea" id="eventDescription" name="eventDescription" rows="4" placeholder="Ceremony timings, family traditions, approximate layout, anything we should know…"></textarea>
             </div>
@@ -286,10 +297,12 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
             </header>
 
             <fieldset class="field-group">
-              <legend>Do you require rooms? *</legend>
+              <legend>
+                Do you require rooms? <span class="required-indicator" aria-hidden="true">*</span>
+              </legend>
               <div class="option-row">
                 <label class="option-card">
-                  <input type="radio" name="requiresRooms" value="yes" required />
+                  <input type="radio" name="requiresRooms" value="yes" required aria-required="true" />
                   <span><strong>Yes</strong><small>We need help arranging rooms</small></span>
                 </label>
                 <label class="option-card">
@@ -300,20 +313,24 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
             </fieldset>
 
             <div class="form-grid cols-2" data-room-count-field hidden>
-              <div class="field">
-                <label for="acRoomCount">AC rooms required *</label>
+              <div class="field" data-field-wrap="acRoomCount">
+                <label for="acRoomCount">
+                  AC rooms required <span class="required-indicator" aria-hidden="true">*</span>
+                </label>
                 <input class="input" id="acRoomCount" name="acRoomCount" type="number" min="0" max="500" step="1" inputmode="numeric" placeholder="e.g. 10" data-ac-room-input />
                 <span class="hint">Air-conditioned guest rooms.</span>
               </div>
-              <div class="field">
-                <label for="nonAcRoomCount">Non-AC rooms required *</label>
+              <div class="field" data-field-wrap="nonAcRoomCount">
+                <label for="nonAcRoomCount">
+                  Non-AC rooms required <span class="required-indicator" aria-hidden="true">*</span>
+                </label>
                 <input class="input" id="nonAcRoomCount" name="nonAcRoomCount" type="number" min="0" max="500" step="1" inputmode="numeric" placeholder="e.g. 5" data-non-ac-room-input />
                 <span class="hint">Standard / Non-AC guest rooms.</span>
               </div>
               <input type="hidden" id="roomCount" name="roomCount" data-room-count-input />
             </div>
 
-            <div class="field">
+            <div class="field" data-field-wrap="accommodationNotes">
               <label for="accommodationNotes">Accommodation notes <span class="label-optional">(optional)</span></label>
               <textarea class="textarea" id="accommodationNotes" name="accommodationNotes" rows="3" placeholder="Number of nights, guest mix, location preference…"></textarea>
             </div>
@@ -354,31 +371,39 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
               <p>We use these details only to prepare and share your quotation.</p>
             </header>
 
-            <div class="field">
-              <label for="budgetRange">Approximate budget range (INR) *</label>
-              <select class="select" id="budgetRange" name="budgetRange" required>
+            <div class="field" data-field-wrap="budgetRange">
+              <label for="budgetRange">
+                Approximate budget range (INR) <span class="required-indicator" aria-hidden="true">*</span>
+              </label>
+              <select class="select" id="budgetRange" name="budgetRange" required aria-required="true">
                 <option value="">Select a budget range</option>
                 {budgetRanges.map((range) => <option value={range}>{range}</option>)}
               </select>
             </div>
 
             <div class="form-grid cols-2">
-              <div class="field">
-                <label for="customerName">Full name *</label>
-                <input class="input" id="customerName" name="customerName" type="text" autocomplete="name" required placeholder="Your full name" />
+              <div class="field" data-field-wrap="customerName">
+                <label for="customerName">
+                  Full name <span class="required-indicator" aria-hidden="true">*</span>
+                </label>
+                <input class="input" id="customerName" name="customerName" type="text" autocomplete="name" required aria-required="true" placeholder="Your full name" />
               </div>
-              <div class="field">
-                <label for="customerPhone">Mobile number *</label>
-                <input class="input" id="customerPhone" name="customerPhone" type="tel" inputmode="tel" autocomplete="tel" pattern="[6-9][0-9]{9}" maxlength="10" required placeholder="10-digit Indian mobile number" />
+              <div class="field" data-field-wrap="customerPhone">
+                <label for="customerPhone">
+                  Mobile number <span class="required-indicator" aria-hidden="true">*</span>
+                </label>
+                <input class="input" id="customerPhone" name="customerPhone" type="tel" inputmode="tel" autocomplete="tel" pattern="[6-9][0-9]{9}" maxlength="10" required aria-required="true" placeholder="10-digit Indian mobile number" />
                 <span class="hint">Enter 10 digits, for example 9876543210.</span>
               </div>
-              <div class="field">
+              <div class="field" data-field-wrap="customerEmail">
                 <label for="customerEmail">Email <span class="label-optional">(optional)</span></label>
                 <input class="input" id="customerEmail" name="customerEmail" type="email" autocomplete="email" placeholder="you@example.com" />
               </div>
-              <div class="field">
-                <label for="preferredContact">Preferred contact method *</label>
-                <select class="select" id="preferredContact" name="preferredContact" required>
+              <div class="field" data-field-wrap="preferredContact">
+                <label for="preferredContact">
+                  Preferred contact method <span class="required-indicator" aria-hidden="true">*</span>
+                </label>
+                <select class="select" id="preferredContact" name="preferredContact" required aria-required="true">
                   <option value="">Select a method</option>
                   {preferredContactMethods.map((method) => <option value={method}>{method}</option>)}
                 </select>
@@ -395,10 +420,10 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
 
             <div class="plan-review" data-plan-review></div>
 
-            <label class="checkbox-row plan-consent">
-              <input type="checkbox" name="consent" required />
+            <label class="checkbox-row plan-consent" data-field-wrap="consent">
+              <input type="checkbox" name="consent" id="consent" required aria-required="true" />
               <span>
-                I understand this is an enquiry for a quotation. It does not confirm a booking, block
+                I understand this is an enquiry for a quotation <span class="required-indicator" aria-hidden="true">*</span>. It does not confirm a booking, block
                 a date or reserve equipment until Event Point Ranchi confirms availability in writing.
               </span>
             </label>
@@ -447,8 +472,8 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
   </section>
 
   <section class="section-sm plan-receipt-section" data-plan-receipt hidden aria-live="polite">
-    <div class="container">
-      <div class="plan-receipt">
+    <div class="container print-receipt-container">
+      <div class="plan-receipt print-receipt-card">
         <span class="receipt-icon"><Icon name="check-circle" size={34} /></span>
         <span class="eyebrow">Enquiry received</span>
         <h2>Thank you — your requirements are with our team.</h2>
@@ -457,10 +482,29 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
           team will contact you using your preferred method after reviewing dates, dimensions and
           availability.
         </p>
+
         <div class="receipt-reference">
           <span>Reference code</span>
           <strong data-receipt-reference>—</strong>
         </div>
+
+        <!-- Official Enquiry QR Slip Card -->
+        <div class="receipt-qr-card" data-receipt-qr-container hidden style="margin:24px auto;max-width:520px;padding:20px;background:var(--canvas-warm);border:1px solid var(--line);border-radius:var(--r-md);display:flex;align-items:center;gap:20px;text-align:left;">
+          <img data-receipt-qr src="" alt="Enquiry QR Code" style="width:110px;height:110px;border-radius:var(--r-sm);border:1px solid var(--line);background:#fff;padding:3px;flex-shrink:0;" />
+          <div>
+            <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--gold-ink);display:block;margin-bottom:3px;">
+              Official Digital Enquiry Slip
+            </span>
+            <h4 style="margin:0 0 6px;font-size:14px;color:var(--ink);">Instant Coordinator Check-in QR</h4>
+            <p style="margin:0 0 10px;font-size:12.5px;color:var(--muted);line-height:1.4;">
+              Show this QR code to our planning team at our Ranchi studio or on-site for immediate blueprint retrieval.
+            </p>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="window.print()">
+              <Icon name="print" size={14} /> Print Enquiry Slip
+            </button>
+          </div>
+        </div>
+
         <div class="receipt-actions">
           <a href="/" class="btn btn-primary">Back to home</a>
           <a href="/gallery" class="btn btn-secondary">Browse the gallery</a>
@@ -473,6 +517,7 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
       </div>
     </div>
   </section>
+
 
   <script type="application/json" id="planCatalogue" set:html={catalogueJson}></script>
   <script>

@@ -153,10 +153,12 @@ const defaultGateway = paymentService.getDefaultProvider();
               <input type="hidden" id="bookingIdInput" value={booking.id} />
               <input type="hidden" id="bookingTokenInput" value={booking.access_token} />
               
+              <p class="form-required-legend"><span class="required-indicator" aria-hidden="true">*</span> Indicates required fields</p>
+
               <!-- Payment Type Selection -->
               <div>
                 <label style="display:block;font-weight:600;font-size:14px;margin-bottom:10px;">
-                  Select Payment Type
+                  Select Payment Type <span class="required-indicator" aria-hidden="true">*</span>
                 </label>
                 <div style="display:grid;gap:10px;">
                   {!isAdvanceFulfilled && (
@@ -166,6 +168,7 @@ const defaultGateway = paymentService.getDefaultProvider();
                         name="paymentType"
                         value="advance"
                         checked={defaultPaymentType === 'advance'}
+                        aria-required="true"
                         style="margin-top:4px;"
                       />
                       <div>
@@ -183,6 +186,7 @@ const defaultGateway = paymentService.getDefaultProvider();
                       name="paymentType"
                       value="balance"
                       checked={defaultPaymentType === 'balance'}
+                      aria-required="true"
                       style="margin-top:4px;"
                     />
                     <div>
@@ -199,6 +203,7 @@ const defaultGateway = paymentService.getDefaultProvider();
                       name="paymentType"
                       value="partial"
                       checked={defaultPaymentType === 'partial'}
+                      aria-required="true"
                       style="margin-top:4px;"
                     />
                     <div style="flex:1;">
@@ -228,7 +233,7 @@ const defaultGateway = paymentService.getDefaultProvider();
               <!-- Payment Gateway Provider Selection -->
               <div style="margin-top:20px;">
                 <label style="display:block;font-weight:600;font-size:14px;margin-bottom:10px;">
-                  Select Payment Gateway
+                  Select Payment Gateway <span class="required-indicator" aria-hidden="true">*</span>
                 </label>
                 <div style="display:grid;gap:10px;">
                   {availableGateways.map((gw) => (
@@ -238,6 +243,7 @@ const defaultGateway = paymentService.getDefaultProvider();
                         name="gatewayProvider"
                         value={gw.id}
                         checked={defaultGateway === gw.id}
+                        aria-required="true"
                       />
                       <div style="flex:1;">
                         <strong style="text-transform:capitalize;">{gw.id}</strong>
@@ -249,11 +255,11 @@ const defaultGateway = paymentService.getDefaultProvider();
               </div>
 
               <!-- Compliance & Terms Checkbox -->
-              <div style="margin-top:20px;padding:14px;background:var(--canvas-warm);border-radius:var(--r-md);font-size:12.5px;color:var(--body);">
+              <div style="margin-top:20px;padding:14px;background:var(--canvas-warm);border-radius:var(--r-md);font-size:12.5px;color:var(--body);" id="termsWrapper">
                 <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;">
-                  <input type="checkbox" id="termsAgreement" required style="margin-top:3px;" />
+                  <input type="checkbox" id="termsAgreement" required aria-required="true" style="margin-top:3px;" />
                   <span>
-                    I accept the <a href="/terms" target="_blank" class="text-link">Terms & Conditions</a>, <a href="/cancellation-refund" target="_blank" class="text-link">Cancellation & Refund Policy</a> (5-7 day refunds), and <a href="/privacy" target="_blank" class="text-link">Privacy Policy</a> of {brandName}.
+                    I accept the <a href="/terms" target="_blank" class="text-link">Terms & Conditions</a>, <a href="/cancellation-refund" target="_blank" class="text-link">Cancellation & Refund Policy</a> (5-7 day refunds), and <a href="/privacy" target="_blank" class="text-link">Privacy Policy</a> of {brandName} <span class="required-indicator" aria-hidden="true">*</span>.
                   </span>
                 </label>
               </div>
@@ -292,17 +298,55 @@ const defaultGateway = paymentService.getDefaultProvider();
       const termsAgreement = document.getElementById('termsAgreement') as HTMLInputElement;
       const bookingId = Number((document.getElementById('bookingIdInput') as HTMLInputElement)?.value);
 
+      function setInlineError(element: HTMLElement, message: string) {
+        element.classList.add('is-invalid');
+        const parent = element.closest('.field') || element.closest('#termsWrapper') || element.closest('label') || element.parentElement;
+        if (parent) {
+          let err = parent.querySelector<HTMLElement>('.field-error-msg');
+          if (!err) {
+            err = document.createElement('span');
+            err.className = 'field-error-msg';
+            parent.appendChild(err);
+          }
+          err.textContent = message;
+        }
+      }
+
+      function clearInlineError(element: HTMLElement) {
+        element.classList.remove('is-invalid');
+        const parent = element.closest('.field') || element.closest('#termsWrapper') || element.closest('label') || element.parentElement;
+        if (parent) {
+          const err = parent.querySelector('.field-error-msg');
+          if (err) err.remove();
+        }
+      }
+
       function updateCustomFieldVisibility() {
         const selected = (document.querySelector('input[name="paymentType"]:checked') as HTMLInputElement)?.value;
         if (customAmountWrapper) {
           customAmountWrapper.style.display = selected === 'partial' ? 'block' : 'none';
+          if (selected === 'partial' && customAmountInput) {
+            customAmountInput.focus({ preventScroll: true });
+          } else if (customAmountInput) {
+            clearInlineError(customAmountInput);
+          }
         }
       }
 
       typeRadios.forEach((radio) => {
-        radio.addEventListener('change', updateCustomFieldVisibility);
+        radio.addEventListener('change', () => {
+          updateCustomFieldVisibility();
+          if (alertBox) alertBox.style.display = 'none';
+        });
       });
       updateCustomFieldVisibility();
+
+      if (customAmountInput) {
+        customAmountInput.addEventListener('input', () => clearInlineError(customAmountInput));
+      }
+      if (termsAgreement) {
+        termsAgreement.addEventListener('change', () => clearInlineError(termsAgreement));
+      }
 
       function showAlert(message: string, isError = true) {
         if (!alertBox) return;
@@ -315,22 +359,49 @@ const defaultGateway = paymentService.getDefaultProvider();
 
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        if (!termsAgreement.checked) {
-          showAlert('Please accept the Terms & Conditions and Cancellation Policy to proceed.');
-          return;
-        }
+        if (alertBox) alertBox.style.display = 'none';
+
+        if (customAmountInput) clearInlineError(customAmountInput);
+        if (termsAgreement) clearInlineError(termsAgreement);
 
         const paymentType = (document.querySelector('input[name="paymentType"]:checked') as HTMLInputElement)?.value;
         const provider = 'phonepe';
 
+        let firstInvalid: HTMLElement | null = null;
         let customAmountPaise: number | undefined = undefined;
+
+        if (!paymentType) {
+          showAlert('Please select a payment type.', true);
+          return;
+        }
+
         if (paymentType === 'partial') {
-          const val = Number(customAmountInput.value);
+          const val = Number(customAmountInput?.value);
+          const maxVal = Number(customAmountInput?.getAttribute('max')) || 0;
           if (!val || val <= 0) {
-            showAlert('Please enter a valid partial payment amount.');
-            return;
+            setInlineError(customAmountInput, 'Please enter a valid partial payment amount.');
+            if (!firstInvalid) firstInvalid = customAmountInput;
+          } else if (val < 100) {
+            setInlineError(customAmountInput, 'Minimum partial payment is ₹100.');
+            if (!firstInvalid) firstInvalid = customAmountInput;
+          } else if (maxVal > 0 && val > maxVal) {
+            setInlineError(customAmountInput, `Amount cannot exceed outstanding balance of ₹${maxVal.toLocaleString('en-IN')}.`);
+            if (!firstInvalid) firstInvalid = customAmountInput;
+          } else {
+            customAmountPaise = Math.round(val * 100);
           }
-          customAmountPaise = Math.round(val * 100);
+        }
+
+        if (!termsAgreement.checked) {
+          setInlineError(termsAgreement, 'Please accept the Terms & Conditions and Cancellation Policy to proceed.');
+          if (!firstInvalid) firstInvalid = termsAgreement;
+        }
+
+        if (firstInvalid) {
+          showAlert('Please review and correct the highlighted fields.', true);
+          firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          firstInvalid.focus({ preventScroll: true });
+          return;
         }
 
         payButton.disabled = true;

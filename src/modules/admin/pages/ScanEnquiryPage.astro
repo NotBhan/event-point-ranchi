@@ -1,0 +1,468 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import Icon from '../../../components/Icon.astro';
+
+interface Props {
+  initialToken?: string;
+}
+
+const { initialToken = '' } = Astro.props;
+---
+
+<AdminLayout title="Scan Enquiry QR" description="Instant smartphone & webcam QR decoder for customer event enquiries.">
+  <div class="admin-toolbar">
+    <a href="/admin/enquiries" class="btn btn-secondary btn-sm">← All event enquiries</a>
+    <span class="text-xs text-muted">Admin Quick Dispatch Desk</span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:24px;align-items:start;">
+    
+    <!-- Left Column: Camera Scanner & Inputs -->
+    <div class="admin-panel">
+      <div class="admin-panel-head">
+        <div>
+          <h2>QR Code Scanner</h2>
+          <p>Scan an enquiry QR code from a customer slip or screen.</p>
+        </div>
+        <span id="cameraStatusBadge" class="badge badge-muted">Camera Idle</span>
+      </div>
+
+      <div class="admin-panel-body">
+        <!-- Live Video Viewport -->
+        <div style="position:relative;width:100%;aspect-ratio:4/3;background:#0f172a;border-radius:var(--r-md);overflow:hidden;margin-bottom:16px;display:flex;align-items:center;justify-content:center;">
+          <video id="scannerVideo" playsinline style="width:100%;height:100%;object-fit:cover;display:none;"></video>
+          <canvas id="scannerCanvas" style="display:none;"></canvas>
+
+          <!-- Idle / Placeholder Screen -->
+          <div id="scannerPlaceholder" style="text-align:center;color:#94a3b8;padding:20px;">
+            <div style="width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;color:#cbd5e1;">
+              <Icon name="camera" size={28} />
+            </div>
+            <strong style="display:block;color:#f8fafc;font-size:14px;margin-bottom:4px;">Camera is Paused</strong>
+            <span style="font-size:12px;">Click "Start Camera" below to activate live scanning</span>
+          </div>
+
+          <!-- Aiming Reticle (Visible when scanning) -->
+          <div id="scannerReticle" style="display:none;position:absolute;width:60%;aspect-ratio:1/1;border:2px dashed #c8a251;border-radius:12px;box-shadow:0 0 0 9999px rgba(0,0,0,0.45);pointer-events:none;">
+            <div style="position:absolute;top:0;left:0;right:0;height:2px;background:#c8a251;animation:scanLine 2s infinite ease-in-out;"></div>
+          </div>
+        </div>
+
+        <!-- Camera Controls -->
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;">
+          <button type="button" id="startCamBtn" class="btn btn-primary btn-sm">
+            <Icon name="camera" size={14} /> Start Camera
+          </button>
+          <button type="button" id="stopCamBtn" class="btn btn-secondary btn-sm" disabled>
+            <Icon name="x" size={14} /> Stop Camera
+          </button>
+          <button type="button" id="flipCamBtn" class="btn btn-ghost btn-sm" disabled>
+            Flip Camera
+          </button>
+        </div>
+
+        <!-- Camera Permission Error Alert -->
+        <div id="camAlert" class="alert alert-danger" style="display:none;margin-bottom:18px;font-size:13px;"></div>
+
+        <!-- Alternative: Image File Upload -->
+        <div style="border-top:1px solid var(--line);padding-top:18px;margin-bottom:20px;">
+          <label style="display:block;font-size:13px;font-weight:600;margin-bottom:8px;color:var(--ink-2);">
+            Or Upload Screenshot / Image of QR:
+          </label>
+          <input type="file" id="qrFileInput" accept="image/*" class="input" style="padding:8px 12px;font-size:13px;" />
+        </div>
+
+        <!-- Alternative: Manual Reference Search -->
+        <div style="border-top:1px solid var(--line);padding-top:18px;">
+          <label for="manualInput" style="display:block;font-size:13px;font-weight:600;margin-bottom:8px;color:var(--ink-2);">
+            Or Enter Reference Code Manually:
+          </label>
+          <div style="display:flex;gap:8px;">
+            <input
+              type="text"
+              id="manualInput"
+              class="input"
+              value={initialToken}
+              placeholder="e.g. EP-261030-XXXX or Token"
+              style="font-family:var(--font-mono);font-size:13px;"
+            />
+            <button type="button" id="manualSearchBtn" class="btn btn-secondary">
+              <Icon name="search" size={14} /> Search
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Instant Enquiry Details -->
+    <div class="admin-panel" id="resultContainer">
+      <div class="admin-panel-head">
+        <div>
+          <h2>Enquiry Details</h2>
+          <p>Scan a code to instantly retrieve customer and event blueprint.</p>
+        </div>
+        <span id="resultStatusBadge" class="badge badge-muted">Awaiting Scan</span>
+      </div>
+
+      <div class="admin-panel-body" id="resultBody">
+        <div style="text-align:center;padding:40px 20px;color:var(--muted);">
+          <div style="width:52px;height:52px;border-radius:50%;background:var(--canvas-warm);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;color:var(--muted);">
+            <Icon name="search" size={24} />
+          </div>
+          <strong style="display:block;color:var(--ink);font-size:14px;margin-bottom:4px;">No Enquiry Loaded</strong>
+          <span style="font-size:13px;">Point your camera at a QR code, upload an image, or enter a reference code.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    @keyframes scanLine {
+      0% { top: 0%; opacity: 0.8; }
+      50% { top: 96%; opacity: 1; }
+      100% { top: 0%; opacity: 0.8; }
+    }
+  </style>
+
+  <script>
+    import jsQR from 'jsqr';
+
+    const video = document.getElementById('scannerVideo') as HTMLVideoElement;
+    const canvas = document.getElementById('scannerCanvas') as HTMLCanvasElement;
+    const placeholder = document.getElementById('scannerPlaceholder') as HTMLElement;
+    const reticle = document.getElementById('scannerReticle') as HTMLElement;
+    const camBadge = document.getElementById('cameraStatusBadge') as HTMLElement;
+    const camAlert = document.getElementById('camAlert') as HTMLElement;
+    const startBtn = document.getElementById('startCamBtn') as HTMLButtonElement;
+    const stopBtn = document.getElementById('stopCamBtn') as HTMLButtonElement;
+    const flipBtn = document.getElementById('flipCamBtn') as HTMLButtonElement;
+    const fileInput = document.getElementById('qrFileInput') as HTMLInputElement;
+    const manualInput = document.getElementById('manualInput') as HTMLInputElement;
+    const manualBtn = document.getElementById('manualSearchBtn') as HTMLButtonElement;
+    const resultBody = document.getElementById('resultBody') as HTMLElement;
+    const resultBadge = document.getElementById('resultStatusBadge') as HTMLElement;
+
+    let mediaStream: MediaStream | null = null;
+    let animFrameId: number | null = null;
+    let usingFrontCamera = false;
+    let isScanning = false;
+    let audioCtx: AudioContext | null = null;
+
+    function playBeep() {
+      try {
+        if (!audioCtx) {
+          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+          if (AudioContextClass) audioCtx = new AudioContextClass();
+        }
+        if (audioCtx && audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        if (audioCtx) {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
+          osc.frequency.exponentialRampToValueAtTime(1320, audioCtx.currentTime + 0.12);
+          gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start();
+          osc.stop(audioCtx.currentTime + 0.12);
+        }
+      } catch (e) {
+        // Audio optional
+      }
+    }
+
+    async function startCamera() {
+      camAlert.style.display = 'none';
+      try {
+        const constraints: MediaStreamConstraints = {
+          video: {
+            facingMode: usingFrontCamera ? 'user' : 'environment',
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+          },
+        };
+
+        if (mediaStream) {
+          stopCamera();
+        }
+
+        mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = mediaStream;
+        video.setAttribute('playsinline', 'true');
+        await video.play();
+
+        video.style.display = 'block';
+        placeholder.style.display = 'none';
+        reticle.style.display = 'block';
+        camBadge.textContent = 'Camera Active';
+        camBadge.className = 'badge badge-success';
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+        flipBtn.disabled = false;
+        isScanning = true;
+
+        tickScan();
+      } catch (err: any) {
+        camBadge.textContent = 'Camera Error';
+        camBadge.className = 'badge badge-danger';
+        camAlert.style.display = 'block';
+        camAlert.textContent = `Camera access error: ${err.message || 'Permission denied'}. Please allow camera permissions in your browser.`;
+      }
+    }
+
+    function stopCamera() {
+      isScanning = false;
+      if (animFrameId) {
+        cancelAnimationFrame(animFrameId);
+        animFrameId = null;
+      }
+      if (mediaStream) {
+        mediaStream.getTracks().forEach((track) => track.stop());
+        mediaStream = null;
+      }
+      video.pause();
+      video.srcObject = null;
+      video.style.display = 'none';
+      placeholder.style.display = 'block';
+      reticle.style.display = 'none';
+      camBadge.textContent = 'Camera Paused';
+      camBadge.className = 'badge badge-muted';
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      flipBtn.disabled = true;
+    }
+
+    function tickScan() {
+      if (!isScanning) return;
+
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: 'dontInvert',
+          });
+
+          if (code && code.data) {
+            playBeep();
+            stopCamera();
+            fetchEnquiry(code.data);
+            return;
+          }
+        }
+      }
+
+      animFrameId = requestAnimationFrame(tickScan);
+    }
+
+    async function scanUploadedImage(file: File) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0);
+            const imgData = ctx.getImageData(0, 0, img.width, img.height);
+            const code = jsQR(imgData.data, imgData.width, imgData.height);
+            if (code && code.data) {
+              playBeep();
+              fetchEnquiry(code.data);
+            } else {
+              alert('No QR code could be detected in this image. Please ensure the QR is clear and well-lit.');
+            }
+          }
+        };
+        img.src = reader.result as string;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function fetchEnquiry(rawInput: string) {
+      resultBadge.textContent = 'Fetching…';
+      resultBadge.className = 'badge badge-info';
+      resultBody.innerHTML = `
+        <div style="text-align:center;padding:36px;color:var(--muted);">
+          <div style="display:inline-block;width:28px;height:28px;border:3px solid var(--gold);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+          <p style="margin-top:12px;font-size:13.5px;">Looking up enquiry record…</p>
+        </div>
+      `;
+
+      try {
+        const response = await fetch('/api/admin/enquiry/lookup-by-qr', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ input: rawInput }),
+        });
+
+        const data = await response.json();
+        if (!response.ok || !data.success || !data.enquiry) {
+          resultBadge.textContent = 'Not Found';
+          resultBadge.className = 'badge badge-danger';
+          resultBody.innerHTML = `
+            <div style="text-align:center;padding:32px 16px;">
+              <div style="width:48px;height:48px;border-radius:50%;background:rgba(211,47,47,0.1);color:#d32f2f;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+              </div>
+              <h3 style="margin:0 0 8px;font-size:1.15rem;">Enquiry Not Found</h3>
+              <p style="color:var(--muted);font-size:13px;max-width:340px;margin:0 auto 16px;">
+                ${data.error || 'No matching customer enquiry was located in the Neon database.'}
+              </p>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('startCamBtn').click()">
+                Scan Again
+              </button>
+            </div>
+          `;
+          return;
+        }
+
+        const enq = data.enquiry;
+        resultBadge.textContent = enq.status.toUpperCase();
+        resultBadge.className = enq.status === 'confirmed' ? 'badge badge-success' : 'badge badge-gold';
+
+        const cleanPhone = enq.customerPhone ? enq.customerPhone.replace(/\D/g, '') : '';
+        const whatsappMsg = encodeURIComponent(`Namaste ${enq.customerName}, regarding your Event Point Ranchi enquiry (${enq.referenceCode}) for ${enq.eventType} on ${enq.eventDate}:`);
+
+        resultBody.innerHTML = `
+          <div style="display:flex;flex-direction:column;gap:18px;">
+            
+            <!-- Reference & Status Header -->
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid var(--line);padding-bottom:14px;">
+              <div>
+                <span style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);font-weight:600;">Reference Code</span>
+                <h3 style="margin:2px 0 0;font-size:1.25rem;font-family:var(--font-mono);color:var(--gold-ink);">${enq.referenceCode}</h3>
+              </div>
+              <span class="badge ${enq.status === 'confirmed' ? 'badge-success' : 'badge-warning'}">${enq.status.toUpperCase()}</span>
+            </div>
+
+            <!-- Customer Snapshot -->
+            <div style="background:var(--canvas-warm);border:1px solid var(--line);border-radius:var(--r-md);padding:14px 16px;">
+              <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Customer Information</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-size:13px;">
+                <div><strong>Name:</strong> ${enq.customerName}</div>
+                <div><strong>Phone:</strong> <a href="tel:${cleanPhone}" class="text-link">${enq.customerPhone}</a></div>
+                <div><strong>Email:</strong> ${enq.customerEmail || '—'}</div>
+                <div><strong>Preferred Contact:</strong> ${enq.preferredContact || 'Phone'}</div>
+              </div>
+            </div>
+
+            <!-- Event Details -->
+            <div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:14px 16px;">
+              <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Event Requirements</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-size:13px;">
+                <div><strong>Event Type:</strong> ${enq.eventType}</div>
+                <div><strong>Event Date:</strong> ${enq.eventDate} ${enq.endDate ? 'to ' + enq.endDate : ''}</div>
+                <div><strong>Venue:</strong> ${enq.venueLocation}</div>
+                <div><strong>Expected Guests:</strong> ${enq.guestCount}</div>
+                <div><strong>Budget Range:</strong> ${enq.budgetRange}</div>
+                <div><strong>Rooms Required:</strong> ${enq.requiresRooms ? 'Yes (' + enq.roomCount + ' rooms)' : 'No'}</div>
+              </div>
+              ${enq.accommodationNotes ? `<div style="margin-top:8px;font-size:12px;color:var(--muted);"><strong>Accommodation:</strong> ${enq.accommodationNotes}</div>` : ''}
+              ${enq.decorationNotes ? `<div style="margin-top:8px;font-size:12px;color:var(--muted);white-space:pre-line;"><strong>Notes:</strong> ${enq.decorationNotes}</div>` : ''}
+            </div>
+
+            <!-- Selected Line Items -->
+            ${enq.items && enq.items.length > 0 ? `
+              <div style="border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden;">
+                <div style="background:var(--canvas-warm);padding:8px 14px;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;">
+                  Selected Items (${enq.items.length})
+                </div>
+                <div style="max-height:160px;overflow-y:auto;padding:8px 14px;font-size:12.5px;">
+                  ${enq.items.map((item: any) => `
+                    <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed var(--line);">
+                      <span><strong>${item.name}</strong> <small style="color:var(--muted);">(${item.itemType})</small></span>
+                      <span>Qty: <strong>${item.quantity}</strong></span>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            ` : ''}
+
+            <!-- Linked Booking Info (if converted) -->
+            ${enq.linkedBooking ? `
+              <div style="background:rgba(46,125,50,0.08);border:1px solid rgba(46,125,50,0.25);border-radius:var(--r-md);padding:12px 16px;font-size:13px;">
+                <strong style="color:#2e7d32;display:block;margin-bottom:4px;">Linked Active Booking #${enq.linkedBooking.id}</strong>
+                <div style="display:flex;justify-content:space-between;font-size:12.5px;">
+                  <span>Payment Status: <strong style="text-transform:uppercase;">${enq.linkedBooking.paymentStatus}</strong></span>
+                  <span>Balance: <strong>₹${(enq.linkedBooking.outstandingBalance / 100).toLocaleString('en-IN')}</strong></span>
+                </div>
+              </div>
+            ` : ''}
+
+            <!-- Quick Action Dispatch Buttons -->
+            <div style="display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;">
+              <a href="/admin/enquiries/${enq.id}" class="btn btn-primary btn-sm">
+                View Full Enquiry &rarr;
+              </a>
+              ${cleanPhone ? `
+                <a href="https://wa.me/91${cleanPhone}?text=${whatsappMsg}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" style="background:#25D366;color:#fff;border-color:#25D366;">
+                  WhatsApp Customer
+                </a>
+                <a href="tel:${cleanPhone}" class="btn btn-secondary btn-sm">
+                  Call Customer
+                </a>
+              ` : ''}
+              <button type="button" class="btn btn-ghost btn-sm" onclick="window.print()">
+                Print Slip
+              </button>
+            </div>
+          </div>
+        `;
+      } catch (err: any) {
+        resultBadge.textContent = 'Error';
+        resultBadge.className = 'badge badge-danger';
+        resultBody.innerHTML = `<div class="alert alert-danger">Error querying enquiry: ${err.message}</div>`;
+      }
+    }
+
+    startBtn?.addEventListener('click', startCamera);
+    stopBtn?.addEventListener('click', stopCamera);
+    flipBtn?.addEventListener('click', () => {
+      usingFrontCamera = !usingFrontCamera;
+      startCamera();
+    });
+
+    fileInput?.addEventListener('change', (e) => {
+      const files = (e.target as HTMLInputElement).files;
+      if (files && files[0]) {
+        scanUploadedImage(files[0]);
+      }
+    });
+
+    manualBtn?.addEventListener('click', () => {
+      if (manualInput.value.trim()) {
+        fetchEnquiry(manualInput.value.trim());
+      }
+    });
+
+    manualInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (manualInput.value.trim()) {
+          fetchEnquiry(manualInput.value.trim());
+        }
+      }
+    });
+
+    // Auto-lookup if initial token was supplied
+    if (manualInput?.value.trim()) {
+      fetchEnquiry(manualInput.value.trim());
+    }
+
+    // Stop camera when leaving page
+    window.addEventListener('beforeunload', () => {
+      if (mediaStream) {
+        mediaStream.getTracks().forEach((track) => track.stop());
+      }
+    });
+  </script>
+</AdminLayout>

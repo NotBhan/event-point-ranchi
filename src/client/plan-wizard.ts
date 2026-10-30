@@ -217,18 +217,47 @@ function setRadio(name: string, value: string): void {
   });
 }
 
+function setFieldError(fieldElement: HTMLElement | null, message: string): void {
+  if (!fieldElement) return;
+  fieldElement.classList.add('is-invalid');
+  const parent = fieldElement.closest('.field') || fieldElement.closest('.field-group') || fieldElement.closest('.plan-consent');
+  if (parent) {
+    let err = parent.querySelector<HTMLElement>('.field-error-msg');
+    if (!err) {
+      err = document.createElement('span');
+      err.className = 'field-error-msg';
+      parent.appendChild(err);
+    }
+    err.textContent = message;
+  }
+}
+
+function clearFieldError(fieldElement: HTMLElement | null): void {
+  if (!fieldElement) return;
+  fieldElement.classList.remove('is-invalid');
+  const parent = fieldElement.closest('.field') || fieldElement.closest('.field-group') || fieldElement.closest('.plan-consent');
+  if (parent) {
+    const err = parent.querySelector('.field-error-msg');
+    if (err) err.remove();
+  }
+}
+
 function showError(message: string): void {
   if (!errorBox) return;
   errorBox.textContent = message;
   errorBox.hidden = false;
-  errorBox.focus({ preventScroll: false });
+  errorBox.focus({ preventScroll: true });
 }
 
 function clearError(): void {
-  if (!errorBox) return;
-  errorBox.hidden = true;
-  errorBox.textContent = '';
+  if (errorBox) {
+    errorBox.hidden = true;
+    errorBox.textContent = '';
+  }
+  document.querySelectorAll('.is-invalid').forEach((el) => el.classList.remove('is-invalid'));
+  document.querySelectorAll('.field-error-msg').forEach((el) => el.remove());
 }
+
 
 function collectDraft(): PlanDraft {
   return {
@@ -318,20 +347,20 @@ function validateStep(step: number): boolean {
   clearError();
 
   if (step === 1) {
-    if (!fieldValue('eventType')) return fail('Select an event type to continue.');
-    if (!isValidDate(fieldValue('eventDate'))) return fail('Enter a valid event date.');
-    if (fieldValue('eventDate') < today) return fail('The event date cannot be in the past.');
+    if (!fieldValue('eventType')) return fail('Select an event type to continue.', 'eventType');
+    if (!isValidDate(fieldValue('eventDate'))) return fail('Enter a valid event date.', 'eventDate');
+    if (fieldValue('eventDate') < today) return fail('The event date cannot be in the past.', 'eventDate');
 
     const endDate = fieldValue('endDate');
     if (endDate) {
-      if (!isValidDate(endDate)) return fail('Enter a valid end date, or leave it blank.');
-      if (endDate < fieldValue('eventDate')) return fail('The end date cannot be before the event date.');
+      if (!isValidDate(endDate)) return fail('Enter a valid end date, or leave it blank.', 'endDate');
+      if (endDate < fieldValue('eventDate')) return fail('The end date cannot be before the event date.', 'endDate');
     }
 
-    if (fieldValue('venueLocation').length < 2) return fail('Enter the venue or location in Ranchi.');
+    if (fieldValue('venueLocation').length < 2) return fail('Enter the venue or location in Ranchi.', 'venueLocation');
     const guests = Number(fieldValue('guestCount'));
     if (!Number.isInteger(guests) || guests < 1 || guests > 100000) {
-      return fail('Enter a guest count between 1 and 1,00,000.');
+      return fail('Enter a guest count between 1 and 1,00,000.', 'guestCount');
     }
   }
 
@@ -340,52 +369,63 @@ function validateStep(step: number): boolean {
     const select = field<HTMLSelectElement>(kind === 'mandap' ? 'mandapId' : 'stageId');
     const dimensions = customDimensions(kind);
     if (dimensions === 'invalid') {
-      return fail(`Enter all three custom ${kind} dimensions in feet, or leave them all blank.`);
+      return fail(`Enter all three custom ${kind} dimensions in feet, or leave them all blank.`, `${kind}Length`);
     }
     if (!select?.value && dimensions) {
-      return fail(`Select a ${kind} before entering custom dimensions.`);
+      return fail(`Select a ${kind} before entering custom dimensions.`, kind === 'mandap' ? 'mandapId' : 'stageId');
     }
   }
 
   if (step === 5) {
     const requiresRooms = radioValue('requiresRooms');
-    if (!requiresRooms) return fail('Tell us whether you require rooms.');
+    if (!requiresRooms) return fail('Tell us whether you require rooms.', 'requiresRooms');
     if (requiresRooms === 'yes') {
       const ac = Number(fieldValue('acRoomCount')) || 0;
       const nonAc = Number(fieldValue('nonAcRoomCount')) || 0;
       const rooms = ac + nonAc;
       if (!Number.isInteger(rooms) || rooms < 1 || rooms > 500) {
-        return fail('Enter the number of AC and/or Non-AC rooms required (at least 1 room in total, up to 500).');
+        return fail('Enter the number of AC and/or Non-AC rooms required (at least 1 room in total, up to 500).', 'acRoomCount');
       }
     }
   }
 
   if (step === 7) {
-    if (!fieldValue('budgetRange')) return fail('Select an approximate budget range.');
-    if (fieldValue('customerName').length < 2) return fail('Enter your full name.');
+    if (!fieldValue('budgetRange')) return fail('Select an approximate budget range.', 'budgetRange');
+    if (fieldValue('customerName').length < 2) return fail('Enter your full name.', 'customerName');
     const digits = fieldValue('customerPhone').replace(/\D/g, '');
     if (!/^[6-9]\d{9}$/.test(digits)) {
-      return fail('Enter a valid 10-digit Indian mobile number starting with 6, 7, 8 or 9.');
+      return fail('Enter a valid 10-digit Indian mobile number starting with 6, 7, 8 or 9.', 'customerPhone');
     }
     const email = fieldValue('customerEmail');
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return fail('Enter a valid email address, or leave it blank.');
+      return fail('Enter a valid email address, or leave it blank.', 'customerEmail');
     }
-    if (!fieldValue('preferredContact')) return fail('Select a preferred contact method.');
+    if (!fieldValue('preferredContact')) return fail('Select a preferred contact method.', 'preferredContact');
   }
 
   if (step === 8) {
     const consent = field<HTMLInputElement>('consent');
     if (!consent?.checked) {
-      return fail('Please confirm that you understand this is a quotation enquiry, not a booking.');
+      return fail('Please confirm that you understand this is a quotation enquiry, not a booking.', 'consent');
     }
   }
 
   return true;
 }
 
-function fail(message: string): false {
+function fail(message: string, fieldName?: string): false {
   showError(message);
+  if (fieldName) {
+    let targetEl: HTMLElement | null = field(fieldName);
+    if (!targetEl) {
+      targetEl = document.querySelector<HTMLElement>(`[name="${fieldName}"]`);
+    }
+    if (targetEl) {
+      setFieldError(targetEl, message);
+      targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      targetEl.focus({ preventScroll: true });
+    }
+  }
   return false;
 }
 
@@ -421,14 +461,17 @@ function goToStep(step: number, focus = true): void {
 
   if (focus) {
     const active = steps[target - 1];
-    const heading = active?.querySelector<HTMLElement>('h2');
-    heading?.setAttribute('tabindex', '-1');
-    heading?.focus({ preventScroll: true });
-    form?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (active) {
+      active.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const heading = active.querySelector<HTMLElement>('h2');
+      heading?.setAttribute('tabindex', '-1');
+      heading?.focus({ preventScroll: true });
+    }
   }
 
   saveDraft();
 }
+
 
 function selectionFor(kind: 'mandap' | 'stage'): MandapRequirement | StageRequirement | null {
   const requirements = readRequirements();
@@ -609,7 +652,7 @@ function renderEquipmentList(focusId?: string): void {
     window.requestAnimationFrame(() => {
       container
         .querySelector<HTMLInputElement>(`[data-plan-equipment-id="${focusId}"][data-plan-qty-input]`)
-        ?.focus();
+        ?.focus({ preventScroll: true });
     });
   }
 }
@@ -872,13 +915,18 @@ async function submitEnquiry(): Promise<void> {
       body: JSON.stringify(buildPayload()),
     });
 
-    const data = (await response.json().catch(() => ({}))) as { status?: string; reference?: string; message?: string };
+    const data = (await response.json().catch(() => ({}))) as {
+      status?: string;
+      reference?: string;
+      qrDataUrl?: string;
+      message?: string;
+    };
 
     if (!response.ok || data.status !== 'success' || !data.reference) {
       throw new Error(data.message || 'We could not submit the enquiry. Please try again.');
     }
 
-    showReceipt(data.reference);
+    showReceipt(data.reference, data.qrDataUrl);
   } catch (error) {
     showError(error instanceof Error ? error.message : 'We could not submit the enquiry. Please try again.');
   } finally {
@@ -889,12 +937,20 @@ async function submitEnquiry(): Promise<void> {
   }
 }
 
-function showReceipt(reference: string): void {
+function showReceipt(reference: string, qrDataUrl?: string): void {
   if (planShell) planShell.hidden = true;
   if (receipt) {
     receipt.hidden = false;
     const referenceNode = receipt.querySelector<HTMLElement>('[data-receipt-reference]');
     if (referenceNode) referenceNode.textContent = reference;
+
+    if (qrDataUrl) {
+      const qrContainer = receipt.querySelector<HTMLElement>('[data-receipt-qr-container]');
+      const qrImg = receipt.querySelector<HTMLImageElement>('[data-receipt-qr]');
+      if (qrImg) qrImg.src = qrDataUrl;
+      if (qrContainer) qrContainer.hidden = false;
+    }
+
     const heading = receipt.querySelector<HTMLElement>('h2');
     heading?.setAttribute('tabindex', '-1');
     receipt.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -904,6 +960,7 @@ function showReceipt(reference: string): void {
   clearRequirements();
   localStorage.removeItem(DRAFT_KEY);
 }
+
 
 if (state && form) {
   state.draft = readDraft();
@@ -930,13 +987,15 @@ if (state && form) {
   const initialStep = Math.min(Math.max(Number(state.draft.step) || 1, 1), 8);
   goToStep(initialStep, false);
 
-  form.addEventListener('input', () => {
+  form.addEventListener('input', (event) => {
+    if (event.target instanceof HTMLElement) clearFieldError(event.target);
     saveDraft();
     if (state.currentStep === 8) renderReview();
     renderLiveSummary();
   });
 
-  form.addEventListener('change', () => {
+  form.addEventListener('change', (event) => {
+    if (event.target instanceof HTMLElement) clearFieldError(event.target);
     saveDraft();
     if (state.currentStep === 8) renderReview();
     renderLiveSummary();

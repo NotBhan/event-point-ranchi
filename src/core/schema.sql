@@ -556,4 +556,43 @@ CREATE INDEX IF NOT EXISTS idx_invoices_booking ON invoices(booking_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_payment ON invoices(payment_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_number ON invoices(invoice_number);
 
+-- Payment Receipts & QR Verification
+CREATE TABLE IF NOT EXISTS payment_receipts (
+  id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+  payment_id              INTEGER NOT NULL REFERENCES payments(id) ON DELETE CASCADE,
+  booking_id              INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  receipt_number          TEXT NOT NULL UNIQUE,
+  verification_token      TEXT NOT NULL UNIQUE,
+  verification_token_hash TEXT NOT NULL UNIQUE,
+  amount_paise            INTEGER NOT NULL,
+  status                  TEXT NOT NULL DEFAULT 'issued',
+  pdf_storage_key         TEXT,
+  issued_at               TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at              TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_payment_receipts_payment ON payment_receipts(payment_id);
+CREATE INDEX IF NOT EXISTS idx_payment_receipts_booking ON payment_receipts(booking_id);
+CREATE INDEX IF NOT EXISTS idx_payment_receipts_number ON payment_receipts(receipt_number);
+CREATE INDEX IF NOT EXISTS idx_payment_receipts_token_hash ON payment_receipts(verification_token_hash);
+CREATE INDEX IF NOT EXISTS idx_payment_receipts_status ON payment_receipts(status);
+
+-- Customer Enquiry QR Tokens for Quick Admin Lookup
+CREATE TABLE IF NOT EXISTS enquiry_qr_tokens (
+  id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+  enquiry_id          INTEGER REFERENCES event_enquiries(id) ON DELETE CASCADE,
+  contact_inquiry_id  INTEGER REFERENCES contact_inquiries(id) ON DELETE CASCADE,
+  reference_code      TEXT NOT NULL,
+  token               TEXT NOT NULL UNIQUE,
+  token_hash          TEXT NOT NULL UNIQUE,
+  created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+  revoked_at          TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_enquiry_qr_enquiry ON enquiry_qr_tokens(enquiry_id);
+CREATE INDEX IF NOT EXISTS idx_enquiry_qr_contact ON enquiry_qr_tokens(contact_inquiry_id);
+CREATE INDEX IF NOT EXISTS idx_enquiry_qr_ref ON enquiry_qr_tokens(reference_code);
+CREATE INDEX IF NOT EXISTS idx_enquiry_qr_token_hash ON enquiry_qr_tokens(token_hash);
+
+
 

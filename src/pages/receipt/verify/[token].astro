@@ -1,0 +1,193 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Icon from '../../../components/Icon.astro';
+import { getSiteSettings } from '../../../core/content/service';
+import { getReceiptService, formatINR } from '../../../core/payment/receipt-service';
+
+const settings = await getSiteSettings();
+const brandName = settings.name || 'Event Point Ranchi';
+
+const { token } = Astro.params;
+const receiptService = getReceiptService(Astro.url.origin);
+
+let receiptData = null;
+let notFound = false;
+
+if (token) {
+  try {
+    receiptData = await receiptService.getReceiptByToken(token, Astro.url.origin);
+    if (!receiptData) {
+      notFound = true;
+    }
+  } catch (err) {
+    console.warn('[Receipt Verification Error]:', err);
+    notFound = true;
+  }
+} else {
+  notFound = true;
+}
+
+const isRefunded = receiptData?.isRefunded || receiptData?.receipt.status === 'refunded';
+---
+
+<BaseLayout
+  title={receiptData ? `Receipt Verification ${receiptData.receipt.receipt_number} | ${brandName}` : `Receipt Not Found | ${brandName}`}
+  description="Official cryptographic verification portal for Event Point Ranchi payment receipts."
+>
+  <section class="page-hero">
+    <div class="container">
+      <span class="eyebrow">Cryptographic Verification Portal</span>
+      <h1>
+        {notFound
+          ? 'Receipt Record Not Found'
+          : isRefunded
+          ? 'Receipt Refunded / Reversed'
+          : 'Verified Authentic Receipt'}
+      </h1>
+      <p>
+        {notFound
+          ? 'The scanned verification token could not be matched against our live database ledger.'
+          : isRefunded
+          ? 'This receipt was previously issued but has since been refunded or superseded by our finance desk.'
+          : 'This digital payment acknowledgment has been independently validated against our banking ledger.'}
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container print-receipt-container" style="max-width:760px;">
+      {!receiptData ? (
+        <div class="panel" style="padding:36px;text-align:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);">
+          <div style="width:56px;height:56px;border-radius:50%;background:rgba(211,47,47,0.1);color:#d32f2f;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+            <Icon name="x" size={32} />
+          </div>
+          <h2 style="font-size:1.4rem;margin:0 0 8px;">Invalid or Expired Receipt Token</h2>
+          <p style="color:var(--muted);font-size:14px;max-width:440px;margin:0 auto 20px;">
+            We could not locate an active transaction matching this token. If you suspect an error or require manual verification, please contact our accounts department.
+          </p>
+          <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+            <a href="/contact" class="btn btn-primary">Contact Support</a>
+            <a href="/" class="btn btn-secondary">Return to Home</a>
+          </div>
+        </div>
+      ) : (
+        <div class="panel print-receipt-card" style="padding:32px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow-sm);">
+          
+          <!-- Verification Header Badge -->
+          <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:24px;flex-wrap:wrap;gap:16px;">
+            <div style="display:flex;align-items:center;gap:14px;">
+              <div style={`width:50px;height:50px;border-radius:50%;background:${isRefunded ? 'rgba(211,47,47,0.1)' : 'rgba(46,125,50,0.1)'};color:${isRefunded ? '#d32f2f' : '#2e7d32'};display:flex;align-items:center;justify-content:center;flex-shrink:0;`}>
+                <Icon name={isRefunded ? 'alert' : 'check-circle'} size={28} />
+              </div>
+              <div>
+                <span style={`font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${isRefunded ? '#d32f2f' : '#2e7d32'};`}>
+                  {isRefunded ? 'STATUS: REFUNDED / VOIDED' : 'CRYPTOGRAPHICALLY VERIFIED AUTHENTIC'}
+                </span>
+                <h2 style="font-size:1.35rem;margin:2px 0 0;color:var(--ink);">
+                  {receiptData.receipt.receipt_number}
+                </h2>
+              </div>
+            </div>
+
+            <span class={`badge ${isRefunded ? 'badge-danger' : 'badge-success'}`} style="font-size:13px;padding:6px 12px;">
+              {isRefunded ? 'Refunded' : 'Valid & Verified'}
+            </span>
+          </div>
+
+          <!-- Key Details Grid -->
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:16px 20px;font-size:13.5px;line-height:1.6;margin-bottom:28px;">
+            <div>
+              <span style="color:var(--muted);display:block;font-size:12px;text-transform:uppercase;letter-spacing:0.04em;">Amount Paid:</span>
+              <strong style="font-size:1.3rem;color:var(--primary-dark);font-family:var(--font-mono);">
+                {formatINR(receiptData.receipt.amount_paise)}
+              </strong>
+            </div>
+
+            <div>
+              <span style="color:var(--muted);display:block;font-size:12px;text-transform:uppercase;letter-spacing:0.04em;">Issue Date:</span>
+              <strong style="color:var(--ink);">
+                {new Date(receiptData.receipt.issued_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })} IST
+              </strong>
+            </div>
+
+            <div>
+              <span style="color:var(--muted);display:block;font-size:12px;text-transform:uppercase;letter-spacing:0.04em;">Payer (Masked):</span>
+              <strong style="color:var(--ink);">{receiptData.customer.maskedName}</strong>
+              <small style="color:var(--muted);display:block;">({receiptData.customer.maskedPhone})</small>
+            </div>
+
+            <div>
+              <span style="color:var(--muted);display:block;font-size:12px;text-transform:uppercase;letter-spacing:0.04em;">Booking Reference:</span>
+              <strong style="color:var(--ink);">Booking #{receiptData.booking.id} ({receiptData.booking.event_type})</strong>
+            </div>
+
+            <div>
+              <span style="color:var(--muted);display:block;font-size:12px;text-transform:uppercase;letter-spacing:0.04em;">Payment Method:</span>
+              <strong style="color:var(--ink);">PhonePe ({receiptData.payment.payment_type.toUpperCase()})</strong>
+            </div>
+
+            <div>
+              <span style="color:var(--muted);display:block;font-size:12px;text-transform:uppercase;letter-spacing:0.04em;">Transaction Reference:</span>
+              <strong style="font-family:var(--font-mono);font-size:12px;color:var(--ink);word-break:break-all;">
+                {receiptData.payment.provider_payment_id || receiptData.payment.internal_transaction_reference}
+              </strong>
+            </div>
+          </div>
+
+          <!-- Financial Context Box -->
+          <div style="background:var(--canvas-warm);border:1px solid var(--line);border-radius:var(--r-md);padding:16px 20px;margin-bottom:28px;">
+            <h4 style="margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);">
+              Associated Booking Accounting Snapshot
+            </h4>
+            <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:4px 0;">
+              <span>Total Booking Quotation:</span>
+              <strong>{formatINR(receiptData.booking.total_amount)}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:13.5px;padding:4px 0;color:#2e7d32;">
+              <span>Total Paid to Date:</span>
+              <strong>{formatINR(receiptData.booking.amount_paid)}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:14px;padding:8px 0 0;border-top:1px dashed var(--line);margin-top:6px;">
+              <span>Remaining Balance:</span>
+              <strong style="color:var(--primary-dark);">{formatINR(receiptData.booking.outstanding_balance)}</strong>
+            </div>
+          </div>
+
+          <!-- Merchant Authenticity Seal -->
+          <div style="background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.25);border-radius:var(--r-md);padding:16px 20px;margin-bottom:28px;display:flex;gap:16px;align-items:center;">
+            <div style="width:40px;height:40px;border-radius:50%;background:rgba(212,175,55,0.15);color:var(--gold-ink);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <Icon name="shield" size={22} />
+            </div>
+            <div style="font-size:12.5px;color:var(--body);line-height:1.45;">
+              <strong style="color:var(--gold-ink);display:block;margin-bottom:2px;">
+                Event Point Ranchi & SARVIN Official Digital Seal
+              </strong>
+              This transaction token is mapped to our private banking key on the PhonePe acquiring network. No third-party alterations or duplicate tokens can generate this verification.
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div style="display:flex;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:20px;">
+            <a
+              href={`/api/payment/receipt/download?token=${encodeURIComponent(token || '')}`}
+              class="btn btn-primary"
+              download
+            >
+              <Icon name="download" size={15} /> Download PDF Receipt (A4)
+            </a>
+            <button type="button" onclick="window.print()" class="btn btn-secondary">
+              <Icon name="print" size={15} /> Print Receipt
+            </button>
+            <a href="/" class="btn btn-ghost">
+              Back to Home
+            </a>
+          </div>
+
+          <div style="margin-top:20px;font-size:11.5px;color:var(--muted);text-align:center;">
+            Payment Acknowledgement Receipt (Not a GST Tax Invoice). Computer generated under IT Act 2000.
+          </div>
+        </div>
+      )}
+    </div>
+  </section>
+</BaseLayout>
