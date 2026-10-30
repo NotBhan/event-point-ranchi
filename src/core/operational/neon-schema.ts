@@ -1,3 +1,14 @@
+export type {
+  PaymentRow,
+  PaymentMetrics,
+  PaymentWebhookEventRow,
+  RefundRow,
+  PaymentReconciliationRow,
+  InvoiceRow,
+  BookingFinancialsRow,
+  CustomerRow,
+} from './service';
+
 export const neonSchemaSql = `
 CREATE TABLE IF NOT EXISTS users (
   id            SERIAL PRIMARY KEY,
@@ -29,17 +40,21 @@ CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
 CREATE INDEX IF NOT EXISTS idx_customers_user ON customers(user_id);
 
 CREATE TABLE IF NOT EXISTS bookings (
-  id              SERIAL PRIMARY KEY,
-  customer_id     INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
-  access_token    VARCHAR(100) NOT NULL UNIQUE,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  event_date      VARCHAR(50),
-  event_time      VARCHAR(50),
-  event_type      VARCHAR(100) NOT NULL DEFAULT 'Wedding',
-  total_guest     INTEGER NOT NULL DEFAULT 100,
-  special_request TEXT NOT NULL DEFAULT '',
-  status          VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('draft', 'pending', 'confirmed', 'cancelled')),
-  total_amount    BIGINT NOT NULL DEFAULT 0
+  id                  SERIAL PRIMARY KEY,
+  customer_id         INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  access_token        VARCHAR(100) NOT NULL UNIQUE,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  event_date          VARCHAR(50),
+  event_time          VARCHAR(50),
+  event_type          VARCHAR(100) NOT NULL DEFAULT 'Wedding',
+  total_guest         INTEGER NOT NULL DEFAULT 100,
+  special_request     TEXT NOT NULL DEFAULT '',
+  status              VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('draft', 'pending', 'confirmed', 'cancelled')),
+  total_amount        BIGINT NOT NULL DEFAULT 0,
+  advance_amount      BIGINT NOT NULL DEFAULT 0,
+  amount_paid         BIGINT NOT NULL DEFAULT 0,
+  outstanding_balance BIGINT NOT NULL DEFAULT 0,
+  payment_status      VARCHAR(30) NOT NULL DEFAULT 'unpaid' CHECK (payment_status IN ('unpaid', 'partially_paid', 'paid', 'refunded'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_bookings_customer ON bookings(customer_id);
@@ -190,4 +205,107 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
+
+-- Payment Management & Compliance Tables (Neon PostgreSQL)
+CREATE TABLE IF NOT EXISTS payments (
+  id                             SERIAL PRIMARY KEY,
+  booking_id                     INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  customer_id                    INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+  provider                       VARCHAR(50) NOT NULL,
+  provider_order_id              VARCHAR(255),
+  provider_payment_id            VARCHAR(255),
+  internal_transaction_reference VARCHAR(100) NOT NULL UNIQUE,
+  payment_type                   VARCHAR(50) NOT NULL DEFAULT 'advance',
+  amount_paise                   BIGINT NOT NULL,
+  currency                       VARCHAR(10) NOT NULL DEFAULT 'INR',
+  status                         VARCHAR(50) NOT NULL DEFAULT 'created',
+  payment_method                 VARCHAR(50),
+  failure_code                   VARCHAR(100),
+  failure_description            TEXT,
+  metadata_json                  TEXT NOT NULL DEFAULT '{}',
+  verified_at                    TIMESTAMPTZ,
+  created_at                     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at                     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_payments_booking ON payments(booking_id);
+CREATE INDEX IF NOT EXISTS idx_payments_customer ON payments(customer_id);
+CREATE INDEX IF NOT EXISTS idx_payments_provider ON payments(provider);
+CREATE INDEX IF NOT EXISTS idx_payments_provider_order ON payments(provider_order_id);
+CREATE INDEX IF NOT EXISTS idx_payments_provider_payment ON payments(provider_payment_id);
+CREATE INDEX IF NOT EXISTS idx_payments_internal_ref ON payments(internal_transaction_reference);
+CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
+
+CREATE TABLE IF NOT EXISTS payment_webhook_events (
+  id                SERIAL PRIMARY KEY,
+  provider          VARCHAR(50) NOT NULL,
+  provider_event_id VARCHAR(255),
+  event_type        VARCHAR(100) NOT NULL,
+  payload_hash      VARCHAR(128) NOT NULL,
+  processing_status VARCHAR(50) NOT NULL DEFAULT 'pending',
+  error_message     TEXT,
+  raw_payload       TEXT,
+  received_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  processed_at      TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_webhook_provider_event ON payment_webhook_events(provider, provider_event_id);
+CREATE INDEX IF NOT EXISTS idx_webhook_payload_hash ON payment_webhook_events(payload_hash);
+CREATE INDEX IF NOT EXISTS idx_webhook_status ON payment_webhook_events(processing_status);
+
+CREATE TABLE IF NOT EXISTS refunds (
+  id                 SERIAL PRIMARY KEY,
+  payment_id         INTEGER NOT NULL REFERENCES payments(id) ON DELETE CASCADE,
+  booking_id         INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  provider_refund_id VARCHAR(255),
+  amount_paise       BIGINT NOT NULL,
+  reason             TEXT NOT NULL,
+  status             VARCHAR(50) NOT NULL DEFAULT 'pending',
+  failure_reason     TEXT,
+  initiated_by       INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_refunds_payment ON refunds(payment_id);
+CREATE INDEX IF NOT EXISTS idx_refunds_booking ON refunds(booking_id);
+CREATE INDEX IF NOT EXISTS idx_refunds_provider_refund ON refunds(provider_refund_id);
+CREATE INDEX IF NOT EXISTS idx_refunds_status ON refunds(status);
+
+CREATE TABLE IF NOT EXISTS payment_reconciliation (
+  id                      SERIAL PRIMARY KEY,
+  provider                VARCHAR(50) NOT NULL,
+  provider_transaction_id VARCHAR(255) NOT NULL,
+  internal_payment_id     INTEGER REFERENCES payments(id) ON DELETE SET NULL,
+  provider_amount_paise   BIGINT NOT NULL,
+  internal_amount_paise   BIGINT NOT NULL,
+  reconciliation_status   VARCHAR(50) NOT NULL DEFAULT 'pending',
+  notes                   TEXT,
+  reconciled_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_reconciliation_provider_tx ON payment_reconciliation(provider, provider_transaction_id);
+CREATE INDEX IF NOT EXISTS idx_reconciliation_status ON payment_reconciliation(reconciliation_status);
+
+CREATE TABLE IF NOT EXISTS invoices (
+  id                   SERIAL PRIMARY KEY,
+  booking_id           INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  payment_id           INTEGER REFERENCES payments(id) ON DELETE SET NULL,
+  invoice_number       VARCHAR(100) NOT NULL UNIQUE,
+  invoice_type         VARCHAR(50) NOT NULL DEFAULT 'receipt',
+  taxable_amount_paise BIGINT NOT NULL DEFAULT 0,
+  cgst_paise           BIGINT NOT NULL DEFAULT 0,
+  sgst_paise           BIGINT NOT NULL DEFAULT 0,
+  igst_paise           BIGINT NOT NULL DEFAULT 0,
+  total_amount_paise   BIGINT NOT NULL,
+  customer_name        VARCHAR(255) NOT NULL,
+  customer_phone       VARCHAR(50) NOT NULL,
+  customer_email       VARCHAR(255),
+  customer_address     TEXT,
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_invoices_booking ON invoices(booking_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_payment ON invoices(payment_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_number ON invoices(invoice_number);
 `;

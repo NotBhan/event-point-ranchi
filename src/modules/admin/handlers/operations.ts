@@ -21,6 +21,9 @@ import {
   updateBookingStatus,
   updateEventEnquiryStatus,
   updateInquiryStatus,
+  loadPaymentsAdmin,
+  loadPaymentDetailAdmin,
+  processRefundAdmin,
 } from '../service';
 import { runFormAction } from './shared';
 
@@ -188,3 +191,63 @@ export function eventEnquiryDetail(ctx: PageContext) {
 
   return { props: { data } };
 }
+
+export async function paymentsList(ctx: PageContext) {
+  const denied = requireAdmin(ctx);
+  if (denied) return denied;
+
+  const status = ctx.url.searchParams.get('status') || undefined;
+  const provider = ctx.url.searchParams.get('provider') || undefined;
+  const search = ctx.url.searchParams.get('q') || undefined;
+
+  const data = await loadPaymentsAdmin({
+    status: status === 'all' ? undefined : status,
+    provider: provider === 'all' ? undefined : provider,
+    search,
+  });
+
+  return {
+    props: {
+      metrics: data.metrics,
+      payments: data.payments,
+      total: data.total,
+      status: status || 'all',
+      provider: provider || 'all',
+      search: search || '',
+    },
+  };
+}
+
+export async function paymentDetail(ctx: PageContext) {
+  const denied = requireAdmin(ctx);
+  if (denied) return denied;
+
+  const id = Number(ctx.params.id);
+  if (!Number.isInteger(id) || id <= 0) return { props: { notFound: true }, status: 404 };
+
+  if (ctx.request.method === 'POST') {
+    const action = getString(ctx.form, '_action');
+    if (action === 'initiate_refund') {
+      const refundAmount = Number(getString(ctx.form, 'refund_amount')) || 0;
+      const reason = getString(ctx.form, 'refund_reason') || 'Customer requested cancellation';
+      try {
+        await processRefundAdmin(id, Math.round(refundAmount * 100), reason, ctx.auth.user?.id);
+        setSuccess(ctx.cookies, `Refund of ₹${refundAmount.toLocaleString('en-IN')} successfully initiated.`);
+      } catch (err: any) {
+        return {
+          props: {
+            error: err.message || 'Refund processing failed.',
+            ...(await loadPaymentDetailAdmin(id)),
+          },
+        };
+      }
+      return redirect(`/admin/payments/${id}`);
+    }
+  }
+
+  const data = await loadPaymentDetailAdmin(id);
+  if (!data) return { props: { notFound: true }, status: 404 };
+
+  return { props: data };
+}
+

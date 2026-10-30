@@ -1,0 +1,315 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { formatDate, formatDateTime, formatMoney } from '../../../core/http';
+import type {
+  PaymentRow,
+  BookingFinancialsRow,
+  CustomerRow,
+  RefundRow,
+  InvoiceRow,
+  PaymentWebhookEventRow,
+} from '../../../core/operational/service';
+
+interface Props {
+  payment?: PaymentRow;
+  booking?: BookingFinancialsRow | null;
+  customer?: CustomerRow | null;
+  refunds?: RefundRow[];
+  invoice?: InvoiceRow | null;
+  webhookEvents?: PaymentWebhookEventRow[];
+  error?: string;
+  notFound?: boolean;
+}
+
+const {
+  payment,
+  booking,
+  customer,
+  refunds = [],
+  invoice,
+  webhookEvents = [],
+  error,
+  notFound = false,
+} = Astro.props;
+
+const csrf = Astro.locals.csrf;
+
+const statusClass: Record<string, string> = {
+  captured: 'badge-success',
+  created: 'badge-warning',
+  pending: 'badge-warning',
+  failed: 'badge-danger',
+  refunded: 'badge-danger',
+  partially_refunded: 'badge-warning',
+};
+
+const refundedPaise = refunds
+  .filter((r) => r.status === 'processed')
+  .reduce((sum, r) => sum + Number(r.amount_paise), 0);
+const refundablePaise = payment ? Math.max(0, payment.amount_paise - refundedPaise) : 0;
+const maxRefundable = Math.max(0, refundablePaise / 100);
+const canRefund = payment && (payment.status === 'captured' || payment.status === 'partially_refunded') && maxRefundable > 0;
+---
+
+{notFound || !payment ? (
+  <AdminLayout title="Payment not found">
+    <div class="admin-panel">
+      <div class="admin-empty">
+        This payment record does not exist. <a href="/admin/payments" style="color:var(--gold-ink);font-weight:600;">Back to payments</a>
+      </div>
+    </div>
+  </AdminLayout>
+) : (
+  <AdminLayout title={`Payment #${payment.id}`} description={`Ref: ${payment.internal_transaction_reference} · ${payment.provider.toUpperCase()}`}>
+    <div class="admin-toolbar" style="margin-bottom:1.5rem;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+      <a href="/admin/payments" class="btn btn-secondary btn-sm">← All payments</a>
+      {booking && (
+        <a href={`/admin/bookings/${booking.id}`} class="btn btn-secondary btn-sm">
+          View Booking #{booking.id}
+        </a>
+      )}
+      {booking && (
+        <a href={`/booking/${booking.id}/quotation`} class="btn btn-secondary btn-sm" target="_blank" rel="noopener">
+          View Quotation / Receipt
+        </a>
+      )}
+      <span class:list={['badge', statusClass[payment.status] ?? 'badge-muted']} style="font-size:0.85rem;padding:0.35rem 0.75rem;">
+        {payment.status.toUpperCase()}
+      </span>
+    </div>
+
+    {error && (
+      <div class="alert alert-danger" style="background:#fee2e2;color:#991b1b;padding:1rem;border-radius:6px;margin-bottom:1.5rem;border:1px solid #f87171;">
+        <strong>Error:</strong> {error}
+      </div>
+    )}
+
+    <div class="admin-grid-3" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1.5rem;margin-bottom:1.5rem;">
+      <!-- Payment Details -->
+      <div class="admin-panel">
+        <div class="admin-panel-head">
+          <div><h2>Payment Info</h2><p>Gateway transaction identifiers</p></div>
+        </div>
+        <div class="admin-panel-body">
+          <div class="summary-row"><div class="summary-left"><small>Internal Reference</small><h4 style="font-family:monospace;font-size:0.85rem;">{payment.internal_transaction_reference}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Payment Gateway</small><h4 style="text-transform:uppercase;">{payment.provider}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Payment Type</small><h4 style="text-transform:capitalize;">{payment.payment_type.replace('_', ' ')}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Payment Method</small><h4 style="text-transform:capitalize;">{payment.payment_method || 'Online'}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Gateway Order ID</small><h4 style="font-family:monospace;font-size:0.85rem;">{payment.provider_order_id || '—'}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Gateway Payment ID</small><h4 style="font-family:monospace;font-size:0.85rem;">{payment.provider_payment_id || '—'}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Amount</small><h4 class="money" style="color:var(--gold-ink);">{formatMoney(payment.amount_paise)}</h4></div></div>
+          {refundedPaise > 0 && (
+            <div class="summary-row"><div class="summary-left"><small>Total Refunded</small><h4 class="money" style="color:#ef4444;">{formatMoney(refundedPaise)}</h4></div></div>
+          )}
+          <div class="summary-row"><div class="summary-left"><small>Initiated</small><h4>{formatDateTime(payment.created_at)}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Captured At</small><h4>{payment.verified_at ? formatDateTime(payment.verified_at) : '—'}</h4></div></div>
+          {payment.failure_description && (
+            <div class="summary-row" style="background:#fef2f2;padding:0.75rem;border-radius:6px;margin-top:0.5rem;">
+              <div class="summary-left"><small style="color:#991b1b;">Failure Details ({payment.failure_code || 'ERROR'})</small><h4 style="color:#b91c1c;font-size:0.85rem;">{payment.failure_description}</h4></div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <!-- Booking Financials -->
+      <div class="admin-panel">
+        <div class="admin-panel-head">
+          <div><h2>Booking Ledger</h2><p>Associated reservation financials</p></div>
+        </div>
+        <div class="admin-panel-body">
+          {booking ? (
+            <>
+              <div class="summary-row"><div class="summary-left"><small>Booking Number</small><h4>#{booking.id}</h4></div></div>
+              <div class="summary-row"><div class="summary-left"><small>Event Type</small><h4>{booking.event_type}</h4></div></div>
+              <div class="summary-row"><div class="summary-left"><small>Event Date</small><h4>{formatDate(booking.event_date)}</h4></div></div>
+              <div class="summary-row"><div class="summary-left"><small>Total Contract Amount</small><h4 class="money">{formatMoney(booking.total_amount)}</h4></div></div>
+              <div class="summary-row"><div class="summary-left"><small>Advance Required (25%)</small><h4 class="money">{formatMoney(booking.advance_amount)}</h4></div></div>
+              <div class="summary-row"><div class="summary-left"><small>Total Amount Settled</small><h4 class="money" style="color:#10b981;">{formatMoney(booking.amount_paid)}</h4></div></div>
+              <div class="summary-row"><div class="summary-left"><small>Outstanding Balance</small><h4 class="money">{formatMoney(booking.outstanding_balance)}</h4></div></div>
+              <div class="summary-row"><div class="summary-left"><small>Financial Status</small><h4 style="text-transform:uppercase;"><span class:list={['badge', booking.payment_status === 'paid' ? 'badge-success' : 'badge-warning']}>{booking.payment_status}</span></h4></div></div>
+            </>
+          ) : (
+            <div class="admin-empty">No associated booking found.</div>
+          )}
+        </div>
+      </div>
+
+      <!-- Customer Details & Invoicing -->
+      <div class="admin-panel">
+        <div class="admin-panel-head">
+          <div><h2>Customer &amp; Receipt</h2><p>Payer identity and tax invoice</p></div>
+        </div>
+        <div class="admin-panel-body">
+          {customer ? (
+            <>
+              <div class="summary-row"><div class="summary-left"><small>Customer Name</small><h4>{customer.name}</h4></div></div>
+              <div class="summary-row"><div class="summary-left"><small>Phone Number</small><h4>{customer.phone || '—'}</h4></div></div>
+              <div class="summary-row"><div class="summary-left"><small>Email Address</small><h4>{customer.email || '—'}</h4></div></div>
+              <div class="summary-row"><div class="summary-left"><small>Address</small><h4>{customer.address || '—'}</h4></div></div>
+            </>
+          ) : (
+            <div class="admin-empty">No customer profile linked.</div>
+          )}
+
+          {invoice && (
+            <div style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid #e5e7eb;">
+              <small class="text-muted" style="text-transform:uppercase;font-weight:600;font-size:0.75rem;">Digital Invoice</small>
+              <div class="summary-row"><div class="summary-left"><small>Invoice Number</small><h4>{invoice.invoice_number}</h4></div></div>
+              <div class="summary-row"><div class="summary-left"><small>Total with GST</small><h4 class="money">{formatMoney(invoice.total_amount_paise)}</h4></div></div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+
+    <!-- Refund Action Section -->
+    <div class="admin-panel" style="margin-bottom:1.5rem;">
+      <div class="admin-panel-head">
+        <div>
+          <h2>Refund Management</h2>
+          <p>Process full or partial refunds through {payment.provider.toUpperCase()} with compliance logging</p>
+        </div>
+        <div>
+          <strong>Remaining Refundable: </strong>
+          <span class="money" style="font-size:1.1rem;color:var(--gold-ink);">{formatMoney(refundablePaise)}</span>
+        </div>
+      </div>
+      <div class="admin-panel-body">
+        {canRefund ? (
+          <form method="POST" action={`/admin/payments/${payment.id}`} style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;align-items:flex-end;">
+            <input type="hidden" name="_csrf" value={csrf} />
+            <input type="hidden" name="_action" value="initiate_refund" />
+            <div class="field">
+              <label for="refund_amount">Refund Amount (₹)</label>
+              <input
+                id="refund_amount"
+                class="input"
+                type="number"
+                name="refund_amount"
+                step="0.01"
+                min="1"
+                max={maxRefundable}
+                value={maxRefundable}
+                required
+              />
+              <small class="text-muted">Maximum allowable refund: {formatMoney(refundablePaise)}</small>
+            </div>
+            <div class="field">
+              <label for="refund_reason">Refund Reason / Audit Note</label>
+              <input
+                id="refund_reason"
+                class="input"
+                type="text"
+                name="refund_reason"
+                placeholder="e.g., Customer requested booking cancellation"
+                value="Customer requested cancellation"
+                required
+              />
+            </div>
+            <div>
+              <button
+                type="submit"
+                class="btn btn-danger-soft btn-block"
+                data-confirm={`Process refund with ${payment.provider.toUpperCase()}? This immediately submits a refund transaction to the payment gateway.`}
+              >
+                Initiate Gateway Refund
+              </button>
+            </div>
+          </form>
+        ) : payment.status === 'refunded' ? (
+          <div class="admin-empty" style="padding:1rem;">
+            This payment is fully refunded. No additional refunds can be processed.
+          </div>
+        ) : (
+          <div class="admin-empty" style="padding:1rem;">
+            Refunds can only be processed on captured payments with a non-zero balance. (Current status: {payment.status})
+          </div>
+        )}
+      </div>
+    </div>
+
+    <!-- Refund History -->
+    {refunds.length > 0 && (
+      <div class="admin-panel" style="margin-bottom:1.5rem;">
+        <div class="admin-panel-head">
+          <div><h2>Refund History</h2><p>{refunds.length} refund record{refunds.length === 1 ? '' : 's'}</p></div>
+        </div>
+        <div class="admin-panel-body flush">
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Refund Ref</th>
+                  <th>Gateway Refund ID</th>
+                  <th>Amount</th>
+                  <th>Reason</th>
+                  <th>Status</th>
+                  <th>Initiated At</th>
+                </tr>
+              </thead>
+              <tbody>
+                {refunds.map((r) => (
+                  <tr>
+                    <td><strong>#{r.id}</strong></td>
+                    <td style="font-family:monospace;font-size:0.85rem;">{r.provider_refund_id || '—'}</td>
+                    <td class="money" style="font-weight:600;color:#ef4444;">{formatMoney(r.amount_paise)}</td>
+                    <td>{r.reason}</td>
+                    <td>
+                      <span class:list={['badge', r.status === 'processed' ? 'badge-success' : 'badge-warning']}>
+                        {r.status}
+                      </span>
+                    </td>
+                    <td class="text-xs text-muted">{formatDateTime(r.created_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    )}
+
+    <!-- Webhook Audit Events -->
+    {webhookEvents.length > 0 && (
+      <div class="admin-panel">
+        <div class="admin-panel-head">
+          <div><h2>Webhook Audit Log</h2><p>Cryptographically validated inbound events</p></div>
+        </div>
+        <div class="admin-panel-body flush">
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Gateway Event</th>
+                  <th>Event ID</th>
+                  <th>Signature</th>
+                  <th>Received</th>
+                  <th>Payload Excerpt</th>
+                </tr>
+              </thead>
+              <tbody>
+                {webhookEvents.map((w) => (
+                  <tr>
+                    <td>#{w.id}</td>
+                    <td><strong>{w.event_type}</strong></td>
+                    <td style="font-family:monospace;font-size:0.8rem;">{w.provider_event_id || '—'}</td>
+                    <td>
+                      <span class:list={['badge', w.payload_hash ? 'badge-success' : 'badge-danger']}>
+                        {w.processing_status.toUpperCase()}
+                      </span>
+                    </td>
+                    <td class="text-xs text-muted">{formatDateTime(w.received_at)}</td>
+                    <td style="font-family:monospace;font-size:0.75rem;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                      {w.raw_payload ? w.raw_payload.slice(0, 120) : '—'}...
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    )}
+  </AdminLayout>
+)}

@@ -1,0 +1,185 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { formatDateTime, formatMoney } from '../../../core/http';
+import type { PaymentRow, PaymentMetrics } from '../../../core/operational/service';
+
+interface Props {
+  metrics: PaymentMetrics;
+  payments: PaymentRow[];
+  total: number;
+  status: string;
+  provider: string;
+  search: string;
+}
+
+const { metrics, payments, total, status, provider, search } = Astro.props;
+
+const statusClass: Record<string, string> = {
+  captured: 'badge-success',
+  created: 'badge-warning',
+  pending: 'badge-warning',
+  failed: 'badge-danger',
+  refunded: 'badge-danger',
+  partially_refunded: 'badge-warning',
+};
+
+const statusTabs = [
+  ['all', 'All Statuses'],
+  ['captured', 'Captured (Success)'],
+  ['pending', 'Pending'],
+  ['created', 'Created'],
+  ['failed', 'Failed'],
+  ['refunded', 'Refunded'],
+  ['partially_refunded', 'Partially Refunded'],
+];
+
+const providerTabs = [
+  ['all', 'All Gateways'],
+  ['razorpay', 'Razorpay'],
+  ['phonepe', 'PhonePe'],
+];
+---
+
+<AdminLayout title="Payments & Reconciliation" description={`${total} transaction${total === 1 ? '' : 's'} recorded across all gateways.`}>
+  <div class="metrics-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:1.5rem;">
+    <div class="admin-panel" style="padding:1.25rem;">
+      <small class="text-muted" style="text-transform:uppercase;font-size:0.75rem;font-weight:600;letter-spacing:0.05em;">Total Collected</small>
+      <div class="money" style="font-size:1.6rem;font-weight:700;color:var(--gold-ink,#c8a251);margin-top:0.25rem;">
+        {formatMoney(metrics.totalCollectedPaise)}
+      </div>
+      <div class="text-xs text-muted" style="margin-top:0.35rem;">
+        {metrics.successfulCount} successful payments
+      </div>
+    </div>
+
+    <div class="admin-panel" style="padding:1.25rem;">
+      <small class="text-muted" style="text-transform:uppercase;font-size:0.75rem;font-weight:600;letter-spacing:0.05em;">Total Refunded</small>
+      <div class="money" style="font-size:1.6rem;font-weight:700;color:#ef4444;margin-top:0.25rem;">
+        {formatMoney(metrics.totalRefundedPaise)}
+      </div>
+      <div class="text-xs text-muted" style="margin-top:0.35rem;">
+        {metrics.refundedCount} refunded transactions
+      </div>
+    </div>
+
+    <div class="admin-panel" style="padding:1.25rem;">
+      <small class="text-muted" style="text-transform:uppercase;font-size:0.75rem;font-weight:600;letter-spacing:0.05em;">Pending &amp; Created</small>
+      <div style="font-size:1.6rem;font-weight:700;color:#f59e0b;margin-top:0.25rem;">
+        {metrics.pendingCount}
+      </div>
+      <div class="text-xs text-muted" style="margin-top:0.35rem;">
+        Awaiting gateway settlement
+      </div>
+    </div>
+
+    <div class="admin-panel" style="padding:1.25rem;">
+      <small class="text-muted" style="text-transform:uppercase;font-size:0.75rem;font-weight:600;letter-spacing:0.05em;">Gateway Split</small>
+      <div style="font-size:0.95rem;margin-top:0.35rem;display:flex;flex-direction:column;gap:0.2rem;">
+        <div><strong>Razorpay:</strong> {formatMoney(metrics.providerStats?.razorpay?.totalPaise || 0)}</div>
+        <div><strong>PhonePe:</strong> {formatMoney(metrics.providerStats?.phonepe?.totalPaise || 0)}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="admin-panel">
+    <div class="admin-panel-head">
+      <form method="GET" action="/admin/payments" class="admin-toolbar" style="flex-wrap:wrap;gap:0.75rem;">
+        <input
+          class="input"
+          type="search"
+          name="q"
+          value={search}
+          placeholder="Search ref, order ID, note..."
+          style="min-width:240px;"
+        />
+        <select class="select" name="provider">
+          {providerTabs.map(([val, label]) => (
+            <option value={val} selected={provider === val}>{label}</option>
+          ))}
+        </select>
+        <select class="select" name="status">
+          {statusTabs.map(([val, label]) => (
+            <option value={val} selected={status === val}>{label}</option>
+          ))}
+        </select>
+        <button type="submit" class="btn btn-secondary btn-sm">Filter</button>
+        {(search || (status && status !== 'all') || (provider && provider !== 'all')) && (
+          <a href="/admin/payments" class="btn btn-muted btn-sm">Clear</a>
+        )}
+      </form>
+    </div>
+
+    <div class="admin-panel-body flush">
+      {payments.length === 0 ? (
+        <div class="admin-empty">No payments match the selected criteria.</div>
+      ) : (
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Reference</th>
+                <th>Booking</th>
+                <th>Gateway</th>
+                <th>Type</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Date</th>
+                <th style="text-align:right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {payments.map((p) => (
+                <tr>
+                  <td>
+                    <strong>#{p.id}</strong>
+                    <div class="text-xs text-muted" style="font-family:monospace;font-size:0.75rem;">
+                      {p.internal_transaction_reference}
+                    </div>
+                  </td>
+                  <td>
+                    <a href={`/admin/bookings/${p.booking_id}`} style="font-weight:600;color:var(--gold-ink,#c8a251);">
+                      Booking #{p.booking_id}
+                    </a>
+                  </td>
+                  <td>
+                    <span class="badge" style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.04em;">
+                      {p.provider}
+                    </span>
+                    {p.payment_method && (
+                      <div class="text-xs text-muted" style="text-transform:capitalize;">
+                        {p.payment_method}
+                      </div>
+                    )}
+                  </td>
+                  <td>
+                    <span style="font-size:0.85rem;text-transform:capitalize;">
+                      {p.payment_type.replace('_', ' ')}
+                    </span>
+                  </td>
+                  <td>
+                    <div class="money" style="font-weight:600;">
+                      {formatMoney(p.amount_paise)}
+                    </div>
+                  </td>
+                  <td>
+                    <span class:list={['badge', statusClass[p.status] ?? 'badge-muted']}>
+                      {p.status}
+                    </span>
+                  </td>
+                    <td class="text-xs text-muted">
+                      {formatDateTime(p.created_at)}
+                    </td>
+                    <td style="text-align:right;">
+                      <a href={`/admin/payments/${p.id}`} class="btn btn-secondary btn-sm">
+                        View
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  </div>
+</AdminLayout>

@@ -25,6 +25,18 @@ import {
   deleteVideoPreview,
   toggleVideoPreview,
 } from '../../core/content/service';
+import {
+  getPaymentMetrics,
+  listPayments,
+  getPaymentById,
+  getBookingById,
+  getRefundsByPaymentId,
+  getInvoiceByPaymentId,
+  type CustomerRow,
+  type PaymentWebhookEventRow,
+} from '../../core/operational/service';
+import { getNeonClient } from '../../core/operational/neon-client';
+import { getPaymentService } from '../../core/payment/payment-service';
 
 export { UploadError };
 
@@ -1330,4 +1342,65 @@ export function updateEventEnquiryStatus(id: number, status: string): void {
   }
   run('UPDATE event_enquiries SET status = ? WHERE id = ?', [status, id]);
 }
+
+/* ============================ Payments & Refunds Admin ============================ */
+
+export async function loadPaymentsAdmin(filters?: {
+  search?: string;
+  status?: string;
+  provider?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const metrics = await getPaymentMetrics();
+  const listResult = await listPayments(filters);
+  return { metrics, payments: listResult.payments, total: listResult.total };
+}
+
+export async function loadPaymentDetailAdmin(paymentId: number) {
+  const payment = await getPaymentById(paymentId);
+  if (!payment) return null;
+
+  const booking = await getBookingById(payment.booking_id);
+  const refunds = await getRefundsByPaymentId(payment.id);
+  const invoice = await getInvoiceByPaymentId(payment.id);
+
+  const neon = getNeonClient();
+  const custRes = payment.customer_id
+    ? await neon.query<CustomerRow>('SELECT * FROM customers WHERE id = $1 LIMIT 1', [payment.customer_id])
+    : { rows: [] };
+  const customer = custRes.rows[0] || null;
+
+  const webhooksRes = await neon.query<PaymentWebhookEventRow>(
+    `SELECT * FROM payment_webhook_events 
+     WHERE provider_event_id = $1 OR raw_payload LIKE $2
+     ORDER BY id DESC LIMIT 10`,
+    [payment.provider_payment_id || '', `%${payment.internal_transaction_reference}%`]
+  );
+
+  return {
+    payment,
+    booking,
+    customer,
+    refunds,
+    invoice,
+    webhookEvents: webhooksRes.rows,
+  };
+}
+
+export async function processRefundAdmin(
+  paymentId: number,
+  amountPaise: number,
+  reason: string,
+  adminUserId?: number
+) {
+  const paymentService = getPaymentService();
+  return paymentService.initiateRefund({
+    paymentId,
+    amountPaise,
+    reason,
+    initiatedByUserId: adminUserId,
+  });
+}
+
 

@@ -1,0 +1,229 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Icon from '../../components/Icon.astro';
+import { formatMoney } from '../../core/http';
+import { getSiteSettings } from '../../core/content/service';
+import { getBookingById, getPaymentByInternalRef, getInvoiceByPaymentId, getPaymentsByBookingId } from '../../core/operational/service';
+import { getPaymentService } from '../../core/payment/payment-service';
+import { getNeonClient } from '../../core/operational/neon-client';
+
+const settings = await getSiteSettings();
+const brandName = settings.name || 'Event Point Ranchi';
+const phone = settings.phone || '+91 98765 43210';
+const email = settings.email || 'info@eventpointranchi.com';
+
+const bookingIdParam = Astro.url.searchParams.get('bookingId');
+const refParam = Astro.url.searchParams.get('ref');
+const paymentIdParam = Astro.url.searchParams.get('paymentId');
+
+let booking: any = null;
+let payment: any = null;
+let invoice: any = null;
+let verificationMessage = '';
+
+if (refParam) {
+  payment = await getPaymentByInternalRef(refParam);
+}
+
+if (!payment && bookingIdParam) {
+  const bId = Number(bookingIdParam);
+  if (!isNaN(bId)) {
+    const list = await getPaymentsByBookingId(bId);
+    payment = list[0] || null;
+  }
+}
+
+// If payment is pending or created, query provider to check for final status
+if (payment && (payment.status === 'created' || payment.status === 'pending')) {
+  try {
+    const paymentService = getPaymentService();
+    const result = await paymentService.verifyAndFulfillPayment({
+      provider: payment.provider,
+      orderId: payment.provider_order_id || payment.internal_transaction_reference,
+      paymentId: paymentIdParam || payment.provider_payment_id || undefined,
+      merchantTransactionId: payment.internal_transaction_reference,
+    });
+    if (result.success) {
+      payment = result.payment;
+      verificationMessage = result.message;
+    }
+  } catch (err: any) {
+    console.warn('[Payment Status Check]:', err.message);
+  }
+}
+
+if (payment) {
+  booking = await getBookingById(payment.booking_id);
+  invoice = await getInvoiceByPaymentId(payment.id);
+} else if (bookingIdParam) {
+  booking = await getBookingById(Number(bookingIdParam));
+}
+
+const isCaptured = payment?.status === 'captured';
+const isFailed = payment?.status === 'failed';
+
+const neon = getNeonClient();
+let customer: any = { name: 'Valued Guest', phone: '', email: '' };
+if (booking?.customer_id) {
+  const custRes = await neon.query<{ name: string; phone: string; email: string }>(
+    'SELECT name, phone, email FROM customers WHERE id = $1 LIMIT 1',
+    [booking.customer_id]
+  );
+  if (custRes.rows[0]) customer = custRes.rows[0];
+}
+---
+
+<BaseLayout
+  title={`Payment Status | ${brandName}`}
+  description="Verified transaction status and official digital payment receipt for Event Point Ranchi."
+>
+  <section class="page-hero">
+    <div class="container">
+      <span class="eyebrow">Transaction Status</span>
+      <h1>
+        {isCaptured ? 'Payment Successfully Verified' : isFailed ? 'Payment Unsuccessful' : 'Processing Payment'}
+      </h1>
+      <p>
+        {isCaptured
+          ? 'Your payment has been cryptographically confirmed with our bank acquiring gateway.'
+          : isFailed
+          ? 'The payment gateway was unable to complete this transaction.'
+          : 'We are currently awaiting final settlement confirmation from your bank.'}
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container" style="max-width:760px;">
+      {verificationMessage && (
+        <div class="alert alert-info" style="margin-bottom:20px;padding:12px 16px;background:rgba(212,175,55,0.1);border-radius:var(--r-md);font-size:13.5px;color:var(--gold-ink);">
+          {verificationMessage}
+        </div>
+      )}
+
+      {isCaptured ? (
+        <div class="panel" style="padding:32px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow-sm);">
+          <div style="display:flex;align-items:center;gap:16px;border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:24px;">
+            <div style="width:52px;height:52px;border-radius:50%;background:rgba(46,125,50,0.12);color:#2e7d32;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <Icon name="check-circle" size={32} />
+            </div>
+            <div>
+              <span style="font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#2e7d32;">
+                Official Digital Payment Receipt
+              </span>
+              <h2 style="font-size:1.4rem;margin:2px 0 0;">{formatMoney(payment.amount_paise)} Received</h2>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));gap:16px 24px;font-size:13.5px;line-height:1.6;margin-bottom:24px;">
+            <div>
+              <span style="color:var(--muted);display:block;">Receipt Number:</span>
+              <strong style="font-family:var(--font-mono);">{invoice?.invoice_number || `REC-${payment.id}`}</strong>
+            </div>
+            <div>
+              <span style="color:var(--muted);display:block;">Internal Reference:</span>
+              <strong style="font-family:var(--font-mono);font-size:12px;">{payment.internal_transaction_reference}</strong>
+            </div>
+            <div>
+              <span style="color:var(--muted);display:block;">Booking Reference:</span>
+              <strong>Booking #{booking?.id} ({booking?.event_type})</strong>
+            </div>
+            <div>
+              <span style="color:var(--muted);display:block;">Payer:</span>
+              <strong>{customer.name} {customer.phone ? `(${customer.phone})` : ''}</strong>
+            </div>
+            <div>
+              <span style="color:var(--muted);display:block;">Payment Gateway:</span>
+              <strong style="text-transform:capitalize;">{payment.provider} {payment.payment_method ? `(${payment.payment_method})` : ''}</strong>
+            </div>
+            <div>
+              <span style="color:var(--muted);display:block;">Gateway Transaction ID:</span>
+              <strong style="font-family:var(--font-mono);font-size:12px;">{payment.provider_payment_id || payment.provider_order_id}</strong>
+            </div>
+            <div>
+              <span style="color:var(--muted);display:block;">Timestamp:</span>
+              <strong>{new Date(payment.verified_at || payment.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</strong>
+            </div>
+          </div>
+
+          {booking && (
+            <div style="background:var(--canvas-warm);border:1px solid var(--line);border-radius:var(--r-md);padding:16px 20px;margin-bottom:28px;">
+              <h4 style="margin:0 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);">
+                Updated Booking Balance
+              </h4>
+              <div style="display:flex;justify-content:space-between;font-size:14px;padding:4px 0;">
+                <span>Total Quotation:</span>
+                <strong>{formatMoney(booking.total_amount)}</strong>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:14px;padding:4px 0;color:#2e7d32;">
+                <span>Total Paid:</span>
+                <strong>{formatMoney(booking.amount_paid)}</strong>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:15px;padding:8px 0 0;border-top:1px dashed var(--line);margin-top:6px;">
+                <span>Remaining Balance:</span>
+                <strong style="color:var(--primary-dark);">{formatMoney(booking.outstanding_balance)}</strong>
+              </div>
+            </div>
+          )}
+
+          <div style="display:flex;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:20px;">
+            <button type="button" onclick="window.print()" class="btn btn-secondary">
+              <Icon name="external" size={14} /> Print Receipt
+            </button>
+            {booking && (
+              <a href={`/booking/${booking.id}/quotation?token=${encodeURIComponent(booking.access_token)}`} class="btn btn-primary">
+                View Quotation Overview &rarr;
+              </a>
+            )}
+          </div>
+        </div>
+      ) : isFailed ? (
+        <div class="panel" style="padding:32px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);text-align:center;">
+          <div style="width:56px;height:56px;border-radius:50%;background:rgba(211,47,47,0.1);color:#d32f2f;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+            <Icon name="x" size={32} />
+          </div>
+          <h2 style="font-size:1.4rem;margin:0 0 8px;">Payment Not Completed</h2>
+          <p style="color:var(--muted);font-size:14px;max-width:440px;margin:0 auto 20px;">
+            {payment?.failure_description || 'Your payment was declined or cancelled by the gateway. No funds were debited by Event Point Ranchi.'}
+          </p>
+
+          <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+            {booking && (
+              <a href={`/payment/checkout?bookingId=${booking.id}&token=${encodeURIComponent(booking.access_token)}`} class="btn btn-primary">
+                Retry Payment
+              </a>
+            )}
+            <a href="/contact" class="btn btn-secondary">
+              Contact Accounts Helpdesk
+            </a>
+          </div>
+        </div>
+      ) : (
+        <div class="panel" style="padding:32px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);text-align:center;">
+          <div style="width:56px;height:56px;border-radius:50%;background:rgba(212,175,55,0.15);color:var(--gold-bright);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+            <Icon name="clock" size={32} />
+          </div>
+          <h2 style="font-size:1.4rem;margin:0 0 8px;">Awaiting Bank Confirmation</h2>
+          <p style="color:var(--muted);font-size:14px;max-width:480px;margin:0 auto 20px;">
+            If funds were deducted from your bank or UPI app, please do not pay again. Our background webhooks will reconcile your transaction automatically within a few minutes.
+          </p>
+
+          <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+            <button type="button" onclick="window.location.reload()" class="btn btn-secondary">
+              Refresh Status
+            </button>
+            {booking && (
+              <a href={`/booking/${booking.id}/quotation?token=${encodeURIComponent(booking.access_token)}`} class="btn btn-primary">
+                Return to Quotation
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div style="margin-top:32px;text-align:center;font-size:12.5px;color:var(--muted);">
+        Questions regarding your payment? Email <a href={`mailto:${email}`} class="text-link">{email}</a> or call our verified support line at <a href={`tel:${phone.replace(/\s/g, '')}`} class="text-link">{phone}</a>.
+      </div>
+    </div>
+  </section>
+</BaseLayout>

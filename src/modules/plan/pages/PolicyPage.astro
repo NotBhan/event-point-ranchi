@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import Icon from '../../../components/Icon.astro';
+import PolicyNav from '../../../components/PolicyNav.astro';
 ---
 
 <BaseLayout
@@ -14,21 +15,14 @@ import Icon from '../../../components/Icon.astro';
       <p>
         These terms govern all enquiries, quotations, bookings, and payments made with Event Point Ranchi.
         Fully compliant with RBI Payment Aggregator Guidelines, Consumer Protection (E-Commerce) Rules 2020,
-        and leading payment processors (PhonePe, Razorpay, Stripe).
+        and leading payment processors (PhonePe, Razorpay).
       </p>
     </div>
   </section>
 
   <section class="section">
     <div class="container-narrow policy-content">
-      <!-- Quick Navigation -->
-      <nav class="pill-line mb-4" style="gap:8px;flex-wrap:wrap;padding-bottom:12px;border-bottom:1px solid var(--line);">
-        <a href="#terms" class="btn btn-secondary btn-xs">Terms of Service</a>
-        <a href="#privacy" class="btn btn-secondary btn-xs">Privacy & Data</a>
-        <a href="#cancellations" class="btn btn-secondary btn-xs">Refund & Cancellation</a>
-        <a href="#fulfillment" class="btn btn-secondary btn-xs">Service Fulfillment</a>
-        <a href="#grievance" class="btn btn-secondary btn-xs">Grievance Officer</a>
-      </nav>
+      <PolicyNav current="all" />
 
       <!-- Terms & Conditions -->
       <article id="terms">

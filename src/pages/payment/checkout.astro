@@ -1,0 +1,436 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Icon from '../../components/Icon.astro';
+import { formatMoney } from '../../core/http';
+import { getSiteSettings } from '../../core/content/service';
+import { getBookingById, getBookingByAccessToken } from '../../core/operational/service';
+import { getPaymentService } from '../../core/payment/payment-service';
+import { getNeonClient } from '../../core/operational/neon-client';
+
+const settings = await getSiteSettings();
+const brandName = settings.name || 'Event Point Ranchi';
+const phone = settings.phone || '+91 98765 43210';
+
+const bookingIdParam = Astro.url.searchParams.get('bookingId');
+const tokenParam = Astro.url.searchParams.get('token');
+const typeParam = Astro.url.searchParams.get('type') || '';
+
+let booking: any = null;
+
+if (tokenParam) {
+  booking = await getBookingByAccessToken(tokenParam);
+} else if (bookingIdParam) {
+  const bId = Number(bookingIdParam);
+  if (!isNaN(bId)) {
+    booking = await getBookingById(bId);
+  }
+}
+
+if (!booking && bookingIdParam) {
+  const bId = Number(bookingIdParam);
+  if (!isNaN(bId)) {
+    booking = await getBookingById(bId);
+  }
+}
+
+if (!booking) {
+  return Astro.redirect('/booking/overview');
+}
+
+const neon = getNeonClient();
+const custRes = await neon.query<{ name: string; phone: string; email: string }>(
+  'SELECT name, phone, email FROM customers WHERE id = $1 LIMIT 1',
+  [booking.customer_id]
+);
+const customer = custRes.rows[0] || { name: 'Valued Guest', phone: '', email: '' };
+
+const totalAmount = Number(booking.total_amount);
+const amountPaid = Number(booking.amount_paid);
+const advanceRequired = Number(booking.advance_amount) || Math.round(totalAmount * 0.25);
+const outstanding = Number(booking.outstanding_balance);
+
+const isAdvanceFulfilled = amountPaid >= advanceRequired;
+const isFullyPaid = outstanding <= 0;
+
+let defaultPaymentType = 'advance';
+if (isFullyPaid) {
+  defaultPaymentType = 'completed';
+} else if (isAdvanceFulfilled || typeParam === 'balance') {
+  defaultPaymentType = 'balance';
+} else if (typeParam === 'partial') {
+  defaultPaymentType = 'partial';
+}
+
+const paymentService = getPaymentService();
+const availableGateways = paymentService.getAvailableProviders();
+const defaultGateway = paymentService.getDefaultProvider();
+---
+
+<BaseLayout
+  title={`Secure Checkout | Booking #${booking.id} | ${brandName}`}
+  description="Complete your booking advance or balance payment securely via Razorpay or PhonePe with 256-bit encryption."
+>
+  <section class="page-hero">
+    <div class="container">
+      <span class="eyebrow">Payment Gateway</span>
+      <h1>Secure Checkout & Reservation</h1>
+      <p>
+        Lock your celebration date with {brandName}. Fast, server-verified payments supporting UPI, Cards, and Net Banking.
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container" style="max-width:960px;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));gap:32px;align-items:start;">
+        
+        <!-- Left Column: Booking & Calculation Summary -->
+        <div class="panel" style="padding:28px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);">
+          <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:18px;">
+            <div>
+              <span class="eyebrow" style="margin-bottom:4px;">Booking #{booking.id}</span>
+              <h2 style="font-size:1.3rem;margin:0;">{booking.event_type} Celebration</h2>
+            </div>
+            <span class={`badge ${booking.payment_status === 'paid' ? 'badge-success' : booking.payment_status === 'partially_paid' ? 'badge-info' : 'badge-gold'}`}>
+              {booking.payment_status.toUpperCase()}
+            </span>
+          </div>
+
+          <div style="font-size:13.5px;line-height:1.7;color:var(--body);margin-bottom:20px;">
+            <div><strong>Client Name:</strong> {customer.name}</div>
+            <div><strong>Phone Number:</strong> {customer.phone}</div>
+            <div><strong>Event Date:</strong> {booking.event_date || 'Date to be finalized'} ({booking.event_time || 'Standard'})</div>
+            <div><strong>Expected Guests:</strong> {booking.total_guest} persons</div>
+          </div>
+
+          <!-- Financial Breakdown Table -->
+          <div style="background:var(--canvas-warm);border:1px solid var(--line);border-radius:var(--r-md);padding:16px 20px;margin-bottom:20px;">
+            <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14px;">
+              <span>Total Quotation Amount:</span>
+              <strong>{formatMoney(totalAmount)}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14px;color:#2e7d32;">
+              <span>Amount Paid to Date:</span>
+              <strong>{formatMoney(amountPaid)}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:15px;border-top:1px dashed var(--line);margin-top:6px;color:var(--primary-dark);">
+              <span>Outstanding Balance:</span>
+              <strong style="font-size:1.2rem;color:var(--primary-dark);">{formatMoney(outstanding)}</strong>
+            </div>
+          </div>
+
+          <!-- Security Badges -->
+          <div style="display:flex;align-items:center;gap:16px;font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:16px;">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <Icon name="check-circle" size={14} /> 256-Bit TLS Security
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <Icon name="check-circle" size={14} /> RBI Authorized
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <Icon name="check-circle" size={14} /> PCI-DSS Compliant
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Interactive Payment Form -->
+        <div class="panel" style="padding:28px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);">
+          {isFullyPaid ? (
+            <div style="text-align:center;padding:32px 16px;">
+              <div style="width:64px;height:64px;border-radius:50%;background:rgba(46,125,50,0.1);color:#2e7d32;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+                <Icon name="check-circle" size={36} />
+              </div>
+              <h3 style="margin-bottom:8px;">Booking Fully Paid!</h3>
+              <p style="color:var(--muted);font-size:14px;max-width:320px;margin:0 auto 24px;">
+                All quotation charges have been settled. Your celebration arrangements are confirmed.
+              </p>
+              <a href={`/booking/${booking.id}/quotation${tokenParam ? `?token=${encodeURIComponent(tokenParam)}` : ''}`} class="btn btn-primary">
+                View Quotation & Receipts
+              </a>
+            </div>
+          ) : (
+            <form id="paymentForm" class="form-grid">
+              <input type="hidden" id="bookingIdInput" value={booking.id} />
+              <input type="hidden" id="bookingTokenInput" value={booking.access_token} />
+              
+              <!-- Payment Type Selection -->
+              <div>
+                <label style="display:block;font-weight:600;font-size:14px;margin-bottom:10px;">
+                  Select Payment Type
+                </label>
+                <div style="display:grid;gap:10px;">
+                  {!isAdvanceFulfilled && (
+                    <label style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border:1px solid var(--line);border-radius:var(--r-md);cursor:pointer;background:var(--canvas-warm);">
+                      <input
+                        type="radio"
+                        name="paymentType"
+                        value="advance"
+                        checked={defaultPaymentType === 'advance'}
+                        style="margin-top:4px;"
+                      />
+                      <div>
+                        <strong>Booking Advance (25%)</strong>
+                        <div style="font-size:13px;color:var(--muted);">
+                          {formatMoney(advanceRequired - amountPaid)} · Locks your date on the calendar
+                        </div>
+                      </div>
+                    </label>
+                  )}
+
+                  <label style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border:1px solid var(--line);border-radius:var(--r-md);cursor:pointer;background:var(--canvas-warm);">
+                    <input
+                      type="radio"
+                      name="paymentType"
+                      value="balance"
+                      checked={defaultPaymentType === 'balance'}
+                      style="margin-top:4px;"
+                    />
+                    <div>
+                      <strong>Full Remaining Balance</strong>
+                      <div style="font-size:13px;color:var(--muted);">
+                        {formatMoney(outstanding)} · Completely settles your booking
+                      </div>
+                    </div>
+                  </label>
+
+                  <label style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border:1px solid var(--line);border-radius:var(--r-md);cursor:pointer;background:var(--canvas-warm);">
+                    <input
+                      type="radio"
+                      name="paymentType"
+                      value="partial"
+                      checked={defaultPaymentType === 'partial'}
+                      style="margin-top:4px;"
+                    />
+                    <div style="flex:1;">
+                      <strong>Custom Partial Payment</strong>
+                      <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">
+                        Pay any flexible amount up to {formatMoney(outstanding)}
+                      </div>
+                      <div id="customAmountWrapper" style="display:none;margin-top:8px;">
+                        <div style="position:relative;">
+                          <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-weight:600;">₹</span>
+                          <input
+                            type="number"
+                            id="customAmountInput"
+                            class="input"
+                            style="padding-left:28px;"
+                            placeholder={`e.g. 25000`}
+                            min="100"
+                            max={outstanding / 100}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Payment Gateway Provider Selection -->
+              <div style="margin-top:20px;">
+                <label style="display:block;font-weight:600;font-size:14px;margin-bottom:10px;">
+                  Select Payment Gateway
+                </label>
+                <div style="display:grid;gap:10px;">
+                  {availableGateways.map((gw) => (
+                    <label style="display:flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid var(--line);border-radius:var(--r-md);cursor:pointer;background:var(--surface);">
+                      <input
+                        type="radio"
+                        name="gatewayProvider"
+                        value={gw.id}
+                        checked={defaultGateway === gw.id}
+                      />
+                      <div style="flex:1;">
+                        <strong style="text-transform:capitalize;">{gw.id}</strong>
+                        <div style="font-size:12.5px;color:var(--muted);">{gw.label}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <!-- Compliance & Terms Checkbox -->
+              <div style="margin-top:20px;padding:14px;background:var(--canvas-warm);border-radius:var(--r-md);font-size:12.5px;color:var(--body);">
+                <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;">
+                  <input type="checkbox" id="termsAgreement" required style="margin-top:3px;" />
+                  <span>
+                    I accept the <a href="/terms" target="_blank" class="text-link">Terms & Conditions</a>, <a href="/cancellation-refund" target="_blank" class="text-link">Cancellation & Refund Policy</a> (5-7 day refunds), and <a href="/privacy" target="_blank" class="text-link">Privacy Policy</a> of {brandName}.
+                  </span>
+                </label>
+              </div>
+
+              <!-- Alert Container -->
+              <div id="checkoutAlert" style="display:none;padding:12px 16px;border-radius:var(--r-md);font-size:13.5px;margin-top:16px;"></div>
+
+              <!-- Submit Button -->
+              <div style="margin-top:24px;">
+                <button type="submit" id="payButton" class="btn btn-primary" style="width:100%;padding:14px;font-size:15px;font-weight:600;">
+                  <span>Proceed to Secure Pay</span>
+                </button>
+              </div>
+
+              <div style="text-align:center;font-size:12px;color:var(--muted);margin-top:12px;">
+                Having trouble? Reach our accounts team at <a href={`tel:${phone.replace(/\s/g, '')}`} class="text-link">{phone}</a>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Razorpay Hosted SDK Loader -->
+  <script is:inline src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+  <!-- Client Payment Handling Script -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const form = document.getElementById('paymentForm') as HTMLFormElement;
+      if (!form) return;
+
+      const customAmountWrapper = document.getElementById('customAmountWrapper');
+      const customAmountInput = document.getElementById('customAmountInput') as HTMLInputElement;
+      const typeRadios = document.querySelectorAll('input[name="paymentType"]');
+      const payButton = document.getElementById('payButton') as HTMLButtonElement;
+      const alertBox = document.getElementById('checkoutAlert') as HTMLDivElement;
+      const termsAgreement = document.getElementById('termsAgreement') as HTMLInputElement;
+      const bookingId = Number((document.getElementById('bookingIdInput') as HTMLInputElement)?.value);
+
+      function updateCustomFieldVisibility() {
+        const selected = (document.querySelector('input[name="paymentType"]:checked') as HTMLInputElement)?.value;
+        if (customAmountWrapper) {
+          customAmountWrapper.style.display = selected === 'partial' ? 'block' : 'none';
+        }
+      }
+
+      typeRadios.forEach((radio) => {
+        radio.addEventListener('change', updateCustomFieldVisibility);
+      });
+      updateCustomFieldVisibility();
+
+      function showAlert(message: string, isError = true) {
+        if (!alertBox) return;
+        alertBox.style.display = 'block';
+        alertBox.style.background = isError ? 'rgba(211, 47, 47, 0.1)' : 'rgba(46, 125, 50, 0.1)';
+        alertBox.style.border = `1px solid ${isError ? '#d32f2f' : '#2e7d32'}`;
+        alertBox.style.color = isError ? '#d32f2f' : '#2e7d32';
+        alertBox.textContent = message;
+      }
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!termsAgreement.checked) {
+          showAlert('Please accept the Terms & Conditions and Cancellation Policy to proceed.');
+          return;
+        }
+
+        const paymentType = (document.querySelector('input[name="paymentType"]:checked') as HTMLInputElement)?.value;
+        const provider = (document.querySelector('input[name="gatewayProvider"]:checked') as HTMLInputElement)?.value || 'razorpay';
+
+        let customAmountPaise: number | undefined = undefined;
+        if (paymentType === 'partial') {
+          const val = Number(customAmountInput.value);
+          if (!val || val <= 0) {
+            showAlert('Please enter a valid partial payment amount.');
+            return;
+          }
+          customAmountPaise = Math.round(val * 100);
+        }
+
+        payButton.disabled = true;
+        payButton.innerHTML = '<span>Initiating Secure Session...</span>';
+
+        try {
+          // 1. Create order on server
+          const createRes = await fetch('/api/payment/create-order', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              bookingId,
+              paymentType,
+              customAmountPaise,
+              provider,
+            }),
+          });
+
+          const createData = await createRes.json();
+          if (!createRes.ok || createData.status !== 'success') {
+            throw new Error(createData.message || 'Failed to initialize payment.');
+          }
+
+          const { order, internalReference } = createData;
+
+          // 2. Invoke Gateway Interface
+          if (provider === 'phonepe' && order.checkoutUrl) {
+            // Redirect to PhonePe hosted checkout
+            window.location.href = order.checkoutUrl;
+          } else if (provider === 'razorpay') {
+            // Open Razorpay Standard Checkout modal
+            if (typeof (window as any).Razorpay === 'undefined') {
+              throw new Error('Razorpay SDK failed to load. Please check your internet connection or use PhonePe.');
+            }
+
+            const rzpOptions = {
+              key: order.keyId,
+              amount: order.amountPaise,
+              currency: order.currency || 'INR',
+              name: 'Event Point Ranchi',
+              description: order.instrumentPayload?.description || `Booking #${bookingId}`,
+              order_id: order.orderId,
+              prefill: order.instrumentPayload?.prefill || {},
+              notes: order.instrumentPayload?.notes || {},
+              theme: { color: '#721224' },
+              handler: async (response: any) => {
+                payButton.innerHTML = '<span>Verifying Payment...</span>';
+                try {
+                  const verifyRes = await fetch('/api/payment/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      provider: 'razorpay',
+                      orderId: response.razorpay_order_id,
+                      paymentId: response.razorpay_payment_id,
+                      signature: response.razorpay_signature,
+                      merchantTransactionId: internalReference,
+                    }),
+                  });
+
+                  const verifyData = await verifyRes.json();
+                  if (!verifyRes.ok || verifyData.status !== 'success') {
+                    throw new Error(verifyData.message || 'Payment verification failed.');
+                  }
+
+                  window.location.href = `/payment/status?bookingId=${bookingId}&ref=${encodeURIComponent(internalReference)}&paymentId=${encodeURIComponent(response.razorpay_payment_id)}`;
+                } catch (verifyErr: any) {
+                  showAlert(`Payment received but verification flagged: ${verifyErr.message}`);
+                  payButton.disabled = false;
+                  payButton.innerHTML = '<span>Retry Verification</span>';
+                }
+              },
+              modal: {
+                ondismiss: () => {
+                  payButton.disabled = false;
+                  payButton.innerHTML = '<span>Proceed to Secure Pay</span>';
+                  showAlert('Payment window closed. Your booking is safe and you can retry at any time.', false);
+                },
+              },
+            };
+
+            const rzp = new (window as any).Razorpay(rzpOptions);
+            rzp.on('payment.failed', (failResponse: any) => {
+              showAlert(`Payment failed: ${failResponse.error?.description || 'Gateway transaction declined.'}`);
+              payButton.disabled = false;
+              payButton.innerHTML = '<span>Retry Payment</span>';
+            });
+            rzp.open();
+          } else {
+            throw new Error('Unsupported payment configuration.');
+          }
+        } catch (err: any) {
+          showAlert(err.message || 'Payment initiation failed.');
+          payButton.disabled = false;
+          payButton.innerHTML = '<span>Proceed to Secure Pay</span>';
+        }
+      });
+    });
+  </script>
+</BaseLayout>

@@ -1,0 +1,28 @@
+---
+interface Props {
+  current?: 'terms' | 'privacy' | 'cancellation-refund' | 'payment-policy' | 'grievance' | 'all';
+}
+
+const { current } = Astro.props;
+
+const links = [
+  { id: 'terms', label: 'Terms of Service', href: '/terms' },
+  { id: 'privacy', label: 'Privacy Policy', href: '/privacy' },
+  { id: 'cancellation-refund', label: 'Cancellation & Refund', href: '/cancellation-refund' },
+  { id: 'payment-policy', label: 'Payment & Booking', href: '/payment-policy' },
+  { id: 'grievance', label: 'Grievance Officer', href: '/grievance' },
+  { id: 'all', label: 'All Policies Hub', href: '/policies' },
+];
+---
+
+<nav class="pill-line mb-6" style="gap:8px;flex-wrap:wrap;padding-bottom:14px;border-bottom:1px solid var(--line);" aria-label="Legal & compliance navigation">
+  {links.map((link) => (
+    <a
+      href={link.href}
+      class={`btn ${current === link.id ? 'btn-primary' : 'btn-secondary'} btn-xs`}
+      aria-current={current === link.id ? 'page' : undefined}
+    >
+      {link.label}
+    </a>
+  ))}
+</nav>

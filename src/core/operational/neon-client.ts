@@ -87,17 +87,21 @@ export class NeonOperationalClient {
       );
 
       CREATE TABLE IF NOT EXISTS bookings (
-        id              INTEGER PRIMARY KEY AUTOINCREMENT,
-        customer_id     INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
-        access_token    TEXT NOT NULL UNIQUE,
-        created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-        event_date      TEXT,
-        event_time      TEXT,
-        event_type      TEXT NOT NULL DEFAULT 'Wedding',
-        total_guest     INTEGER NOT NULL DEFAULT 100,
-        special_request TEXT NOT NULL DEFAULT '',
-        status          TEXT NOT NULL DEFAULT 'pending',
-        total_amount    INTEGER NOT NULL DEFAULT 0
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        customer_id         INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+        access_token        TEXT NOT NULL UNIQUE,
+        created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+        event_date          TEXT,
+        event_time          TEXT,
+        event_type          TEXT NOT NULL DEFAULT 'Wedding',
+        total_guest         INTEGER NOT NULL DEFAULT 100,
+        special_request     TEXT NOT NULL DEFAULT '',
+        status              TEXT NOT NULL DEFAULT 'pending',
+        total_amount        INTEGER NOT NULL DEFAULT 0,
+        advance_amount      INTEGER NOT NULL DEFAULT 0,
+        amount_paid         INTEGER NOT NULL DEFAULT 0,
+        outstanding_balance INTEGER NOT NULL DEFAULT 0,
+        payment_status      TEXT NOT NULL DEFAULT 'unpaid'
       );
 
       CREATE TABLE IF NOT EXISTS booking_items (
@@ -219,6 +223,84 @@ export class NeonOperationalClient {
         details     TEXT NOT NULL DEFAULT '{}',
         ip_address  TEXT NOT NULL DEFAULT '',
         created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE TABLE IF NOT EXISTS payments (
+        id                             INTEGER PRIMARY KEY AUTOINCREMENT,
+        booking_id                     INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+        customer_id                    INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+        provider                       TEXT NOT NULL,
+        provider_order_id              TEXT,
+        provider_payment_id            TEXT,
+        internal_transaction_reference TEXT NOT NULL UNIQUE,
+        payment_type                   TEXT NOT NULL DEFAULT 'advance',
+        amount_paise                   INTEGER NOT NULL,
+        currency                       TEXT NOT NULL DEFAULT 'INR',
+        status                         TEXT NOT NULL DEFAULT 'created',
+        payment_method                 TEXT,
+        failure_code                   TEXT,
+        failure_description            TEXT,
+        metadata_json                  TEXT NOT NULL DEFAULT '{}',
+        verified_at                    TEXT,
+        created_at                     TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at                     TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE TABLE IF NOT EXISTS payment_webhook_events (
+        id                INTEGER PRIMARY KEY AUTOINCREMENT,
+        provider          TEXT NOT NULL,
+        provider_event_id TEXT,
+        event_type        TEXT NOT NULL,
+        payload_hash      TEXT NOT NULL,
+        processing_status TEXT NOT NULL DEFAULT 'pending',
+        error_message     TEXT,
+        raw_payload       TEXT,
+        received_at       TEXT NOT NULL DEFAULT (datetime('now')),
+        processed_at      TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS refunds (
+        id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+        payment_id         INTEGER NOT NULL REFERENCES payments(id) ON DELETE CASCADE,
+        booking_id         INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+        provider_refund_id TEXT,
+        amount_paise       INTEGER NOT NULL,
+        reason             TEXT NOT NULL,
+        status             TEXT NOT NULL DEFAULT 'pending',
+        failure_reason     TEXT,
+        initiated_by       INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at         TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE TABLE IF NOT EXISTS payment_reconciliation (
+        id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+        provider                TEXT NOT NULL,
+        provider_transaction_id TEXT NOT NULL,
+        internal_payment_id     INTEGER REFERENCES payments(id) ON DELETE SET NULL,
+        provider_amount_paise   INTEGER NOT NULL,
+        internal_amount_paise   INTEGER NOT NULL,
+        reconciliation_status   TEXT NOT NULL DEFAULT 'pending',
+        notes                   TEXT,
+        reconciled_at           TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE TABLE IF NOT EXISTS invoices (
+        id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+        booking_id           INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+        payment_id           INTEGER REFERENCES payments(id) ON DELETE SET NULL,
+        invoice_number       TEXT NOT NULL UNIQUE,
+        invoice_type         TEXT NOT NULL DEFAULT 'receipt',
+        taxable_amount_paise INTEGER NOT NULL DEFAULT 0,
+        cgst_paise           INTEGER NOT NULL DEFAULT 0,
+        sgst_paise           INTEGER NOT NULL DEFAULT 0,
+        igst_paise           INTEGER NOT NULL DEFAULT 0,
+        total_amount_paise   INTEGER NOT NULL,
+        customer_name        TEXT NOT NULL,
+        customer_phone       TEXT NOT NULL,
+        customer_email       TEXT,
+        customer_address     TEXT,
+        created_at           TEXT NOT NULL DEFAULT (datetime('now'))
       );
     `);
   }

@@ -1,0 +1,109 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
+import PolicyNav from '../components/PolicyNav.astro';
+import { getSiteSettings } from '../core/content/service';
+
+const settings = await getSiteSettings();
+const brandName = settings.name || 'Event Point Ranchi';
+const legalName = settings.legalName || 'Event Point Ranchi';
+const address = settings.address || 'Event Point, Main Road, Ranchi, Jharkhand 834001, India';
+const phone = settings.phone || '+91 98765 43210';
+const email = settings.email || 'info@eventpointranchi.com';
+---
+
+<BaseLayout
+  title={`Customer Support & Grievance Redressal | ${brandName}`}
+  description={`Designated Grievance Redressal Officer, contact details, turnaround timelines, and escalation hierarchy for ${brandName}.`}
+>
+  <section class="page-hero">
+    <div class="container">
+      <span class="eyebrow">Customer Protection</span>
+      <h1>Customer Support & Grievance Redressal</h1>
+      <p>
+        In compliance with the Consumer Protection (E-Commerce) Rules 2020 and Information Technology Act 2000.
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container-narrow policy-content">
+      <PolicyNav current="grievance" />
+
+      <div class="panel mb-8" style="padding:24px;background:var(--canvas-warm);border:1px solid var(--line);border-radius:var(--r-md);">
+        <h3 style="margin-top:0;font-size:1.15rem;color:var(--primary-dark);">Designated Grievance Redressal Officer</h3>
+        <p style="font-size:14px;color:var(--body);line-height:1.6;margin-bottom:16px;">
+          If you have any unresolved service complaint, dispute regarding billing, refund delay, or privacy concerns, you may contact our designated Grievance Officer:
+        </p>
+
+        <ul class="spec-list" style="margin:0;">
+          <li><Icon name="check-circle" size={15} /> <strong>Officer Name:</strong> Mr. Rahul Sharma</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Designation:</strong> Grievance Redressal Officer & Head of Client Relations</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Company Entity:</strong> {legalName}</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Office Address:</strong> {address}</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Dedicated Email:</strong> <a class="text-link" href="mailto:grievance@eventpointranchi.com">grievance@eventpointranchi.com</a></li>
+          <li><Icon name="check-circle" size={15} /> <strong>Direct Helpline:</strong> <a class="text-link" href={`tel:${phone.replace(/\s/g, '')}`}>{phone}</a> (Mon – Sat, 10:00 AM – 7:00 PM IST)</li>
+        </ul>
+      </div>
+
+      <article id="turnaround-commitments">
+        <h2>1. Statutory Turnaround & Response Commitments</h2>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));gap:16px;margin:18px 0;">
+          <div style="padding:16px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);">
+            <div style="font-size:2rem;font-weight:700;color:var(--gold-bright);font-family:var(--font-mono);">48 Hours</div>
+            <strong style="display:block;margin-top:4px;">Formal Acknowledgement</strong>
+            <p style="font-size:13px;color:var(--muted);margin-top:4px;">Every grievance is registered with a unique ticket number and acknowledged in writing within 48 hours.</p>
+          </div>
+          <div style="padding:16px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);">
+            <div style="font-size:2rem;font-weight:700;color:var(--gold-bright);font-family:var(--font-mono);">30 Days</div>
+            <strong style="display:block;margin-top:4px;">Maximum Redressal Window</strong>
+            <p style="font-size:13px;color:var(--muted);margin-top:4px;">Investigations and final remedies are closed within 30 days from the initial filing date.</p>
+          </div>
+        </div>
+      </article>
+
+      <article id="escalation-hierarchy">
+        <h2>2. Multi-Tier Dispute Escalation Mechanism</h2>
+        <p>
+          To ensure quick and courteous resolution of all client issues:
+        </p>
+
+        <div style="display:flex;flex-direction:column;gap:14px;margin-top:16px;">
+          <div style="padding:16px 20px;border-left:4px solid var(--gold-bright);background:var(--canvas-warm);border-radius:0 var(--r-md) var(--r-md) 0;">
+            <h4 style="margin:0 0 6px;">Level 1: Frontline Operations & Client Desk</h4>
+            <p style="margin:0;font-size:13.5px;color:var(--body);">
+              For date adjustments, equipment swaps, quotation amendments, or initial payment queries. Reach out to our front desk via phone at <a href={`tel:${phone.replace(/\s/g, '')}`} class="text-link">{phone}</a> or email <a href={`mailto:${email}`} class="text-link">{email}</a>. Typical response: within 1 business day.
+            </p>
+          </div>
+
+          <div style="padding:16px 20px;border-left:4px solid #f57c00;background:var(--canvas-warm);border-radius:0 var(--r-md) var(--r-md) 0;">
+            <h4 style="margin:0 0 6px;">Level 2: Formal Grievance Escalation</h4>
+            <p style="margin:0;font-size:13.5px;color:var(--body);">
+              If your Level 1 issue is not resolved within 3 business days, or if you have a refund delay exceeding 7 business days, email <a href="mailto:grievance@eventpointranchi.com" class="text-link">grievance@eventpointranchi.com</a> citing your Ticket or Booking Reference. The Grievance Officer personally investigates the bank ledger and gateway logs.
+            </p>
+          </div>
+
+          <div style="padding:16px 20px;border-left:4px solid var(--primary-dark);background:var(--canvas-warm);border-radius:0 var(--r-md) var(--r-md) 0;">
+            <h4 style="margin:0 0 6px;">Level 3: Executive Review</h4>
+            <p style="margin:0;font-size:13.5px;color:var(--body);">
+              In rare instances where a dispute requires contractual renegotiation or executive mediation, the matter is placed before the Managing Director of {brandName} for binding mutual resolution.
+            </p>
+          </div>
+        </div>
+      </article>
+
+      <article id="how-to-file">
+        <h2>3. What Information to Provide When Filing</h2>
+        <p>
+          To help us resolve your concern swiftly, please ensure your message includes:
+        </p>
+        <ul class="spec-list">
+          <li><Icon name="check-circle" size={15} /> Your <strong>Booking ID or Quotation Reference</strong> (e.g. #104).</li>
+          <li><Icon name="check-circle" size={15} /> Full customer name and 10-digit mobile number used during enquiry.</li>
+          <li><Icon name="check-circle" size={15} /> Bank reference number / UTR / Gateway Payment ID (for payment issues).</li>
+          <li><Icon name="check-circle" size={15} /> A concise description of the issue and your desired resolution.</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+</BaseLayout>

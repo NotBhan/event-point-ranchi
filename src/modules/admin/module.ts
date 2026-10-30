@@ -21,6 +21,8 @@ import {
   eventEnquiriesList,
   eventEnquiryDetail,
   inquiriesList,
+  paymentDetail,
+  paymentsList,
 } from './handlers/operations';
 import BookingDetailPage from './pages/BookingDetailPage.astro';
 import BookingsPage from './pages/BookingsPage.astro';
@@ -37,6 +39,8 @@ import HallFormPage from './pages/HallFormPage.astro';
 import HallsPage from './pages/HallsPage.astro';
 import InquiriesPage from './pages/InquiriesPage.astro';
 import LoginPage from './pages/LoginPage.astro';
+import PaymentDetailPage from './pages/PaymentDetailPage.astro';
+import PaymentsPage from './pages/PaymentsPage.astro';
 
 export default defineModule({
   id: 'admin',
@@ -45,6 +49,7 @@ export default defineModule({
   adminNav: [
     { label: 'Dashboard', href: '/admin', icon: 'dashboard', order: 10 },
     { label: 'Bookings', href: '/admin/bookings', icon: 'ticket', order: 20 },
+    { label: 'Payments', href: '/admin/payments', icon: 'credit-card', order: 22 },
     { label: 'Event Enquiries', href: '/admin/enquiries', icon: 'calendar', order: 25 },
     { label: 'Halls', href: '/admin/halls', icon: 'building', order: 30 },
     { label: 'Catering', href: '/admin/catering', icon: 'utensils', order: 50 },
@@ -60,6 +65,9 @@ export default defineModule({
 
     { path: '/admin/bookings', component: BookingsPage, handle: bookingsList },
     { path: '/admin/bookings/:id', component: BookingDetailPage, handle: bookingDetail },
+
+    { path: '/admin/payments', component: PaymentsPage, handle: paymentsList },
+    { path: '/admin/payments/:id', component: PaymentDetailPage, handle: paymentDetail },
 
     { path: '/admin/enquiries', component: EventEnquiriesPage, handle: eventEnquiriesList },
     { path: '/admin/enquiries/:id', component: EventEnquiryDetailPage, handle: eventEnquiryDetail },

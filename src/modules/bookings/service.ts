@@ -232,10 +232,11 @@ export function createBooking(auth: AuthState, payload: CartPayload): CreatedBoo
 
     // ---------- Booking ----------
     const accessToken = randomBytes(18).toString('base64url');
+    const advanceAmount = Math.round(total * 0.25);
 
     const bookingId = run(
-      `INSERT INTO bookings (customer_id, access_token, event_date, event_time, event_type, total_guest, special_request, status, total_amount)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+      `INSERT INTO bookings (customer_id, access_token, event_date, event_time, event_type, total_guest, special_request, status, total_amount, advance_amount, amount_paid, outstanding_balance, payment_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, 0, ?, 'unpaid')`,
       [
         customerId,
         accessToken,
@@ -244,6 +245,8 @@ export function createBooking(auth: AuthState, payload: CartPayload): CreatedBoo
         customer.eventType,
         customer.guests,
         customer.specialRequest,
+        total,
+        advanceAmount,
         total,
       ],
     ).lastId;
@@ -320,6 +323,11 @@ export interface QuotationData {
     special_request: string;
     status: string;
     total_amount: number;
+    advance_amount?: number;
+    amount_paid?: number;
+    outstanding_balance?: number;
+    payment_status?: string;
+    access_token?: string;
   };
   customer: { name: string; phone: string; email: string; address: string };
   lines: BookingLine[];
@@ -450,10 +458,19 @@ export function loadCustomerBookings(userId: number) {
     event_type: string;
     total_guest: number;
     total_amount: number;
+    advance_amount: number;
+    amount_paid: number;
+    outstanding_balance: number;
+    payment_status: string;
     status: string;
     created_at: string;
   }>(
-    `SELECT b.id, b.event_date, b.event_type, b.total_guest, b.total_amount, b.status, b.created_at
+    `SELECT b.id, b.event_date, b.event_type, b.total_guest, b.total_amount,
+            COALESCE(b.advance_amount, 0) as advance_amount,
+            COALESCE(b.amount_paid, 0) as amount_paid,
+            COALESCE(b.outstanding_balance, b.total_amount) as outstanding_balance,
+            COALESCE(b.payment_status, 'unpaid') as payment_status,
+            b.status, b.created_at
      FROM bookings b
      JOIN customers c ON c.id = b.customer_id
      WHERE c.user_id = ?

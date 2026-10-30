@@ -117,6 +117,24 @@ const statusClass: Record<string, string> = {
             <span>Total amount</span>
             <strong>{formatMoney(data.booking.total_amount)}</strong>
           </div>
+
+          <div style="background:var(--canvas-warm);border:1px solid var(--line);border-radius:var(--r-md);padding:14px 18px;margin-top:14px;font-size:13.5px;">
+            <div style="display:flex;justify-content:space-between;padding:4px 0;">
+              <span>Amount Paid:</span>
+              <strong style="color:#2e7d32;">{formatMoney(data.booking.amount_paid ?? 0)}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:4px 0;">
+              <span>Outstanding Balance:</span>
+              <strong style="color:var(--primary-dark);">{formatMoney(data.booking.outstanding_balance ?? data.booking.total_amount)}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:4px 0;align-items:center;">
+              <span>Payment Status:</span>
+              <span class={`badge ${(data.booking.payment_status || 'unpaid') === 'paid' ? 'badge-success' : (data.booking.payment_status || 'unpaid') === 'partially_paid' ? 'badge-info' : 'badge-gold'}`}>
+                {(data.booking.payment_status || 'unpaid').toUpperCase()}
+              </span>
+            </div>
+          </div>
+
           <p class="invoice-disclaimer">
             This invoice includes all selected venues, catering, furnishings and services. Prices were verified against our
             live catalogue at the time of booking.
@@ -129,13 +147,28 @@ const statusClass: Record<string, string> = {
         </div>
 
         <div class="invoice-actions no-print">
-          <button type="button" class="btn btn-primary" data-print>
+          {(data.booking.outstanding_balance ?? data.booking.total_amount) > 0 ? (
+            <a
+              href={`/payment/checkout?bookingId=${data.booking.id}&token=${encodeURIComponent(data.booking.access_token || '')}`}
+              class="btn btn-primary"
+              style="background:#2e7d32;border-color:#2e7d32;"
+            >
+              <Icon name="check-circle" size={16} />
+              {(data.booking.amount_paid ?? 0) === 0 ? 'Pay Booking Advance (25%)' : 'Pay Remaining Balance'}
+            </a>
+          ) : (
+            <span class="badge badge-success" style="padding:10px 16px;font-size:14px;">
+              <Icon name="check-circle" size={16} /> Fully Paid & Confirmed
+            </span>
+          )}
+
+          <button type="button" class="btn btn-secondary" data-print>
             <Icon name="print" size={16} /> Print / save as PDF
           </button>
           <a href="/" class="btn btn-secondary"><Icon name="home" size={16} /> Back to home</a>
-          {data.booking.status === 'pending' && (
+          {data.booking.status === 'pending' && (data.booking.amount_paid ?? 0) === 0 && (
             <span class="muted-box" style="padding:10px 14px;">
-              Our team will call you to confirm this booking.
+              Pay advance online or our team will call to confirm.
             </span>
           )}
         </div>
