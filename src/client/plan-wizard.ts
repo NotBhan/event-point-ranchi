@@ -79,17 +79,25 @@ interface PlanDraft {
   venueLocation: string;
   guestCount: string;
   eventDescription: string;
+  mandapId: string;
+  mandapLength: string;
+  mandapWidth: string;
+  mandapHeight: string;
   mandapNotes: string;
+  stageId: string;
+  stageLength: string;
+  stageWidth: string;
+  stageHeight: string;
   stageNotes: string;
+  lighting: string;
+  floralPalette: string;
+  specialInstructions: string;
   equipmentNotes: string;
   requiresRooms: string;
   roomCount: string;
   acRoomCount: string;
   nonAcRoomCount: string;
   accommodationNotes: string;
-  lighting: string;
-  floralPalette: string;
-  specialInstructions: string;
   budgetRange: string;
   customerName: string;
   customerPhone: string;
@@ -101,14 +109,10 @@ type DimensionResult = DimensionSet | null | 'invalid';
 
 const DRAFT_KEY = 'eventPointPlanDraft:v1';
 const STEP_LABELS = [
-  'Event details',
-  'Mandap',
-  'Stage',
-  'Equipment',
-  'Accommodation',
-  'Styling',
-  'Budget & contact',
-  'Review',
+  'Event & Venue Essentials',
+  'Mandap & Stage Architecture',
+  'Seating, Equipment & Hospitality',
+  'Contact & Quotation Review',
 ];
 
 const form = document.getElementById('planForm') as HTMLFormElement | null;
@@ -117,6 +121,7 @@ const planShell = document.getElementById('planShell');
 const receipt = document.querySelector<HTMLElement>('[data-plan-receipt]');
 const errorBox = document.querySelector<HTMLElement>('[data-plan-error]');
 const progressText = document.querySelector<HTMLElement>('[data-plan-progress-text]');
+const progressBar = document.querySelector<HTMLElement>('[data-plan-progress-bar]');
 const steps = Array.from(document.querySelectorAll<HTMLElement>('[data-plan-step]'));
 const progressButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-plan-step-link]'));
 
@@ -147,17 +152,25 @@ function defaultDraft(): PlanDraft {
     venueLocation: '',
     guestCount: '',
     eventDescription: '',
+    mandapId: '',
+    mandapLength: '',
+    mandapWidth: '',
+    mandapHeight: '',
     mandapNotes: '',
+    stageId: '',
+    stageLength: '',
+    stageWidth: '',
+    stageHeight: '',
     stageNotes: '',
+    lighting: 'Warm fairy lights',
+    floralPalette: 'Maroon & ivory',
+    specialInstructions: '',
     equipmentNotes: '',
-    requiresRooms: '',
+    requiresRooms: 'no',
     roomCount: '',
     acRoomCount: '',
     nonAcRoomCount: '',
     accommodationNotes: '',
-    lighting: 'Warm fairy lights',
-    floralPalette: 'Maroon & ivory',
-    specialInstructions: '',
     budgetRange: '',
     customerName: '',
     customerPhone: '',
@@ -175,16 +188,16 @@ function esc(value: unknown): string {
     .replace(/'/g, '&#39;');
 }
 
-function imageUrl(path: string | null | undefined): string {
-  if (!path) return '/images/placeholder.jpg';
-  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('/')) return path;
-  return `/${path.replace(/^\.?\//, '')}`;
-}
 
 function readDraft(): PlanDraft {
   try {
     const raw = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? 'null') as Partial<PlanDraft> | null;
-    return { ...defaultDraft(), ...(raw ?? {}) };
+    const initial = { ...defaultDraft(), ...(raw ?? {}) };
+    // Map legacy 8-step counter to modern 4-phase counter if needed
+    if (initial.step > 4) {
+      initial.step = initial.step <= 1 ? 1 : initial.step <= 3 ? 2 : initial.step <= 5 ? 3 : 4;
+    }
+    return initial;
   } catch {
     return defaultDraft();
   }
@@ -220,7 +233,7 @@ function setRadio(name: string, value: string): void {
 function setFieldError(fieldElement: HTMLElement | null, message: string): void {
   if (!fieldElement) return;
   fieldElement.classList.add('is-invalid');
-  const parent = fieldElement.closest('.field') || fieldElement.closest('.field-group') || fieldElement.closest('.plan-consent');
+  const parent = fieldElement.closest('.field') || fieldElement.closest('.field-group') || fieldElement.closest('.plan-consent') || fieldElement.parentElement;
   if (parent) {
     let err = parent.querySelector<HTMLElement>('.field-error-msg');
     if (!err) {
@@ -235,7 +248,7 @@ function setFieldError(fieldElement: HTMLElement | null, message: string): void 
 function clearFieldError(fieldElement: HTMLElement | null): void {
   if (!fieldElement) return;
   fieldElement.classList.remove('is-invalid');
-  const parent = fieldElement.closest('.field') || fieldElement.closest('.field-group') || fieldElement.closest('.plan-consent');
+  const parent = fieldElement.closest('.field') || fieldElement.closest('.field-group') || fieldElement.closest('.plan-consent') || fieldElement.parentElement;
   if (parent) {
     const err = parent.querySelector('.field-error-msg');
     if (err) err.remove();
@@ -258,7 +271,6 @@ function clearError(): void {
   document.querySelectorAll('.field-error-msg').forEach((el) => el.remove());
 }
 
-
 function collectDraft(): PlanDraft {
   return {
     step: state?.currentStep ?? 1,
@@ -269,17 +281,25 @@ function collectDraft(): PlanDraft {
     venueLocation: fieldValue('venueLocation'),
     guestCount: fieldValue('guestCount'),
     eventDescription: fieldValue('eventDescription'),
+    mandapId: fieldValue('mandapId'),
+    mandapLength: fieldValue('mandapLength'),
+    mandapWidth: fieldValue('mandapWidth'),
+    mandapHeight: fieldValue('mandapHeight'),
     mandapNotes: fieldValue('mandapNotes'),
+    stageId: fieldValue('stageId'),
+    stageLength: fieldValue('stageLength'),
+    stageWidth: fieldValue('stageWidth'),
+    stageHeight: fieldValue('stageHeight'),
     stageNotes: fieldValue('stageNotes'),
+    lighting: fieldValue('lighting') || 'Warm fairy lights',
+    floralPalette: fieldValue('floralPalette') || 'Maroon & ivory',
+    specialInstructions: fieldValue('specialInstructions'),
     equipmentNotes: fieldValue('equipmentNotes'),
-    requiresRooms: radioValue('requiresRooms'),
+    requiresRooms: radioValue('requiresRooms') || 'no',
     roomCount: fieldValue('roomCount'),
     acRoomCount: fieldValue('acRoomCount'),
     nonAcRoomCount: fieldValue('nonAcRoomCount'),
     accommodationNotes: fieldValue('accommodationNotes'),
-    lighting: fieldValue('lighting'),
-    floralPalette: fieldValue('floralPalette'),
-    specialInstructions: fieldValue('specialInstructions'),
     budgetRange: fieldValue('budgetRange'),
     customerName: fieldValue('customerName'),
     customerPhone: fieldValue('customerPhone'),
@@ -295,7 +315,7 @@ function applyDraft(draft: PlanDraft): void {
     if (element) element.value = String(value ?? '');
   });
 
-  setRadio('requiresRooms', draft.requiresRooms);
+  setRadio('requiresRooms', draft.requiresRooms || 'no');
   const endDate = field<HTMLInputElement>('endDate');
   const eventDate = field<HTMLInputElement>('eventDate');
   if (endDate && eventDate?.value) endDate.min = eventDate.value;
@@ -346,8 +366,9 @@ function customDimensions(kind: 'mandap' | 'stage'): DimensionResult {
 function validateStep(step: number): boolean {
   clearError();
 
+  // Phase 1: Event & Venue Essentials
   if (step === 1) {
-    if (!fieldValue('eventType')) return fail('Select an event type to continue.', 'eventType');
+    if (!fieldValue('eventType')) return fail('Select an event celebration type to continue.', 'eventType');
     if (!isValidDate(fieldValue('eventDate'))) return fail('Enter a valid event date.', 'eventDate');
     if (fieldValue('eventDate') < today) return fail('The event date cannot be in the past.', 'eventDate');
 
@@ -360,25 +381,33 @@ function validateStep(step: number): boolean {
     if (fieldValue('venueLocation').length < 2) return fail('Enter the venue or location in Ranchi.', 'venueLocation');
     const guests = Number(fieldValue('guestCount'));
     if (!Number.isInteger(guests) || guests < 1 || guests > 100000) {
-      return fail('Enter a guest count between 1 and 1,00,000.', 'guestCount');
+      return fail('Enter an estimated guest count between 1 and 1,00,000.', 'guestCount');
     }
   }
 
-  if (step === 2 || step === 3) {
-    const kind = step === 2 ? 'mandap' : 'stage';
-    const select = field<HTMLSelectElement>(kind === 'mandap' ? 'mandapId' : 'stageId');
-    const dimensions = customDimensions(kind);
-    if (dimensions === 'invalid') {
-      return fail(`Enter all three custom ${kind} dimensions in feet, or leave them all blank.`, `${kind}Length`);
+  // Phase 2: Mandap, Stage & Styling Architecture
+  if (step === 2) {
+    const mandapDim = customDimensions('mandap');
+    if (mandapDim === 'invalid') {
+      return fail('Enter all three custom mandap dimensions in feet (Length, Width, Height), or leave them blank.', 'mandapLength');
     }
-    if (!select?.value && dimensions) {
-      return fail(`Select a ${kind} before entering custom dimensions.`, kind === 'mandap' ? 'mandapId' : 'stageId');
+    if (!fieldValue('mandapId') && mandapDim) {
+      return fail('Select a mandap design before configuring custom dimensions.', 'mandapLength');
+    }
+
+    const stageDim = customDimensions('stage');
+    if (stageDim === 'invalid') {
+      return fail('Enter all three custom stage dimensions in feet (Length, Width, Height), or leave them blank.', 'stageLength');
+    }
+    if (!fieldValue('stageId') && stageDim) {
+      return fail('Select a stage design before configuring custom dimensions.', 'stageLength');
     }
   }
 
-  if (step === 5) {
+  // Phase 3: Seating, Equipment & Hospitality
+  if (step === 3) {
     const requiresRooms = radioValue('requiresRooms');
-    if (!requiresRooms) return fail('Tell us whether you require rooms.', 'requiresRooms');
+    if (!requiresRooms) return fail('Tell us whether you require hotel room arrangements in Ranchi.', 'requiresRooms');
     if (requiresRooms === 'yes') {
       const ac = Number(fieldValue('acRoomCount')) || 0;
       const nonAc = Number(fieldValue('nonAcRoomCount')) || 0;
@@ -389,7 +418,8 @@ function validateStep(step: number): boolean {
     }
   }
 
-  if (step === 7) {
+  // Phase 4: Contact & Review
+  if (step === 4) {
     if (!fieldValue('budgetRange')) return fail('Select an approximate budget range.', 'budgetRange');
     if (fieldValue('customerName').length < 2) return fail('Enter your full name.', 'customerName');
     const digits = fieldValue('customerPhone').replace(/\D/g, '');
@@ -401,12 +431,10 @@ function validateStep(step: number): boolean {
       return fail('Enter a valid email address, or leave it blank.', 'customerEmail');
     }
     if (!fieldValue('preferredContact')) return fail('Select a preferred contact method.', 'preferredContact');
-  }
 
-  if (step === 8) {
     const consent = field<HTMLInputElement>('consent');
     if (!consent?.checked) {
-      return fail('Please confirm that you understand this is a quotation enquiry, not a booking.', 'consent');
+      return fail('Please confirm that you understand this is a quotation enquiry, not an instant booking.', 'consent');
     }
   }
 
@@ -440,24 +468,34 @@ function goToStep(step: number, focus = true): void {
 
   progressButtons.forEach((button) => {
     const value = Number(button.dataset.planStepLink);
-    button.classList.toggle('is-active', value === target);
-    button.classList.toggle('is-complete', value < target);
-    if (value === target) {
+    const isActive = value === target;
+    const isComplete = value < target;
+    button.classList.toggle('is-active', isActive);
+    button.classList.toggle('is-complete', isComplete);
+    if (isActive) {
       button.setAttribute('aria-current', 'step');
     } else {
       button.removeAttribute('aria-current');
     }
   });
 
+  if (progressBar) {
+    const percent = Math.round((target / steps.length) * 100);
+    progressBar.style.width = `${percent}%`;
+  }
+
   const prev = document.querySelector<HTMLButtonElement>('[data-plan-prev]');
   const next = document.querySelector<HTMLButtonElement>('[data-plan-next]');
   if (prev) prev.hidden = target === 1;
   if (next) next.hidden = target === steps.length;
+
   if (progressText) {
-    progressText.textContent = `Step ${target} of ${steps.length} — ${STEP_LABELS[target - 1] ?? ''}`;
+    progressText.textContent = `Phase ${target} of ${steps.length} — ${STEP_LABELS[target - 1] ?? ''}`;
   }
 
-  if (target === 8) renderReview();
+  if (target === 4) {
+    renderReview();
+  }
 
   if (focus) {
     const active = steps[target - 1];
@@ -472,7 +510,6 @@ function goToStep(step: number, focus = true): void {
   saveDraft();
 }
 
-
 function selectionFor(kind: 'mandap' | 'stage'): MandapRequirement | StageRequirement | null {
   const requirements = readRequirements();
   return kind === 'mandap' ? requirements.mandap : requirements.stage;
@@ -482,53 +519,79 @@ function dimensionsSummary(selection: MandapRequirement | StageRequirement | nul
   if (!selection) return '';
   const requested = selection.requested;
   if (requested && requested.length > 0 && requested.width > 0 && requested.height > 0) {
-    return `Requested ${formatDimensions(requested)} · Standard ${formatDimensions(selection.standard)}`;
+    return `Custom ${formatDimensions(requested)} · Standard ${formatDimensions(selection.standard)}`;
   }
   return `Standard ${formatDimensions(selection.standard)}`;
 }
 
-function renderSelectionPreview(kind: 'mandap' | 'stage'): void {
-  const target = document.querySelector<HTMLElement>(kind === 'mandap' ? '[data-mandap-preview]' : '[data-stage-preview]');
-  if (!target) return;
+// Visual Card Selection Sync
+function syncMandapCardSelection(): void {
+  const selection = selectionFor('mandap');
+  const selectedId = selection?.id ?? '';
+  const select = field<HTMLSelectElement>('mandapId');
+  if (select) select.value = selectedId;
 
-  const selection = selectionFor(kind);
-  if (!selection) {
-    target.innerHTML = `<p class="empty-inline">No ${kind} selected. This step will be skipped and does not affect the rest of your enquiry.</p>`;
-    return;
-  }
+  document.querySelectorAll<HTMLElement>('[data-plan-mandap-card]').forEach((card) => {
+    const cardId = card.dataset.planMandapCard ?? '';
+    const isSelected = cardId === selectedId;
+    card.classList.toggle('is-selected', isSelected);
+    card.setAttribute('aria-checked', String(isSelected));
 
-  target.innerHTML = `
-    <div class="selection-preview-card">
-      <img src="${esc(imageUrl(selection.image))}" alt="" />
-      <div class="selection-preview-copy">
-        <strong>${esc(selection.name)}</strong>
-        <span>${esc(selection.category)}</span>
-        <small>${esc(dimensionsSummary(selection))}</small>
-      </div>
-      <button type="button" class="icon-btn" data-plan-clear-selection="${kind}" aria-label="Remove selected ${kind}">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
-      </button>
-    </div>`;
-}
-
-function syncSelectionInputs(kind: 'mandap' | 'stage'): void {
-  const selection = selectionFor(kind);
-  const select = field<HTMLSelectElement>(kind === 'mandap' ? 'mandapId' : 'stageId');
-  if (select) select.value = selection?.id ?? '';
-
-  const requested = selection?.requested;
-  const values: Array<[string, number | null | undefined]> = [
-    [`${kind}Length`, requested?.length],
-    [`${kind}Width`, requested?.width],
-    [`${kind}Height`, requested?.height],
-  ];
-  values.forEach(([name, value]) => {
-    const input = field<HTMLInputElement>(name);
-    if (input) input.value = value ? String(value) : '';
+    const btn = card.querySelector<HTMLButtonElement>('.card-select-btn');
+    if (btn) {
+      btn.textContent = isSelected ? '✓ Selected' : 'Select Mandap';
+      btn.classList.toggle('btn-primary', isSelected);
+      btn.classList.toggle('btn-secondary', !isSelected);
+    }
   });
 
-  const note = field<HTMLTextAreaElement>(kind === 'mandap' ? 'mandapNotes' : 'stageNotes');
-  if (note) note.value = selection?.note ?? '';
+  const accordion = document.querySelector<HTMLDetailsElement>('[data-mandap-dimension-accordion]');
+  if (accordion) {
+    if (selection?.requested) accordion.open = true;
+  }
+}
+
+function syncStageCardSelection(): void {
+  const selection = selectionFor('stage');
+  const selectedId = selection?.id ?? '';
+  const select = field<HTMLSelectElement>('stageId');
+  if (select) select.value = selectedId;
+
+  document.querySelectorAll<HTMLElement>('[data-plan-stage-card]').forEach((card) => {
+    const cardId = card.dataset.planStageCard ?? '';
+    const isSelected = cardId === selectedId;
+    card.classList.toggle('is-selected', isSelected);
+    card.setAttribute('aria-checked', String(isSelected));
+
+    const btn = card.querySelector<HTMLButtonElement>('.card-select-btn');
+    if (btn) {
+      btn.textContent = isSelected ? '✓ Selected' : 'Select Stage';
+      btn.classList.toggle('btn-primary', isSelected);
+      btn.classList.toggle('btn-secondary', !isSelected);
+    }
+  });
+
+  const accordion = document.querySelector<HTMLDetailsElement>('[data-stage-dimension-accordion]');
+  if (accordion) {
+    if (selection?.requested) accordion.open = true;
+  }
+}
+
+function syncStylingSwatches(): void {
+  const lightingVal = fieldValue('lighting') || 'Warm fairy lights';
+  const floralVal = fieldValue('floralPalette') || 'Maroon & ivory';
+
+  document.querySelectorAll<HTMLElement>('[data-plan-lighting-swatch]').forEach((el) => {
+    const isSelected = el.dataset.planLightingSwatch === lightingVal;
+    el.classList.toggle('is-selected', isSelected);
+    el.setAttribute('aria-checked', String(isSelected));
+  });
+
+  document.querySelectorAll<HTMLElement>('[data-plan-floral-swatch]').forEach((el) => {
+    const isSelected = el.dataset.planFloralSwatch === floralVal;
+    el.classList.toggle('is-selected', isSelected);
+    el.setAttribute('aria-checked', String(isSelected));
+  });
 }
 
 function applySelection(kind: 'mandap' | 'stage', id: string): void {
@@ -537,8 +600,10 @@ function applySelection(kind: 'mandap' | 'stage', id: string): void {
   if (!id) {
     removeLineItem(kind);
     syncSelectionInputs(kind);
-    renderSelectionPreview(kind);
+    if (kind === 'mandap') syncMandapCardSelection();
+    else syncStageCardSelection();
     saveDraft();
+    renderLiveSummary();
     return;
   }
 
@@ -561,6 +626,7 @@ function applySelection(kind: 'mandap' | 'stage', id: string): void {
       requested: existing?.id === String(item.id) ? existing.requested : null,
       note: existing?.id === String(item.id) ? existing.note : '',
     });
+    syncMandapCardSelection();
   } else {
     const item = state.catalogue.stages.find((entry) => String(entry.id) === id);
     if (!item) return;
@@ -580,11 +646,32 @@ function applySelection(kind: 'mandap' | 'stage', id: string): void {
       requested: existing?.id === String(item.id) ? existing.requested : null,
       note: existing?.id === String(item.id) ? existing.note : '',
     });
+    syncStageCardSelection();
   }
 
   syncSelectionInputs(kind);
-  renderSelectionPreview(kind);
   saveDraft();
+  renderLiveSummary();
+}
+
+function syncSelectionInputs(kind: 'mandap' | 'stage'): void {
+  const selection = selectionFor(kind);
+  const select = field<HTMLSelectElement>(kind === 'mandap' ? 'mandapId' : 'stageId');
+  if (select) select.value = selection?.id ?? '';
+
+  const requested = selection?.requested;
+  const values: Array<[string, number | null | undefined]> = [
+    [`${kind}Length`, requested?.length],
+    [`${kind}Width`, requested?.width],
+    [`${kind}Height`, requested?.height],
+  ];
+  values.forEach(([name, value]) => {
+    const input = field<HTMLInputElement>(name);
+    if (input) input.value = value ? String(value) : '';
+  });
+
+  const note = field<HTMLTextAreaElement>(kind === 'mandap' ? 'mandapNotes' : 'stageNotes');
+  if (note) note.value = selection?.note ?? '';
 }
 
 function syncDimensionsFromInputs(kind: 'mandap' | 'stage'): void {
@@ -595,160 +682,180 @@ function syncDimensionsFromInputs(kind: 'mandap' | 'stage'): void {
 
   const noteField = field<HTMLTextAreaElement>(kind === 'mandap' ? 'mandapNotes' : 'stageNotes');
   setSelectionDimensions(kind, dimensions, noteField?.value ?? selection.note);
-  renderSelectionPreview(kind);
+  renderLiveSummary();
 }
 
-function renderEquipmentList(focusId?: string): void {
-  const container = document.querySelector<HTMLElement>('[data-equipment-selected-list]');
-  const status = document.querySelector<HTMLElement>('[data-plan-equipment-status]');
-  if (!container) return;
-
-  const equipment = readRequirements().equipment;
-
-  if (status) {
-    status.textContent =
-      equipment.length === 0
-        ? 'No equipment selected yet.'
-        : `${equipment.length} line item${equipment.length === 1 ? '' : 's'}, ${equipment.reduce((sum, item) => sum + item.quantity, 0)} total units.`;
-  }
-
-  if (equipment.length === 0) {
-    container.innerHTML =
-      '<p class="empty-inline">No equipment selected. Use “Add items” to browse chairs, tables, seating, lighting and essentials.</p>';
-    return;
-  }
-
-  container.innerHTML = equipment
-    .map(
-      (item) => `
-        <div class="plan-equipment-item" data-plan-equipment-row="${esc(item.id)}">
-          <div class="plan-equipment-copy">
-            <strong>${esc(item.name)}</strong>
-            <span>${esc(item.category)} · per ${esc(item.unit)}</span>
-          </div>
-          <div class="qty" aria-label="Quantity for ${esc(item.name)}">
-            <button type="button" data-plan-qty-step="-1" data-plan-equipment-id="${esc(item.id)}" aria-label="Reduce quantity">−</button>
-            <input
-              type="number"
-              min="${item.minQuantity}"
-              step="1"
-              value="${item.quantity}"
-              inputmode="numeric"
-              data-plan-qty-input
-              data-plan-equipment-id="${esc(item.id)}"
-              aria-label="${esc(item.name)} quantity"
-            />
-            <button type="button" data-plan-qty-step="1" data-plan-equipment-id="${esc(item.id)}" aria-label="Increase quantity">+</button>
-          </div>
-          <span class="plan-equipment-unit">${esc(item.unit)}${item.quantity === 1 ? '' : 's'}</span>
-          <button type="button" class="icon-btn danger" data-plan-remove-equipment="${esc(item.id)}" aria-label="Remove ${esc(item.name)}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-          </button>
-        </div>`,
-    )
-    .join('');
-
-  if (focusId) {
-    window.requestAnimationFrame(() => {
-      container
-        .querySelector<HTMLInputElement>(`[data-plan-equipment-id="${focusId}"][data-plan-qty-input]`)
-        ?.focus({ preventScroll: true });
-    });
-  }
-}
-
-function renderEquipmentTabs(): void {
+// Interactive Equipment Grid & Tabs
+function renderEquipmentGrid(): void {
   if (!state) return;
-  const container = document.querySelector<HTMLElement>('[data-equipment-tabs]');
-  if (!container) return;
+  const grid = document.querySelector<HTMLElement>('[data-equipment-grid]');
+  const status = document.querySelector<HTMLElement>('[data-plan-equipment-status]');
+  if (!grid) return;
 
   if (!state.activeEquipmentCategory) {
     state.activeEquipmentCategory = state.catalogue.equipment[0]?.slug ?? '';
   }
 
-  container.innerHTML = state.catalogue.equipment
-    .map(
-      (category) => `
-        <button
-          type="button"
-          role="tab"
-          data-equipment-tab="${esc(category.slug)}"
-          aria-selected="${category.slug === state?.activeEquipmentCategory}"
-        >${esc(category.name)}</button>`,
-    )
-    .join('');
-}
-
-function renderEquipmentDrawerList(): void {
-  if (!state) return;
-  const container = document.querySelector<HTMLElement>('[data-equipment-drawer-list]');
-  if (!container) return;
-
   const category = state.catalogue.equipment.find((entry) => entry.slug === state?.activeEquipmentCategory);
+  const equipment = readRequirements().equipment;
+  const equipmentMap = new Map(equipment.map((item) => [item.id, item.quantity]));
+
+  if (status) {
+    const totalUnits = equipment.reduce((sum, item) => sum + item.quantity, 0);
+    status.textContent =
+      equipment.length === 0
+        ? '0 items selected'
+        : `${equipment.length} line items · ${totalUnits} units`;
+  }
+
   if (!category || category.items.length === 0) {
-    container.innerHTML = '<p class="empty-inline">No items in this category.</p>';
+    grid.innerHTML = '<p class="empty-inline">No inventory items available in this category.</p>';
     return;
   }
 
-  const selected = new Set(readRequirements().equipment.map((item) => item.id));
-  container.innerHTML = category.items
-    .map(
-      (item) => `
-        <div class="drawer-item">
-          <div class="drawer-item-copy">
-            <strong>${esc(item.name)}</strong>
-            <span>${esc(item.description)}</span>
-            <small>Default ${item.default_quantity} ${esc(item.unit)}${item.default_quantity === 1 ? '' : 's'} · minimum ${item.min_quantity}</small>
+  grid.innerHTML = category.items
+    .map((item) => {
+      const currentQty = equipmentMap.get(String(item.id)) || 0;
+      const isSelected = currentQty > 0;
+      return `
+        <div class="equipment-mini-card ${isSelected ? 'is-selected' : ''}" data-equipment-id="${item.id}">
+          <div class="equipment-mini-info">
+            <strong class="equipment-mini-title">${esc(item.name)}</strong>
+            <span class="equipment-mini-specs">${esc(item.specifications || item.description)}</span>
+            <small class="equipment-mini-unit">Per ${esc(item.unit)} · Min ${item.min_quantity}</small>
           </div>
-          <button
-            type="button"
-            class="btn ${selected.has(String(item.id)) ? 'btn-secondary' : 'btn-primary'} btn-sm"
-            data-wizard-add-equipment="${item.id}"
-          >
-            ${selected.has(String(item.id)) ? 'Add more' : 'Add item'}
-          </button>
-        </div>`,
-    )
+          <div class="equipment-mini-stepper">
+            <button
+              type="button"
+              class="stepper-btn minus"
+              data-plan-qty-step="-1"
+              data-plan-equipment-id="${item.id}"
+              aria-label="Decrease ${esc(item.name)} quantity"
+            >−</button>
+            <input
+              type="number"
+              class="stepper-input"
+              min="0"
+              max="10000"
+              step="1"
+              value="${currentQty}"
+              inputmode="numeric"
+              data-plan-qty-input
+              data-plan-equipment-id="${item.id}"
+              aria-label="${esc(item.name)} quantity"
+            />
+            <button
+              type="button"
+              class="stepper-btn plus"
+              data-plan-qty-step="1"
+              data-plan-equipment-id="${item.id}"
+              aria-label="Increase ${esc(item.name)} quantity"
+            >+</button>
+          </div>
+        </div>`;
+    })
     .join('');
 }
 
-function updateEquipmentDrawerOpen(open: boolean): void {
-  const drawer = document.querySelector<HTMLElement>('[data-equipment-drawer]');
-  const button = document.querySelector<HTMLButtonElement>('[data-open-equipment-drawer]');
-  if (drawer) drawer.hidden = !open;
-  if (button) button.setAttribute('aria-expanded', String(open));
-  if (open) {
-    renderEquipmentTabs();
-    renderEquipmentDrawerList();
-    document.querySelector<HTMLButtonElement>('[data-equipment-tab]')?.focus();
-  }
+function renderEquipmentTabs(): void {
+  if (!state) return;
+  const tabs = document.querySelectorAll<HTMLButtonElement>('[data-equipment-tab]');
+  tabs.forEach((tab) => {
+    const slug = tab.dataset.equipmentTab ?? '';
+    const isActive = slug === state?.activeEquipmentCategory;
+    tab.classList.toggle('is-active', isActive);
+    tab.setAttribute('aria-selected', String(isActive));
+  });
 }
 
+function updateEquipmentQuantity(id: string, nextQty: number): void {
+  if (!state) return;
+  const numId = Number(id);
+  const item = state.catalogue.equipment.flatMap((cat) => cat.items).find((candidate) => candidate.id === numId);
+  const category = state.catalogue.equipment.find((cat) => cat.items.some((candidate) => candidate.id === numId));
+  if (!item || !category) return;
+
+  const existing = readRequirements().equipment.find((entry) => entry.id === id);
+
+  if (nextQty <= 0) {
+    if (existing) {
+      removeLineItem('equipment', id);
+    }
+  } else {
+    const validQty = Math.max(item.min_quantity, nextQty);
+    if (!existing) {
+      addEquipment({
+        id: String(item.id),
+        slug: item.slug,
+        name: item.name,
+        category: category.name,
+        categorySlug: category.slug,
+        unit: item.unit,
+        specifications: item.specifications,
+        image: item.image ?? '',
+        minQuantity: item.min_quantity,
+        quantity: validQty,
+      });
+    } else {
+      updateQuantity(id, validQty);
+    }
+  }
+
+  renderEquipmentGrid();
+  renderLiveSummary();
+}
+
+// Live Blueprint Sidebar
 function renderLiveSummary(): void {
   const target = document.querySelector<HTMLElement>('[data-plan-live-summary]');
   if (!target) return;
+
   const requirements = readRequirements();
-  const equipmentUnits = requirements.equipment.reduce((sum, item) => sum + item.quantity, 0);
+  const totalUnits = requirements.equipment.reduce((sum, item) => sum + item.quantity, 0);
+
+  const eventType = fieldValue('eventType') || 'Celebration';
+  const eventDate = fieldValue('eventDate');
+  const venue = fieldValue('venueLocation');
+  const guests = fieldValue('guestCount');
+  const requiresRooms = radioValue('requiresRooms') === 'yes';
+  const acRooms = Number(fieldValue('acRoomCount')) || 0;
+  const nonAcRooms = Number(fieldValue('nonAcRoomCount')) || 0;
+
+  const dateFormatted = eventDate ? new Date(`${eventDate}T00:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Date pending';
 
   target.innerHTML = `
-    <div class="live-summary-row"><span>Mandap</span><strong>${esc(requirements.mandap?.name ?? 'Not selected')}</strong></div>
-    <div class="live-summary-row"><span>Stage</span><strong>${esc(requirements.stage?.name ?? 'Not selected')}</strong></div>
-    <div class="live-summary-row"><span>Equipment</span><strong>${requirements.equipment.length} lines · ${equipmentUnits} units</strong></div>`;
+    <div class="blueprint-row">
+      <span class="blueprint-label">Celebration</span>
+      <strong class="blueprint-value">${esc(eventType)} · ${esc(dateFormatted)}</strong>
+    </div>
+    <div class="blueprint-row">
+      <span class="blueprint-label">Venue</span>
+      <strong class="blueprint-value">${esc(venue || 'Ranchi location pending')}</strong>
+    </div>
+    <div class="blueprint-row">
+      <span class="blueprint-label">Attendance</span>
+      <strong class="blueprint-value">${guests ? `${esc(guests)} Guests` : 'Guest count pending'}</strong>
+    </div>
+    <div class="blueprint-row">
+      <span class="blueprint-label">Mandap</span>
+      <strong class="blueprint-value">${requirements.mandap ? esc(requirements.mandap.name) : '— No mandap'}</strong>
+    </div>
+    <div class="blueprint-row">
+      <span class="blueprint-label">Stage</span>
+      <strong class="blueprint-value">${requirements.stage ? esc(requirements.stage.name) : '— No stage'}</strong>
+    </div>
+    <div class="blueprint-row">
+      <span class="blueprint-label">Equipment</span>
+      <strong class="blueprint-value">${requirements.equipment.length > 0 ? `${requirements.equipment.length} items (${totalUnits} units)` : '— None selected'}</strong>
+    </div>
+    <div class="blueprint-row">
+      <span class="blueprint-label">Rooms</span>
+      <strong class="blueprint-value">${requiresRooms ? `${acRooms} AC, ${nonAcRooms} Non-AC` : 'Self-arranged'}</strong>
+    </div>
+  `;
 }
 
-function reviewSection(title: string, step: number, rows: Array<[string, string]>): string {
-  return `
-    <section class="plan-review-section">
-      <div class="plan-review-head">
-        <h3>${esc(title)}</h3>
-        <button type="button" class="btn btn-secondary btn-sm" data-plan-edit="${step}">Edit</button>
-      </div>
-      <dl>
-        ${rows.map(([label, value]) => `<div><dt>${esc(label)}</dt><dd>${value || '—'}</dd></div>`).join('')}
-      </dl>
-    </section>`;
-}
-
+// Review Section Rendering (Phase 4)
 function renderReview(): void {
   if (!state) return;
   const target = document.querySelector<HTMLElement>('[data-plan-review]');
@@ -756,94 +863,111 @@ function renderReview(): void {
 
   const requirements = readRequirements();
   const draft = collectDraft();
+
   const equipment = requirements.equipment;
-  const equipmentText =
+  const equipmentHtml =
     equipment.length === 0
-      ? 'No equipment selected'
+      ? '<p class="review-empty">No furniture or equipment selected.</p>'
       : `<ul class="review-line-list">${equipment
           .map(
             (item) =>
-              `<li><strong>${item.quantity} ${esc(item.unit)}${item.quantity === 1 ? '' : 's'}</strong> × ${esc(item.name)}${item.notes ? `<small>${esc(item.notes)}</small>` : ''}</li>`,
+              `<li><strong>${item.quantity} ${esc(item.unit)}${item.quantity === 1 ? '' : 's'}</strong> × ${esc(item.name)} <span class="review-cat">(${esc(item.category)})</span></li>`,
           )
           .join('')}</ul>`;
-  const mandapRows: Array<[string, string]> = requirements.mandap
-    ? [
-        ['Design', esc(requirements.mandap.name)],
-        ['Standard dimensions', esc(formatDimensions(requirements.mandap.standard))],
-        [
-          'Requested dimensions',
-          requirements.mandap.requested ? esc(formatDimensions(requirements.mandap.requested)) : 'Use standard size',
-        ],
-        ['Notes', esc(requirements.mandap.note)],
-      ]
-    : [['Selection', 'Skipped — no mandap selected']];
-  const stageRows: Array<[string, string]> = requirements.stage
-    ? [
-        ['Design', esc(requirements.stage.name)],
-        ['Standard dimensions', esc(formatDimensions(requirements.stage.standard))],
-        [
-          'Requested dimensions',
-          requirements.stage.requested ? esc(formatDimensions(requirements.stage.requested)) : 'Use standard size',
-        ],
-        ['Notes', esc(requirements.stage.note)],
-      ]
-    : [['Selection', 'Skipped — no stage selected']];
 
-  target.innerHTML = [
-    reviewSection('Event details', 1, [
-      ['Event type', esc(draft.eventType)],
-      ['Date', esc(draft.eventDate)],
-      ['End date', esc(draft.endDate)],
-      ['Start time', esc(draft.eventTime)],
-      ['Venue', esc(draft.venueLocation)],
-      ['Guest count', esc(draft.guestCount)],
-      ['Description', esc(draft.eventDescription)],
-    ]),
-    reviewSection('Mandap', 2, mandapRows),
-    reviewSection('Stage', 3, stageRows),
-    reviewSection('Furniture & equipment', 4, [
-      ['Selected items', equipmentText],
-      ['Equipment notes', esc(draft.equipmentNotes)],
-    ]),
-    reviewSection('Accommodation', 5, [
-      ['Rooms required', draft.requiresRooms === 'yes' ? 'Yes' : draft.requiresRooms === 'no' ? 'No' : 'Not answered'],
-      [
-        'Rooms breakdown',
-        draft.requiresRooms === 'yes'
-          ? `${draft.acRoomCount || '0'} AC, ${draft.nonAcRoomCount || '0'} Non-AC (${draft.roomCount || '0'} total)`
-          : '—',
-      ],
-      ['Notes', esc(draft.accommodationNotes)],
-    ]),
-    reviewSection('Styling', 6, [
-      ['Lighting', esc(draft.lighting)],
-      ['Floral palette', esc(draft.floralPalette)],
-      ['Special instructions', esc(draft.specialInstructions)],
-    ]),
-    reviewSection('Budget & contact', 7, [
-      ['Budget range', esc(draft.budgetRange)],
-      ['Name', esc(draft.customerName)],
-      ['Mobile', esc(draft.customerPhone)],
-      ['Email', esc(draft.customerEmail)],
-      ['Preferred contact', esc(draft.preferredContact)],
-    ]),
-  ].join('');
+  const mandapText = requirements.mandap
+    ? `<strong>${esc(requirements.mandap.name)}</strong> · ${esc(dimensionsSummary(requirements.mandap))}${draft.mandapNotes ? `<br><small>Note: ${esc(draft.mandapNotes)}</small>` : ''}`
+    : 'No mandap selected (Venue structure)';
+
+  const stageText = requirements.stage
+    ? `<strong>${esc(requirements.stage.name)}</strong> · ${esc(dimensionsSummary(requirements.stage))}${draft.stageNotes ? `<br><small>Note: ${esc(draft.stageNotes)}</small>` : ''}`
+    : 'No reception stage selected';
+
+  const roomsText =
+    draft.requiresRooms === 'yes'
+      ? `${Number(draft.acRoomCount) || 0} AC rooms + ${Number(draft.nonAcRoomCount) || 0} Non-AC rooms (${(Number(draft.acRoomCount) || 0) + (Number(draft.nonAcRoomCount) || 0)} rooms total)${draft.accommodationNotes ? `<br><small>${esc(draft.accommodationNotes)}</small>` : ''}`
+      : 'No hotel room blocks required';
+
+  target.innerHTML = `
+    <div class="review-card">
+      <div class="review-card-head">
+        <h4>1. Event &amp; Venue Essentials</h4>
+        <button type="button" class="btn btn-secondary btn-sm" data-plan-edit="1">Edit</button>
+      </div>
+      <dl class="review-dl">
+        <div><dt>Event Type</dt><dd>${esc(draft.eventType || '—')}</dd></div>
+        <div><dt>Date &amp; Time</dt><dd>${esc(draft.eventDate)}${draft.endDate ? ` to ${esc(draft.endDate)}` : ''}${draft.eventTime ? ` at ${esc(draft.eventTime)}` : ''}</dd></div>
+        <div><dt>Venue</dt><dd>${esc(draft.venueLocation || '—')}</dd></div>
+        <div><dt>Guest Attendance</dt><dd>${draft.guestCount ? `${esc(draft.guestCount)} guests` : '—'}</dd></div>
+        ${draft.eventDescription ? `<div><dt>Vision Notes</dt><dd>${esc(draft.eventDescription)}</dd></div>` : ''}
+      </dl>
+    </div>
+
+    <div class="review-card">
+      <div class="review-card-head">
+        <h4>2. Mandap, Stage &amp; Styling</h4>
+        <button type="button" class="btn btn-secondary btn-sm" data-plan-edit="2">Edit</button>
+      </div>
+      <dl class="review-dl">
+        <div><dt>Mandap Design</dt><dd>${mandapText}</dd></div>
+        <div><dt>Stage Design</dt><dd>${stageText}</dd></div>
+        <div><dt>Lighting Style</dt><dd>${esc(draft.lighting || '—')}</dd></div>
+        <div><dt>Floral Palette</dt><dd>${esc(draft.floralPalette || '—')}</dd></div>
+        ${draft.specialInstructions ? `<div><dt>Aesthetics Note</dt><dd>${esc(draft.specialInstructions)}</dd></div>` : ''}
+      </dl>
+    </div>
+
+    <div class="review-card">
+      <div class="review-card-head">
+        <h4>3. Seating, Inventory &amp; Accommodation</h4>
+        <button type="button" class="btn btn-secondary btn-sm" data-plan-edit="3">Edit</button>
+      </div>
+      <dl class="review-dl">
+        <div><dt>Equipment Items</dt><dd>${equipmentHtml}</dd></div>
+        ${draft.equipmentNotes ? `<div><dt>Setup Notes</dt><dd>${esc(draft.equipmentNotes)}</dd></div>` : ''}
+        <div><dt>Accommodation</dt><dd>${roomsText}</dd></div>
+      </dl>
+    </div>
+
+    <div class="review-card">
+      <div class="review-card-head">
+        <h4>4. Contact &amp; Budget Information</h4>
+        <button type="button" class="btn btn-secondary btn-sm" data-plan-edit="4">Edit</button>
+      </div>
+      <dl class="review-dl">
+        <div><dt>Budget Bracket</dt><dd>${esc(draft.budgetRange || '—')}</dd></div>
+        <div><dt>Client Name</dt><dd>${esc(draft.customerName || '—')}</dd></div>
+        <div><dt>Mobile Contact</dt><dd>+91 ${esc(draft.customerPhone || '—')}</dd></div>
+        <div><dt>Email Address</dt><dd>${esc(draft.customerEmail || 'None provided')}</dd></div>
+        <div><dt>Preferred Contact</dt><dd>${esc(draft.preferredContact || '—')}</dd></div>
+      </dl>
+    </div>
+  `;
 }
 
-function buildPayload(): Record<string, unknown> {
+// Payload construction matching /api/enquiries schema
+function buildPayload() {
   const requirements = readRequirements();
-  const selected = (selection: MandapRequirement | StageRequirement | null) =>
-    selection
-      ? {
-          id: Number(selection.id),
-          requested: selection.requested,
-          note: selection.note,
-        }
-      : null;
+  const selected = (req: MandapRequirement | StageRequirement | null) => {
+    if (!req) return null;
+    return {
+      id: Number(req.id),
+      name: req.name,
+      requested: req.requested
+        ? {
+            length: req.requested.length,
+            width: req.requested.width,
+            height: req.requested.height,
+            unit: req.requested.unit,
+          }
+        : null,
+      note: req.note,
+    };
+  };
 
   const acRooms = Number(fieldValue('acRoomCount')) || 0;
   const nonAcRooms = Number(fieldValue('nonAcRoomCount')) || 0;
-  const totalRooms = acRooms + nonAcRooms || Number(fieldValue('roomCount')) || 0;
+  const totalRooms = acRooms + nonAcRooms;
 
   return {
     event: {
@@ -902,7 +1026,7 @@ async function submitEnquiry(): Promise<void> {
   const original = button?.innerHTML ?? '';
   if (button) {
     button.disabled = true;
-    button.textContent = 'Sending enquiry…';
+    button.textContent = 'Transmitting celebration blueprint…';
   }
 
   try {
@@ -961,7 +1085,7 @@ function showReceipt(reference: string, qrDataUrl?: string): void {
   localStorage.removeItem(DRAFT_KEY);
 }
 
-
+// Initialization and Event Listeners
 if (state && form) {
   state.draft = readDraft();
   state.activeEquipmentCategory = state.catalogue.equipment[0]?.slug ?? '';
@@ -969,6 +1093,9 @@ if (state && form) {
   applyDraft(state.draft);
   syncSelectionInputs('mandap');
   syncSelectionInputs('stage');
+  syncMandapCardSelection();
+  syncStageCardSelection();
+  syncStylingSwatches();
 
   if (!fieldValue('mandapNotes')) {
     const note = field<HTMLTextAreaElement>('mandapNotes');
@@ -979,26 +1106,25 @@ if (state && form) {
     if (note && selectionFor('stage')?.note) note.value = selectionFor('stage')?.note ?? '';
   }
 
-  renderSelectionPreview('mandap');
-  renderSelectionPreview('stage');
-  renderEquipmentList();
+  renderEquipmentTabs();
+  renderEquipmentGrid();
   renderLiveSummary();
 
-  const initialStep = Math.min(Math.max(Number(state.draft.step) || 1, 1), 8);
+  const initialStep = Math.min(Math.max(Number(state.draft.step) || 1, 1), 4);
   goToStep(initialStep, false);
 
   form.addEventListener('input', (event) => {
     if (event.target instanceof HTMLElement) clearFieldError(event.target);
     saveDraft();
-    if (state.currentStep === 8) renderReview();
     renderLiveSummary();
+    if (state.currentStep === 4) renderReview();
   });
 
   form.addEventListener('change', (event) => {
     if (event.target instanceof HTMLElement) clearFieldError(event.target);
     saveDraft();
-    if (state.currentStep === 8) renderReview();
     renderLiveSummary();
+    if (state.currentStep === 4) renderReview();
   });
 
   form.addEventListener('submit', (event) => {
@@ -1009,6 +1135,7 @@ if (state && form) {
   document.addEventListener('click', (event) => {
     const target = event.target as HTMLElement;
 
+    // Navigation buttons
     const next = target.closest<HTMLElement>('[data-plan-next]');
     if (next) {
       if (validateStep(state.currentStep)) goToStep(state.currentStep + 1);
@@ -1023,7 +1150,13 @@ if (state && form) {
 
     const stepLink = target.closest<HTMLElement>('[data-plan-step-link]');
     if (stepLink) {
-      goToStep(Number(stepLink.dataset.planStepLink));
+      const targetStep = Number(stepLink.dataset.planStepLink);
+      // Validate up to targetStep if advancing
+      if (targetStep > state.currentStep) {
+        if (validateStep(state.currentStep)) goToStep(targetStep);
+      } else {
+        goToStep(targetStep);
+      }
       return;
     }
 
@@ -1033,78 +1166,63 @@ if (state && form) {
       return;
     }
 
-    const clearSelection = target.closest<HTMLElement>('[data-plan-clear-selection]');
-    if (clearSelection) {
-      const kind = clearSelection.dataset.planClearSelection === 'stage' ? 'stage' : 'mandap';
-      removeLineItem(kind);
-      syncSelectionInputs(kind);
-      renderSelectionPreview(kind);
+    // Mandap card selection
+    const mandapCard = target.closest<HTMLElement>('[data-plan-mandap-card]');
+    if (mandapCard) {
+      const id = mandapCard.dataset.planMandapCard ?? '';
+      applySelection('mandap', id);
+      return;
+    }
+
+    // Stage card selection
+    const stageCard = target.closest<HTMLElement>('[data-plan-stage-card]');
+    if (stageCard) {
+      const id = stageCard.dataset.planStageCard ?? '';
+      applySelection('stage', id);
+      return;
+    }
+
+    // Lighting swatch selection
+    const lightingSwatch = target.closest<HTMLElement>('[data-plan-lighting-swatch]');
+    if (lightingSwatch) {
+      const val = lightingSwatch.dataset.planLightingSwatch ?? '';
+      const select = field<HTMLSelectElement>('lighting');
+      if (select) select.value = val;
+      syncStylingSwatches();
       saveDraft();
+      if (state.currentStep === 4) renderReview();
       return;
     }
 
-    const openDrawer = target.closest<HTMLElement>('[data-open-equipment-drawer]');
-    if (openDrawer) {
-      updateEquipmentDrawerOpen(true);
+    // Floral swatch selection
+    const floralSwatch = target.closest<HTMLElement>('[data-plan-floral-swatch]');
+    if (floralSwatch) {
+      const val = floralSwatch.dataset.planFloralSwatch ?? '';
+      const select = field<HTMLSelectElement>('floralPalette');
+      if (select) select.value = val;
+      syncStylingSwatches();
+      saveDraft();
+      if (state.currentStep === 4) renderReview();
       return;
     }
 
-    const closeDrawer = target.closest<HTMLElement>('[data-close-equipment-drawer]');
-    if (closeDrawer) {
-      updateEquipmentDrawerOpen(false);
-      document.querySelector<HTMLButtonElement>('[data-open-equipment-drawer]')?.focus();
-      return;
-    }
-
+    // Equipment tabs
     const equipmentTab = target.closest<HTMLElement>('[data-equipment-tab]');
     if (equipmentTab) {
       state.activeEquipmentCategory = equipmentTab.dataset.equipmentTab ?? '';
       renderEquipmentTabs();
-      renderEquipmentDrawerList();
+      renderEquipmentGrid();
       return;
     }
 
-    const addItem = target.closest<HTMLElement>('[data-wizard-add-equipment]');
-    if (addItem) {
-      const id = Number(addItem.dataset.wizardAddEquipment);
-      const item = state.catalogue.equipment.flatMap((category) => category.items).find((entry) => entry.id === id);
-      const category = state.catalogue.equipment.find((entry) => entry.items.some((candidate) => candidate.id === id));
-      if (item && category) {
-        addEquipment({
-          id: String(item.id),
-          slug: item.slug,
-          name: item.name,
-          category: category.name,
-          categorySlug: category.slug,
-          unit: item.unit,
-          specifications: item.specifications,
-          image: item.image ?? '',
-          minQuantity: item.min_quantity,
-          quantity: item.default_quantity,
-        });
-        renderEquipmentList();
-        renderEquipmentDrawerList();
-        renderLiveSummary();
-      }
-      return;
-    }
-
+    // Equipment quantity stepper (+ / -)
     const qtyStep = target.closest<HTMLElement>('[data-plan-qty-step]');
     if (qtyStep) {
       const id = qtyStep.dataset.planEquipmentId ?? '';
-      const item = readRequirements().equipment.find((entry) => entry.id === id);
-      if (item) {
-        updateQuantity(id, item.quantity + Number(qtyStep.dataset.planQtyStep ?? 0));
-        renderEquipmentList(id);
-      }
-      return;
-    }
-
-    const remove = target.closest<HTMLElement>('[data-plan-remove-equipment]');
-    if (remove) {
-      removeLineItem('equipment', remove.dataset.planRemoveEquipment ?? '');
-      renderEquipmentList();
-      renderEquipmentDrawerList();
+      const step = Number(qtyStep.dataset.planQtyStep ?? 0);
+      const existing = readRequirements().equipment.find((entry) => entry.id === id);
+      const current = existing ? existing.quantity : 0;
+      updateEquipmentQuantity(id, current + step);
       return;
     }
   });
@@ -1114,18 +1232,7 @@ if (state && form) {
 
     if (target.matches('[data-plan-qty-input]')) {
       const input = target as HTMLInputElement;
-      updateQuantity(input.dataset.planEquipmentId ?? '', Number(input.value));
-      renderEquipmentList(input.dataset.planEquipmentId);
-      return;
-    }
-
-    if (target.matches('[name="mandapId"]')) {
-      applySelection('mandap', (target as HTMLSelectElement).value);
-      return;
-    }
-
-    if (target.matches('[name="stageId"]')) {
-      applySelection('stage', (target as HTMLSelectElement).value);
+      updateEquipmentQuantity(input.dataset.planEquipmentId ?? '', Number(input.value));
       return;
     }
 
@@ -1139,7 +1246,6 @@ if (state && form) {
       const selection = selectionFor(kind);
       if (selection) {
         setSelectionDimensions(kind, selection.requested, (target as HTMLTextAreaElement).value);
-        renderSelectionPreview(kind);
       }
       return;
     }
@@ -1147,6 +1253,7 @@ if (state && form) {
     if (target.matches('[name="requiresRooms"], [name="acRoomCount"], [name="nonAcRoomCount"]')) {
       syncRoomField();
       saveDraft();
+      renderLiveSummary();
       return;
     }
 
@@ -1158,33 +1265,25 @@ if (state && form) {
         if (endDate.value && eventDate && endDate.value < eventDate) endDate.value = '';
       }
       saveDraft();
-    }
-  });
-
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') {
-      const drawer = document.querySelector<HTMLElement>('[data-equipment-drawer]');
-      if (drawer && !drawer.hidden) {
-        updateEquipmentDrawerOpen(false);
-        document.querySelector<HTMLButtonElement>('[data-open-equipment-drawer]')?.focus();
-      }
+      renderLiveSummary();
     }
   });
 
   window.addEventListener(REQUIREMENTS_EVENT, () => {
-    renderSelectionPreview('mandap');
-    renderSelectionPreview('stage');
-    renderEquipmentList();
+    syncMandapCardSelection();
+    syncStageCardSelection();
+    renderEquipmentGrid();
     renderLiveSummary();
-    if (state.currentStep === 8) renderReview();
+    if (state.currentStep === 4) renderReview();
   });
 
   window.addEventListener('storage', (event) => {
     if (event.key !== REQUIREMENTS_STORAGE_KEY) return;
-    renderSelectionPreview('mandap');
-    renderSelectionPreview('stage');
-    renderEquipmentList();
+    syncMandapCardSelection();
+    syncStageCardSelection();
+    renderEquipmentGrid();
     renderLiveSummary();
+    if (state.currentStep === 4) renderReview();
   });
 
   saveDraft();
