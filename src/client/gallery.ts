@@ -1,3 +1,5 @@
+import { openLightbox } from './lightbox';
+
 interface GalleryState {
   currentFilter: string;
   currentPage: number;
@@ -266,12 +268,22 @@ function initGallery() {
     });
   }
 
-  // Keyboard accessibility: Enter or Space opens lightbox on focused pin
+  // Click & keyboard accessibility: open high-resolution lightbox
   for (const item of items) {
+    const handleOpen = (e: Event) => {
+      e.preventDefault();
+      const src = item.dataset.src;
+      const caption = item.dataset.caption;
+      if (src) {
+        openLightbox(src, caption || '');
+      }
+    };
+
+    item.addEventListener('click', handleOpen);
+
     item.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        item.click();
+        handleOpen(e);
       }
     });
   }

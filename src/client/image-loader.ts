@@ -11,33 +11,23 @@ function setupProgressiveMedia() {
     const img = container.querySelector('img');
     if (!img) return;
 
-    // Check if the image has already finished loading (cached)
-    if (img.complete) {
-      if (img.naturalHeight > 0) {
-        container.classList.add('is-loaded');
-        container.classList.remove('is-failed');
-      } else {
-        container.classList.add('is-failed');
-        container.classList.remove('is-loaded');
-      }
-      return;
-    }
-
-    // Otherwise attach event listeners
     const handleLoad = () => {
       container.classList.add('is-loaded');
       container.classList.remove('is-failed');
-      img.removeEventListener('load', handleLoad);
-      img.removeEventListener('error', handleError);
     };
 
     const handleError = () => {
       container.classList.add('is-failed');
       container.classList.remove('is-loaded');
-      img.removeEventListener('load', handleLoad);
-      img.removeEventListener('error', handleError);
     };
 
+    // Check if the image has already finished loading and decoded (cached)
+    if (img.complete && img.naturalHeight > 0) {
+      handleLoad();
+      return;
+    }
+
+    // Attach listeners for both eagerly and lazily loaded images
     img.addEventListener('load', handleLoad, { once: true });
     img.addEventListener('error', handleError, { once: true });
   });
