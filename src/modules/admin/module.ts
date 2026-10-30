@@ -9,10 +9,6 @@ import {
   hallForm,
   hallToggle,
   hallsList,
-  roomDelete,
-  roomForm,
-  roomToggle,
-  roomsList,
 } from './handlers/catalog';
 import {
   adminLogin,
@@ -25,8 +21,10 @@ import {
   eventEnquiriesList,
   eventEnquiryDetail,
   inquiriesList,
+  paymentDetail,
+  paymentsList,
+  scanEnquiry,
 } from './handlers/operations';
-import { studioAdmin } from './handlers/studio';
 import BookingDetailPage from './pages/BookingDetailPage.astro';
 import BookingsPage from './pages/BookingsPage.astro';
 import CateringFormPage from './pages/CateringFormPage.astro';
@@ -42,9 +40,9 @@ import HallFormPage from './pages/HallFormPage.astro';
 import HallsPage from './pages/HallsPage.astro';
 import InquiriesPage from './pages/InquiriesPage.astro';
 import LoginPage from './pages/LoginPage.astro';
-import RoomFormPage from './pages/RoomFormPage.astro';
-import RoomsPage from './pages/RoomsPage.astro';
-import StudioPage from './pages/StudioPage.astro';
+import PaymentDetailPage from './pages/PaymentDetailPage.astro';
+import PaymentsPage from './pages/PaymentsPage.astro';
+import ScanEnquiryPage from './pages/ScanEnquiryPage.astro';
 
 export default defineModule({
   id: 'admin',
@@ -53,15 +51,15 @@ export default defineModule({
   adminNav: [
     { label: 'Dashboard', href: '/admin', icon: 'dashboard', order: 10 },
     { label: 'Bookings', href: '/admin/bookings', icon: 'ticket', order: 20 },
+    { label: 'Payments', href: '/admin/payments', icon: 'credit-card', order: 22 },
     { label: 'Event Enquiries', href: '/admin/enquiries', icon: 'calendar', order: 25 },
+    { label: 'Scan Enquiry QR', href: '/admin/enquiries/scan', icon: 'camera', order: 26 },
     { label: 'Halls', href: '/admin/halls', icon: 'building', order: 30 },
-    { label: 'Rooms', href: '/admin/rooms', icon: 'bed', order: 40 },
     { label: 'Catering', href: '/admin/catering', icon: 'utensils', order: 50 },
     { label: 'Gallery', href: '/admin/gallery', icon: 'image', order: 60 },
     { label: 'Customers', href: '/admin/customers', icon: 'users', order: 70 },
     { label: 'Inquiries', href: '/admin/inquiries', icon: 'mail', order: 80 },
     { label: 'Content', href: '/admin/content', icon: 'settings', order: 90 },
-    { label: 'Sanity Studio', href: '/admin/studio', icon: 'settings', order: 95 },
   ],
   routes: [
     { path: '/admin/login', component: LoginPage, handle: adminLogin },
@@ -71,20 +69,19 @@ export default defineModule({
     { path: '/admin/bookings', component: BookingsPage, handle: bookingsList },
     { path: '/admin/bookings/:id', component: BookingDetailPage, handle: bookingDetail },
 
+    { path: '/admin/payments', component: PaymentsPage, handle: paymentsList },
+    { path: '/admin/payments/:id', component: PaymentDetailPage, handle: paymentDetail },
+
     { path: '/admin/enquiries', component: EventEnquiriesPage, handle: eventEnquiriesList },
+    { path: '/admin/enquiries/scan', component: ScanEnquiryPage, handle: scanEnquiry },
     { path: '/admin/enquiries/:id', component: EventEnquiryDetailPage, handle: eventEnquiryDetail },
 
     { path: '/admin/halls', component: HallsPage, handle: hallsList },
+
     { path: '/admin/halls/new', component: HallFormPage, handle: hallForm },
     { path: '/admin/halls/:id', component: HallFormPage, handle: hallForm },
     { path: '/admin/halls/:id/toggle', component: HallsPage, handle: hallToggle },
     { path: '/admin/halls/:id/delete', component: HallsPage, handle: hallDelete },
-
-    { path: '/admin/rooms', component: RoomsPage, handle: roomsList },
-    { path: '/admin/rooms/new', component: RoomFormPage, handle: roomForm },
-    { path: '/admin/rooms/:id', component: RoomFormPage, handle: roomForm },
-    { path: '/admin/rooms/:id/toggle', component: RoomsPage, handle: roomToggle },
-    { path: '/admin/rooms/:id/delete', component: RoomsPage, handle: roomDelete },
 
     { path: '/admin/catering', component: CateringPage, handle: cateringList },
     { path: '/admin/catering/action', component: CateringPage, handle: cateringListAction },
@@ -96,8 +93,6 @@ export default defineModule({
     { path: '/admin/customers/:id', component: CustomerDetailPage, handle: customerDetail },
     { path: '/admin/inquiries', component: InquiriesPage, handle: inquiriesList },
     { path: '/admin/content', component: ContentPage, handle: contentAdmin },
-    { path: '/admin/studio', component: StudioPage, handle: studioAdmin },
-    { path: '/admin/studio/:subpath*', component: StudioPage, handle: studioAdmin },
 
     { path: '/cms', component: DashboardPage, handle: dashboard },
   ],

@@ -70,28 +70,6 @@ export function createBooking(auth: AuthState, payload: CartPayload): CreatedBoo
       hallPrice = Number(hall.price_paise);
     }
 
-    const rooms: Array<{ id: number; price: number; quantity: number; subtotal: number }> = [];
-    for (const item of payload.rooms ?? []) {
-      const room = one<{ id: number; name: string; price_paise: number; total_rooms: number; is_active: number }>(
-        'SELECT id, name, price_paise, total_rooms, is_active FROM rooms WHERE id = ?',
-        [Number(item.id)],
-      );
-      if (!room || !room.is_active) fail('One of the selected rooms is no longer available.');
-
-      const quantity = Math.floor(Number(item.quantity) || 0);
-      if (quantity <= 0) continue;
-      if (quantity > Number(room.total_rooms)) {
-        fail(`Only ${room.total_rooms} rooms are available in the "${room.name}" category.`);
-      }
-
-      rooms.push({
-        id: room.id,
-        price: Number(room.price_paise),
-        quantity,
-        subtotal: Number(room.price_paise) * quantity,
-      });
-    }
-
     const furniture: Array<{ id: number; price: number; quantity: number; subtotal: number }> = [];
     for (const item of payload.furniture ?? []) {
       const row = one<{ id: number; price_paise: number; max_quantity: number; hall_id: number }>(
@@ -208,13 +186,12 @@ export function createBooking(auth: AuthState, payload: CartPayload): CreatedBoo
 
     const total =
       hallPrice +
-      rooms.reduce((sum, room) => sum + room.subtotal, 0) +
       furniture.reduce((sum, item) => sum + item.subtotal, 0) +
       stagePrice +
       services.reduce((sum, service) => sum + service.price, 0) +
       (catering?.total ?? 0);
 
-    if (total <= 0) fail('Your cart is empty — add a hall, room, catering package or service before booking.');
+    if (total <= 0) fail('Your cart is empty — add a hall, catering package or service before booking.');
 
     // ---------- Customer ----------
     let customerId: number;
@@ -255,10 +232,11 @@ export function createBooking(auth: AuthState, payload: CartPayload): CreatedBoo
 
     // ---------- Booking ----------
     const accessToken = randomBytes(18).toString('base64url');
+    const advanceAmount = Math.round(total * 0.25);
 
     const bookingId = run(
-      `INSERT INTO bookings (customer_id, access_token, event_date, event_time, event_type, total_guest, special_request, status, total_amount)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+      `INSERT INTO bookings (customer_id, access_token, event_date, event_time, event_type, total_guest, special_request, status, total_amount, advance_amount, amount_paid, outstanding_balance, payment_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, 0, ?, 'unpaid')`,
       [
         customerId,
         accessToken,
@@ -267,6 +245,8 @@ export function createBooking(auth: AuthState, payload: CartPayload): CreatedBoo
         customer.eventType,
         customer.guests,
         customer.specialRequest,
+        total,
+        advanceAmount,
         total,
       ],
     ).lastId;
@@ -277,13 +257,6 @@ export function createBooking(auth: AuthState, payload: CartPayload): CreatedBoo
         hallId,
         hallPrice,
       ]);
-    }
-
-    for (const room of rooms) {
-      run(
-        'INSERT INTO booking_rooms (booking_id, room_id, quantity, price, subtotal) VALUES (?, ?, ?, ?, ?)',
-        [bookingId, room.id, room.quantity, room.price, room.subtotal],
-      );
     }
 
     for (const item of furniture) {
@@ -350,6 +323,11 @@ export interface QuotationData {
     special_request: string;
     status: string;
     total_amount: number;
+    advance_amount?: number;
+    amount_paid?: number;
+    outstanding_balance?: number;
+    payment_status?: string;
+    access_token?: string;
   };
   customer: { name: string; phone: string; email: string; address: string };
   lines: BookingLine[];
@@ -402,19 +380,6 @@ export function loadBookingForViewer(
   );
   if (hall) {
     lines.push({ label: 'Hall venue', detail: `${hall.name} · up to ${hall.capacity} guests`, amount: Number(hall.price) });
-  }
-
-  for (const room of all<{ name: string; quantity: number; subtotal: number }>(
-    `SELECT r.name AS name, br.quantity AS quantity, br.subtotal AS subtotal
-     FROM booking_rooms br JOIN rooms r ON r.id = br.room_id
-     WHERE br.booking_id = ?`,
-    [bookingId],
-  )) {
-    lines.push({
-      label: 'Room stay',
-      detail: `${room.name} × ${room.quantity} night${Number(room.quantity) === 1 ? '' : 's'}`,
-      amount: Number(room.subtotal),
-    });
   }
 
   for (const item of all<{ name: string; quantity: number; subtotal: number }>(
@@ -487,20 +452,57 @@ export function loadBookingForViewer(
 }
 
 export function loadCustomerBookings(userId: number) {
-  return all<{
-    id: number;
-    event_date: string | null;
-    event_type: string;
-    total_guest: number;
-    total_amount: number;
-    status: string;
-    created_at: string;
-  }>(
-    `SELECT b.id, b.event_date, b.event_type, b.total_guest, b.total_amount, b.status, b.created_at
-     FROM bookings b
-     JOIN customers c ON c.id = b.customer_id
-     WHERE c.user_id = ?
-     ORDER BY b.id DESC`,
-    [userId],
-  );
+  try {
+    return all<{
+      id: number;
+      event_date: string | null;
+      event_type: string;
+      total_guest: number;
+      total_amount: number;
+      advance_amount: number;
+      amount_paid: number;
+      outstanding_balance: number;
+      payment_status: string;
+      status: string;
+      created_at: string;
+    }>(
+      `SELECT b.id, b.event_date, b.event_type, b.total_guest, b.total_amount,
+              COALESCE(b.advance_amount, 0) as advance_amount,
+              COALESCE(b.amount_paid, 0) as amount_paid,
+              COALESCE(b.outstanding_balance, b.total_amount) as outstanding_balance,
+              COALESCE(b.payment_status, 'unpaid') as payment_status,
+              b.status, b.created_at
+       FROM bookings b
+       JOIN customers c ON c.id = b.customer_id
+       WHERE c.user_id = ?
+       ORDER BY b.id DESC`,
+      [userId],
+    );
+  } catch (error) {
+    console.warn('[loadCustomerBookings fallback triggered]:', error);
+    const fallbackRows = all<{
+      id: number;
+      event_date: string | null;
+      event_type: string;
+      total_guest: number;
+      total_amount: number;
+      status: string;
+      created_at: string;
+    }>(
+      `SELECT b.id, b.event_date, b.event_type, b.total_guest, b.total_amount,
+              b.status, b.created_at
+       FROM bookings b
+       JOIN customers c ON c.id = b.customer_id
+       WHERE c.user_id = ?
+       ORDER BY b.id DESC`,
+      [userId],
+    );
+    return fallbackRows.map((r) => ({
+      ...r,
+      advance_amount: Math.round(Number(r.total_amount) * 0.25),
+      amount_paid: 0,
+      outstanding_balance: Number(r.total_amount),
+      payment_status: 'unpaid',
+    }));
+  }
 }

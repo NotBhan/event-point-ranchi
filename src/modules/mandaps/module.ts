@@ -12,8 +12,8 @@ export default defineModule({
     {
       path: '/mandaps',
       component: MandapsPage,
-      handle: ({ url }) => {
-        const data = loadMandapsPage({
+      handle: async ({ url }) => {
+        const data = await loadMandapsPage({
           category: url.searchParams.get('category') ?? '',
           query: url.searchParams.get('q') ?? '',
         });
@@ -23,8 +23,8 @@ export default defineModule({
     {
       path: '/mandaps/:slug',
       component: MandapDetailPage,
-      handle: ({ params }) => {
-        const data = loadMandapDetail(params.slug);
+      handle: async ({ params }) => {
+        const data = await loadMandapDetail(params.slug);
         if (!data) return { props: { notFound: true }, status: 404 };
         return { props: { data } };
       },

@@ -1,5 +1,4 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { one } from './db';
 import { redirect, safeNext } from './http';
 import type { AuthState, CookieJar, PageContext, Role, SessionUser } from './types';
 
@@ -107,18 +106,20 @@ export function authStateFor(user: SessionUser | null): AuthState {
   };
 }
 
-export function getAuth(cookies: CookieJar): AuthState {
+import { findUserById } from './operational/service';
+
+export async function getAuth(cookies: CookieJar): Promise<AuthState> {
   const cookie = cookies.get(SESSION_COOKIE)?.value;
   if (!cookie) return emptyAuth;
 
   const payload = decodeSession(cookie);
   if (!payload) return emptyAuth;
 
-  const row = one<UserRow>('SELECT * FROM users WHERE id = ? AND is_active = 1', [payload.uid]);
+  const row = await findUserById(payload.uid);
   if (!row) return emptyAuth;
   if (row.password_hash.slice(-12) !== payload.pv) return emptyAuth;
 
-  return authStateFor(toSessionUser(row));
+  return authStateFor(toSessionUser(row as any));
 }
 
 export function startSession(cookies: CookieJar, userId: number, passwordHash: string): void {

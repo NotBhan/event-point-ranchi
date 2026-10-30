@@ -1,7 +1,9 @@
-import { requireAdmin } from '../../../core/auth';
+import { requireAdmin, requireEditor } from '../../../core/auth';
 import { getInt, getString, redirect } from '../../../core/http';
 import type { PageContext } from '../../../core/types';
 import {
+  saveSiteSettings,
+  saveSeoSettings,
   addGalleryCategory,
   addGuestPricing,
   addHomeFeature,
@@ -18,15 +20,12 @@ import {
   deleteMenuItem,
   deleteMenuSection,
   deletePackageOption,
-  deleteRoom,
   listCateringAdmin,
   listGalleryAdmin,
   listHallsAdmin,
-  listRoomsAdmin,
   loadCateringAdmin,
   loadContentAdmin,
   loadHallAdmin,
-  loadRoomAdmin,
   replaceGalleryItemAdmin,
   saveCatering,
   saveContactInfo,
@@ -34,15 +33,18 @@ import {
   saveGalleryItemTitle,
   saveHall,
   saveHomepage,
+  saveMandapLocationAdmin,
+  savePageAdmin,
   savePageSettings,
-  saveRoom,
+  saveVideoPreviewAdmin,
+  deleteVideoPreviewAdmin,
+  toggleVideoPreviewAdmin,
   toggleCatering,
   toggleCateringHome,
   toggleGalleryCategory,
   toggleGalleryItem,
   toggleHall,
   toggleMenuItem,
-  toggleRoom,
   updateMenuItem,
   updateMenuSection,
 } from '../service';
@@ -97,49 +99,6 @@ export function hallDelete(ctx: PageContext) {
   const denied = requireAdmin(ctx);
   if (denied) return denied;
   return runFormAction(ctx, { delete: () => deleteHall(Number(ctx.params.id)) }, { redirectTo: '/admin/halls' });
-}
-
-/* ---------------- Rooms ---------------- */
-
-export function roomsList(ctx: PageContext) {
-  const denied = requireAdmin(ctx);
-  if (denied) return denied;
-  return { props: { rooms: listRoomsAdmin() } };
-}
-
-export async function roomForm(ctx: PageContext) {
-  const denied = requireAdmin(ctx);
-  if (denied) return denied;
-
-  const rawId = ctx.params.id;
-  const id = rawId && rawId !== 'new' ? Number(rawId) : undefined;
-
-  if (ctx.request.method === 'POST') {
-    const { setError } = await import('../../../core/flash');
-    try {
-      const savedId = await saveRoom(ctx.form, id);
-      return redirect(`/admin/rooms/${savedId}`);
-    } catch (error) {
-      setError(ctx.cookies, error instanceof Error ? error.message : 'Could not save the room.');
-      return redirect(id ? `/admin/rooms/${id}` : '/admin/rooms/new');
-    }
-  }
-
-  const data = id ? loadRoomAdmin(id) : null;
-  if (id && !data) return { props: { notFound: true }, status: 404 };
-  return { props: { room: data?.room ?? null, features: data?.features ?? [], id: id ?? null } };
-}
-
-export function roomToggle(ctx: PageContext) {
-  const denied = requireAdmin(ctx);
-  if (denied) return denied;
-  return runFormAction(ctx, { toggle: () => toggleRoom(Number(ctx.params.id)) }, { redirectTo: '/admin/rooms' });
-}
-
-export function roomDelete(ctx: PageContext) {
-  const denied = requireAdmin(ctx);
-  if (denied) return denied;
-  return runFormAction(ctx, { delete: () => deleteRoom(Number(ctx.params.id)) }, { redirectTo: '/admin/rooms' });
 }
 
 /* ---------------- Catering ---------------- */
@@ -257,8 +216,8 @@ export function galleryAdmin(ctx: PageContext) {
 
 /* ---------------- Content ---------------- */
 
-export function contentAdmin(ctx: PageContext) {
-  const denied = requireAdmin(ctx);
+export async function contentAdmin(ctx: PageContext) {
+  const denied = requireEditor(ctx);
   if (denied) return denied;
 
   if (ctx.request.method === 'POST') {
@@ -270,10 +229,18 @@ export function contentAdmin(ctx: PageContext) {
         delete_feature: () => deleteHomeFeature(getInt(ctx.form, 'feature_id')),
         save_page: () => savePageSettings(ctx.form),
         save_contact: () => saveContactInfo(ctx.form),
+        save_site_settings: () => saveSiteSettings(ctx.form),
+        save_seo: () => saveSeoSettings(ctx.form),
+        save_page_content: () => savePageAdmin(ctx.form),
+        save_mandap_location: () => saveMandapLocationAdmin(ctx.form),
+        save_video_preview: () => saveVideoPreviewAdmin(ctx.form),
+        delete_video_preview: () => deleteVideoPreviewAdmin(ctx.form),
+        toggle_video_preview: () => toggleVideoPreviewAdmin(ctx.form),
       },
       { redirectTo: '/admin/content' },
     );
   }
 
-  return { props: loadContentAdmin() };
+  const content = await loadContentAdmin();
+  return { props: content };
 }

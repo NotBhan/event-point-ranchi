@@ -2,11 +2,12 @@
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import MandapCard from '../../../components/MandapCard.astro';
 import StageCard from '../../../components/StageCard.astro';
+import VideoPreviewCard from '../../../components/VideoPreviewCard.astro';
 import Icon from '../../../components/Icon.astro';
 import { imageUrl } from '../../../core/http';
 import { site } from '../../../core/config';
 import type { HomeData } from '../service';
-import { getHomepageContent } from '../../../core/sanity/service';
+import { getHomepageContent, getPageContent, getVideoPreviews } from '../../../core/content/service';
 
 interface Props {
   data: HomeData;
@@ -15,26 +16,41 @@ interface Props {
 const { data } = Astro.props;
 const { heroImage, mandaps, stages, equipment, galleryCategories, galleryItems, stats } = data;
 
-const homepageContent = await getHomepageContent(heroImage ?? undefined);
+const [pageContent, homepageContent, featuredVideos] = await Promise.all([
+  getPageContent('home'),
+  getHomepageContent(heroImage ?? undefined),
+  getVideoPreviews({ onlyPublished: true, limit: 4 }),
+]);
+
+const primaryVideo = featuredVideos.find((v) => v.aspect_ratio === '16:9') || featuredVideos[0];
+const reelVideos = featuredVideos.filter((v) => v.id !== primaryVideo?.id);
+const hasMixedAspectRatios = primaryVideo && reelVideos.length > 0 && reelVideos.some((v) => v.aspect_ratio === '9:16');
+
+const heroHeading = pageContent.title || homepageContent.heroHeading;
+const heroSubtitle = pageContent.subtitle || homepageContent.heroSubtitle;
+const heroImg = (pageContent.banner_enabled && pageContent.banner_image_url) ? pageContent.banner_image_url : homepageContent.heroImage;
+const heroBadge = pageContent.content_json?.badge || 'Ranchi · Wedding setup studio';
+const primaryCta = pageContent.content_json?.primaryCta || homepageContent.primaryCta;
+const secondaryCta = pageContent.content_json?.secondaryCta || homepageContent.secondaryCta;
 
 const steps = homepageContent.steps.map((s) => [s.stepNumber, s.title, s.description]);
 ---
 
 <BaseLayout
-  title="Event Point Ranchi | Wedding Mandaps, Stage Designs & Event Equipment"
-  description="Wedding mandap, stage designs, furniture and event equipment planning in Ranchi. Build your requirements and request a quotation from Event Point Ranchi."
+  title={pageContent.seo_title || "Event Point Ranchi | Wedding Mandaps, Stage Designs & Event Equipment"}
+  description={pageContent.seo_description || "Wedding mandap, stage designs, furniture and event equipment planning in Ranchi. Build your requirements and request a quotation from Event Point Ranchi."}
 >
   <section class="hero wedding-hero">
-    {homepageContent.heroImage && <img class="hero-media" src={imageUrl(homepageContent.heroImage)} alt="" />}
+    {heroImg && <img class="hero-media" src={imageUrl(heroImg)} alt="" />}
     <div class="container hero-inner">
-      <span class="eyebrow" style="color:var(--gold-bright);">Ranchi · Wedding setup studio</span>
-      <h1>{homepageContent.heroHeading}</h1>
-      <p>{homepageContent.heroSubtitle}</p>
+      <span class="eyebrow" style="color:var(--gold-bright);">{heroBadge}</span>
+      <h1>{heroHeading}</h1>
+      <p>{heroSubtitle}</p>
       <div class="hero-actions">
-        <a href={homepageContent.primaryCta.url} class="btn btn-gold btn-lg">
-          {homepageContent.primaryCta.label} <Icon name="arrow-right" size={16} />
+        <a href={primaryCta.url} class="btn btn-gold btn-lg">
+          {primaryCta.label} <Icon name="arrow-right" size={16} />
         </a>
-        <a href={homepageContent.secondaryCta.url} class="btn btn-secondary btn-lg">{homepageContent.secondaryCta.label}</a>
+        <a href={secondaryCta.url} class="btn btn-secondary btn-lg">{secondaryCta.label}</a>
       </div>
       {homepageContent.sectionsVisibility.stats && (
         <div class="hero-meta">
@@ -183,7 +199,7 @@ const steps = homepageContent.steps.map((s) => [s.stepNumber, s.title, s.descrip
         </div>
 
         <div class="gallery-grid home-gallery-grid">
-          {galleryItems.map((item) => (
+          {galleryItems.map((item, index) => (
             <button
               type="button"
               class="gallery-tile"
@@ -192,8 +208,26 @@ const steps = homepageContent.steps.map((s) => [s.stepNumber, s.title, s.descrip
               data-lightbox
               data-src={imageUrl(item.image)}
               data-caption={item.title}
+              aria-label={`View ${item.title} (${item.category}) in full resolution`}
             >
-              <img src={imageUrl(item.image)} alt={item.title} loading="lazy" />
+              <div class="media-with-skeleton gallery-tile-media">
+                <div
+                  class="skeleton-placeholder skeleton-shimmer"
+                  role="status"
+                  aria-busy="true"
+                  aria-label={`Loading ${item.title}`}
+                ></div>
+                <img
+                  src={imageUrl(item.image)}
+                  alt={item.title}
+                  loading={index < 4 ? 'eager' : 'lazy'}
+                  decoding="async"
+                />
+                <div class="skeleton-error-fallback" role="alert">
+                  <Icon name="image" size={24} />
+                  <span>Photo unavailable</span>
+                </div>
+              </div>
               <span class="gallery-overlay">
                 <span>{item.title}</span>
                 <small>{item.category}</small>
@@ -201,6 +235,69 @@ const steps = homepageContent.steps.map((s) => [s.stepNumber, s.title, s.descrip
             </button>
           ))}
         </div>
+      </div>
+    </section>
+  )}
+
+  {featuredVideos.length > 0 && (
+    <section class="section section-cinema" aria-labelledby="home-videos-heading">
+      <div class="container">
+        <div class="cinema-head">
+          <div>
+            <span class="eyebrow eyebrow-gold">
+              <Icon name="play" size={12} /> Motion &amp; Highlights
+            </span>
+            <h2 id="home-videos-heading">Celebrations in Motion</h2>
+            <p>
+              Experience the scale, floral artistry, and authentic celebration energy of Ranchi weddings
+              through high-definition walk-throughs, YouTube Shorts, and Instagram Reels.
+            </p>
+          </div>
+          <a href="/gallery#videosSection" class="cinema-btn-outline">
+            <span>Explore All Videos</span>
+            <Icon name="arrow-right" size={14} />
+          </a>
+        </div>
+
+        {hasMixedAspectRatios ? (
+          <div class="cinema-studio-layout">
+            <!-- Primary Widescreen Walkthrough -->
+            <div class="cinema-spotlight-col">
+              <div class="cinema-spotlight-card">
+                <div class="spotlight-badge-bar">
+                  <span class="spotlight-pill">
+                    <Icon name="video" size={13} />
+                    <span>Featured Walkthrough</span>
+                  </span>
+                  <span class="spotlight-hd">1080p HD</span>
+                </div>
+                <VideoPreviewCard video={primaryVideo} eagerThumbnail={true} />
+              </div>
+            </div>
+
+            <!-- Vertical Shorts & Reels Showcase -->
+            <div class="cinema-reels-col">
+              <div class="reels-header">
+                <div class="reels-title-wrap">
+                  <Icon name="film" size={15} />
+                  <h3>Shorts &amp; Reels</h3>
+                </div>
+                <span class="reels-badge">{reelVideos.length} Moments</span>
+              </div>
+              <div class="cinema-reels-grid">
+                {reelVideos.map((video) => (
+                  <VideoPreviewCard video={video} />
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div class="cinema-grid-balanced">
+            {featuredVideos.map((video, idx) => (
+              <VideoPreviewCard video={video} eagerThumbnail={idx === 0} />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   )}
@@ -258,6 +355,8 @@ const steps = homepageContent.steps.map((s) => [s.stepNumber, s.title, s.descrip
   </section>
 
   <script>
+    import { setupProgressiveMedia } from '../../../client/image-loader';
+
     const filterButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-home-gallery-filter]'));
     const galleryItems = Array.from(document.querySelectorAll<HTMLElement>('[data-home-gallery-item]'));
 
@@ -268,6 +367,7 @@ const steps = homepageContent.steps.map((s) => [s.stepNumber, s.title, s.descrip
         galleryItems.forEach((item) => {
           item.hidden = filter !== 'all' && item.dataset.homeGalleryCategory !== filter;
         });
+        setupProgressiveMedia();
       });
     });
   </script>

@@ -125,26 +125,6 @@ CREATE TABLE IF NOT EXISTS services (
 );
 CREATE INDEX IF NOT EXISTS idx_services_category ON services(category_id);
 
-CREATE TABLE IF NOT EXISTS rooms (
-  id             INTEGER PRIMARY KEY AUTOINCREMENT,
-  name           TEXT NOT NULL,
-  price_paise    INTEGER NOT NULL DEFAULT 0,
-  capacity       INTEGER NOT NULL DEFAULT 1,
-  total_rooms    INTEGER NOT NULL DEFAULT 1,
-  image          TEXT,
-  description    TEXT NOT NULL DEFAULT '',
-  is_active      INTEGER NOT NULL DEFAULT 1,
-  created_at     TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE IF NOT EXISTS room_features (
-  id      INTEGER PRIMARY KEY AUTOINCREMENT,
-  room_id INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
-  name    TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_room_features_room ON room_features(room_id);
-
 CREATE TABLE IF NOT EXISTS catering_packages (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   name         TEXT NOT NULL,
@@ -206,17 +186,21 @@ CREATE TABLE IF NOT EXISTS guest_pricing (
 CREATE INDEX IF NOT EXISTS idx_guest_pricing_package ON guest_pricing(package_id);
 
 CREATE TABLE IF NOT EXISTS bookings (
-  id              INTEGER PRIMARY KEY AUTOINCREMENT,
-  customer_id     INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
-  access_token    TEXT NOT NULL UNIQUE,
-  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-  event_date      TEXT,
-  event_time      TEXT,
-  event_type      TEXT NOT NULL DEFAULT 'Wedding',
-  total_guest     INTEGER NOT NULL DEFAULT 100,
-  special_request TEXT NOT NULL DEFAULT '',
-  status          TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('draft', 'pending', 'confirmed', 'cancelled')),
-  total_amount    INTEGER NOT NULL DEFAULT 0
+  id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+  customer_id         INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  access_token        TEXT NOT NULL UNIQUE,
+  created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+  event_date          TEXT,
+  event_time          TEXT,
+  event_type          TEXT NOT NULL DEFAULT 'Wedding',
+  total_guest         INTEGER NOT NULL DEFAULT 100,
+  special_request     TEXT NOT NULL DEFAULT '',
+  status              TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('draft', 'pending', 'confirmed', 'cancelled')),
+  total_amount        INTEGER NOT NULL DEFAULT 0,
+  advance_amount      INTEGER NOT NULL DEFAULT 0,
+  amount_paid         INTEGER NOT NULL DEFAULT 0,
+  outstanding_balance INTEGER NOT NULL DEFAULT 0,
+  payment_status      TEXT NOT NULL DEFAULT 'unpaid' CHECK (payment_status IN ('unpaid', 'partially_paid', 'paid', 'refunded'))
 );
 CREATE INDEX IF NOT EXISTS idx_bookings_customer ON bookings(customer_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_event_date ON bookings(event_date);
@@ -227,15 +211,6 @@ CREATE TABLE IF NOT EXISTS booking_halls (
   booking_id INTEGER NOT NULL UNIQUE REFERENCES bookings(id) ON DELETE CASCADE,
   hall_id    INTEGER NOT NULL REFERENCES halls(id),
   price      INTEGER NOT NULL DEFAULT 0
-);
-
-CREATE TABLE IF NOT EXISTS booking_rooms (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  booking_id INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
-  room_id    INTEGER NOT NULL REFERENCES rooms(id),
-  quantity   INTEGER NOT NULL DEFAULT 1,
-  price      INTEGER NOT NULL DEFAULT 0,
-  subtotal   INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS booking_furniture (
@@ -477,4 +452,147 @@ CREATE TABLE IF NOT EXISTS traffic_events (
 CREATE INDEX IF NOT EXISTS idx_traffic_events_created ON traffic_events(created_at);
 CREATE INDEX IF NOT EXISTS idx_traffic_events_path ON traffic_events(path);
 CREATE INDEX IF NOT EXISTS idx_traffic_events_session ON traffic_events(session_id);
+
+-- Payment Management & Compliance Tables (SQLite)
+CREATE TABLE IF NOT EXISTS payments (
+  id                             INTEGER PRIMARY KEY AUTOINCREMENT,
+  booking_id                     INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  customer_id                    INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+  provider                       TEXT NOT NULL,
+  provider_order_id              TEXT,
+  provider_payment_id            TEXT,
+  internal_transaction_reference TEXT NOT NULL UNIQUE,
+  payment_type                   TEXT NOT NULL DEFAULT 'advance',
+  amount_paise                   INTEGER NOT NULL,
+  currency                       TEXT NOT NULL DEFAULT 'INR',
+  status                         TEXT NOT NULL DEFAULT 'created',
+  payment_method                 TEXT,
+  failure_code                   TEXT,
+  failure_description            TEXT,
+  metadata_json                  TEXT NOT NULL DEFAULT '{}',
+  verified_at                    TEXT,
+  created_at                     TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at                     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_payments_booking ON payments(booking_id);
+CREATE INDEX IF NOT EXISTS idx_payments_customer ON payments(customer_id);
+CREATE INDEX IF NOT EXISTS idx_payments_provider ON payments(provider);
+CREATE INDEX IF NOT EXISTS idx_payments_provider_order ON payments(provider_order_id);
+CREATE INDEX IF NOT EXISTS idx_payments_provider_payment ON payments(provider_payment_id);
+CREATE INDEX IF NOT EXISTS idx_payments_internal_ref ON payments(internal_transaction_reference);
+CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
+
+CREATE TABLE IF NOT EXISTS payment_webhook_events (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  provider          TEXT NOT NULL,
+  provider_event_id TEXT,
+  event_type        TEXT NOT NULL,
+  payload_hash      TEXT NOT NULL,
+  processing_status TEXT NOT NULL DEFAULT 'pending',
+  error_message     TEXT,
+  raw_payload       TEXT,
+  received_at       TEXT NOT NULL DEFAULT (datetime('now')),
+  processed_at      TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_webhook_provider_event ON payment_webhook_events(provider, provider_event_id);
+CREATE INDEX IF NOT EXISTS idx_webhook_payload_hash ON payment_webhook_events(payload_hash);
+CREATE INDEX IF NOT EXISTS idx_webhook_status ON payment_webhook_events(processing_status);
+
+CREATE TABLE IF NOT EXISTS refunds (
+  id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+  payment_id         INTEGER NOT NULL REFERENCES payments(id) ON DELETE CASCADE,
+  booking_id         INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  provider_refund_id TEXT,
+  amount_paise       INTEGER NOT NULL,
+  reason             TEXT NOT NULL,
+  status             TEXT NOT NULL DEFAULT 'pending',
+  failure_reason     TEXT,
+  initiated_by       INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at         TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at         TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_refunds_payment ON refunds(payment_id);
+CREATE INDEX IF NOT EXISTS idx_refunds_booking ON refunds(booking_id);
+CREATE INDEX IF NOT EXISTS idx_refunds_provider_refund ON refunds(provider_refund_id);
+CREATE INDEX IF NOT EXISTS idx_refunds_status ON refunds(status);
+
+CREATE TABLE IF NOT EXISTS payment_reconciliation (
+  id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+  provider                TEXT NOT NULL,
+  provider_transaction_id TEXT NOT NULL,
+  internal_payment_id     INTEGER REFERENCES payments(id) ON DELETE SET NULL,
+  provider_amount_paise   INTEGER NOT NULL,
+  internal_amount_paise   INTEGER NOT NULL,
+  reconciliation_status   TEXT NOT NULL DEFAULT 'pending',
+  notes                   TEXT,
+  reconciled_at           TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_reconciliation_provider_tx ON payment_reconciliation(provider, provider_transaction_id);
+CREATE INDEX IF NOT EXISTS idx_reconciliation_status ON payment_reconciliation(reconciliation_status);
+
+CREATE TABLE IF NOT EXISTS invoices (
+  id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+  booking_id           INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  payment_id           INTEGER REFERENCES payments(id) ON DELETE SET NULL,
+  invoice_number       TEXT NOT NULL UNIQUE,
+  invoice_type         TEXT NOT NULL DEFAULT 'receipt',
+  taxable_amount_paise INTEGER NOT NULL DEFAULT 0,
+  cgst_paise           INTEGER NOT NULL DEFAULT 0,
+  sgst_paise           INTEGER NOT NULL DEFAULT 0,
+  igst_paise           INTEGER NOT NULL DEFAULT 0,
+  total_amount_paise   INTEGER NOT NULL,
+  customer_name        TEXT NOT NULL,
+  customer_phone       TEXT NOT NULL,
+  customer_email       TEXT,
+  customer_address     TEXT,
+  created_at           TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_invoices_booking ON invoices(booking_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_payment ON invoices(payment_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_number ON invoices(invoice_number);
+
+-- Payment Receipts & QR Verification
+CREATE TABLE IF NOT EXISTS payment_receipts (
+  id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+  payment_id              INTEGER NOT NULL REFERENCES payments(id) ON DELETE CASCADE,
+  booking_id              INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  receipt_number          TEXT NOT NULL UNIQUE,
+  verification_token      TEXT NOT NULL UNIQUE,
+  verification_token_hash TEXT NOT NULL UNIQUE,
+  amount_paise            INTEGER NOT NULL,
+  status                  TEXT NOT NULL DEFAULT 'issued',
+  pdf_storage_key         TEXT,
+  issued_at               TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at              TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_payment_receipts_payment ON payment_receipts(payment_id);
+CREATE INDEX IF NOT EXISTS idx_payment_receipts_booking ON payment_receipts(booking_id);
+CREATE INDEX IF NOT EXISTS idx_payment_receipts_number ON payment_receipts(receipt_number);
+CREATE INDEX IF NOT EXISTS idx_payment_receipts_token_hash ON payment_receipts(verification_token_hash);
+CREATE INDEX IF NOT EXISTS idx_payment_receipts_status ON payment_receipts(status);
+
+-- Customer Enquiry QR Tokens for Quick Admin Lookup
+CREATE TABLE IF NOT EXISTS enquiry_qr_tokens (
+  id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+  enquiry_id          INTEGER REFERENCES event_enquiries(id) ON DELETE CASCADE,
+  contact_inquiry_id  INTEGER REFERENCES contact_inquiries(id) ON DELETE CASCADE,
+  reference_code      TEXT NOT NULL,
+  token               TEXT NOT NULL UNIQUE,
+  token_hash          TEXT NOT NULL UNIQUE,
+  created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+  revoked_at          TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_enquiry_qr_enquiry ON enquiry_qr_tokens(enquiry_id);
+CREATE INDEX IF NOT EXISTS idx_enquiry_qr_contact ON enquiry_qr_tokens(contact_inquiry_id);
+CREATE INDEX IF NOT EXISTS idx_enquiry_qr_ref ON enquiry_qr_tokens(reference_code);
+CREATE INDEX IF NOT EXISTS idx_enquiry_qr_token_hash ON enquiry_qr_tokens(token_hash);
+
+
 

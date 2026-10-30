@@ -1,0 +1,27 @@
+---
+import Skeleton from './Skeleton.astro';
+
+interface Props {
+  height?: string;
+  class?: string;
+}
+
+const { height = '320px', class: className = '' } = Astro.props;
+---
+
+<div class:list={['skeleton-banner-container', className]} role="status" aria-busy="true" aria-label="Loading banner...">
+  <Skeleton
+    width="100%"
+    height={height}
+    aspectRatio="21/9"
+    borderRadius="var(--r-md, 12px)"
+    class="skeleton-banner"
+  />
+</div>
+
+<style>
+  .skeleton-banner-container {
+    width: 100%;
+    margin-bottom: 2rem;
+  }
+</style>

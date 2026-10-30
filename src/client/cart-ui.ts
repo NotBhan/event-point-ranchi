@@ -64,7 +64,7 @@ function renderSidebar(): void {
       <div class="cart-empty">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 2-1.6L21 8H6"/></svg>
         <p>Your cart is empty</p>
-        <small>Browse halls, rooms and catering to build your event.</small>
+        <small>Browse halls, catering and decor to build your event.</small>
       </div>`;
     return;
   }

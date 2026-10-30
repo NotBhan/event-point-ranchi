@@ -1,0 +1,105 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
+import PolicyNav from '../components/PolicyNav.astro';
+import { getSiteSettings } from '../core/content/service';
+
+const settings = await getSiteSettings();
+const brandName = settings.name || 'Event Point Ranchi';
+const legalName = settings.legalName || 'Event Point Ranchi';
+const address = settings.address || 'Event Point, Main Road, Ranchi, Jharkhand 834001, India';
+const phone = settings.phone || '+91 98765 43210';
+const email = settings.email || 'info@eventpointranchi.com';
+---
+
+<BaseLayout
+  title={`Terms & Conditions | ${brandName}`}
+  description={`Official terms and conditions governing banquet venue bookings, event equipment rentals, stage decor, and payment conditions for ${brandName}.`}
+>
+  <section class="page-hero">
+    <div class="container">
+      <span class="eyebrow">Legal & Compliance</span>
+      <h1>Terms & Conditions</h1>
+      <p>
+        These terms govern all enquiries, quotations, bookings, service delivery, and digital transactions with {brandName}.
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container-narrow policy-content">
+      <PolicyNav current="terms" />
+
+      <div class="panel mb-8" style="padding:20px;background:var(--canvas-warm);border:1px solid var(--line);border-radius:var(--r-md);">
+        <p style="margin:0;font-size:13.5px;color:var(--muted);">
+          <strong>Entity details:</strong> Operating under trade name <strong>{brandName}</strong> ({legalName}) · Registered address: {address} · Official email: <a href={`mailto:${email}`} class="text-link">{email}</a> · Customer service: <a href={`tel:${phone.replace(/\s/g, '')}`} class="text-link">{phone}</a>.
+        </p>
+      </div>
+
+      <article id="terms-acceptance">
+        <h2>1. Acceptance of Terms</h2>
+        <p>
+          By accessing this website, placing an enquiry, generating an event quotation, or submitting any booking payment, you agree to be legally bound by these Terms & Conditions, our Privacy Policy, Cancellation & Refund Policy, and Payment & Booking Policy. If you do not agree to these terms, please refrain from using our services.
+        </p>
+      </article>
+
+      <article id="scope-of-services">
+        <h2>2. Scope of Services</h2>
+        <p>
+          {brandName} specializes in event infrastructure, design, and hospitality in Ranchi, Jharkhand, including:
+        </p>
+        <ul class="spec-list">
+          <li><Icon name="check-circle" size={15} /> <strong>Mandap & Stage Architecture:</strong> Custom wedding mandap setups, floral decoration, stage lighting, and backdrop structures.</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Banquet & Venue Coordination:</strong> Indoor hall reservations, spatial layout design, and ambient lighting setups.</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Furniture & Event Equipment Rentals:</strong> Seating arrangements, VIP banquet sofas, dining chairs, buffet stations, sound setups, and generators.</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Catering Hospitality:</strong> Buffet planning, curated vegetarian and non-vegetarian banquet menus, and live counter management.</li>
+        </ul>
+      </article>
+
+      <article id="pricing-currency">
+        <h2>3. Pricing, Currency & Taxes</h2>
+        <ul class="spec-list">
+          <li><Icon name="check-circle" size={15} /> <strong>Currency:</strong> All prices, estimates, advances, and final payments are quoted and processed strictly in <strong>Indian National Rupees (INR / ₹)</strong>.</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Quotations vs Reservations:</strong> An online quotation or inquiry submission is an estimate and does not constitute a guaranteed date reservation. Reservations are locked exclusively upon verification of the required booking advance.</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Goods & Services Tax (GST):</strong> Applicable GST under Indian tax laws is itemized on the digital payment receipts and tax invoices generated for each transaction.</li>
+        </ul>
+      </article>
+
+      <article id="customer-responsibilities">
+        <h2>4. Customer Responsibilities & Site Access</h2>
+        <ul class="spec-list">
+          <li><Icon name="check-circle" size={15} /> <strong>Venue Access & Clearances:</strong> The customer is responsible for granting our production teams access to the venue at least 6 hours prior to the event schedule for structural and decor setup.</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Care of Rented Assets:</strong> Customers must ensure standard care of furniture, decor installations, and electrical equipment during the event duration. Malicious or negligent damage beyond normal wear and tear will be assessed at replacement cost.</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Accurate Information:</strong> The client certifies that all contact information, guest counts, and date specifications provided are accurate and complete.</li>
+        </ul>
+      </article>
+
+      <article id="limitation-liability">
+        <h2>5. Limitation of Liability & Force Majeure</h2>
+        <p>
+          Neither party shall be held liable for failure or delay in fulfilling performance obligations due to events beyond reasonable control (Force Majeure), including natural calamities, extreme weather preventing road access, municipal lockdowns, or widespread electrical blackout not mitigated by auxiliary power. In such situations, we will work cooperatively with the client to reschedule the booking subject to date availability.
+        </p>
+      </article>
+
+      <article id="jurisdiction">
+        <h2>6. Governing Law & Dispute Resolution</h2>
+        <p>
+          These Terms & Conditions are governed by the laws of India. Any claims, legal proceedings, or disputes arising out of our services, website usage, or transactions shall be submitted to the exclusive jurisdiction of the civil courts located in <strong>Ranchi, Jharkhand, India</strong>.
+        </p>
+      </article>
+
+      <article id="contact-info">
+        <h2>7. Contact & Official Notices</h2>
+        <p>
+          For contractual inquiries, clarifications, or formal notices regarding these terms:
+        </p>
+        <p>
+          <strong>{legalName}</strong><br />
+          {address}<br />
+          Email: <a href={`mailto:${email}`} class="text-link">{email}</a><br />
+          Phone: <a href={`tel:${phone.replace(/\s/g, '')}`} class="text-link">{phone}</a>
+        </p>
+      </article>
+    </div>
+  </section>
+</BaseLayout>

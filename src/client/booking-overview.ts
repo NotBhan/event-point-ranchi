@@ -33,6 +33,7 @@ if (root) {
   const typeInput = document.querySelector<HTMLSelectElement>('#eventType');
   const guestInput = document.querySelector<HTMLInputElement>('#expectedGuests');
   const requestInput = document.querySelector<HTMLTextAreaElement>('#specialRequest');
+  const termsInput = document.querySelector<HTMLInputElement>('#termsConsent');
 
   if (nameInput && prefill.name) nameInput.value = prefill.name;
   if (phoneInput && prefill.phone) phoneInput.value = prefill.phone;
@@ -94,7 +95,7 @@ if (root) {
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 2-1.6L21 8H6"/></svg>
             </div>
             <h3>Your cart is empty</h3>
-            <p>Choose a hall, rooms or catering before checking out.</p>
+            <p>Choose a hall or catering before checking out.</p>
             <a href="/halls" class="btn btn-primary mt-4">Browse halls</a>
           </div>`;
       } else {
@@ -192,22 +193,69 @@ if (root) {
     }
   }
 
-  function showError(message: string): void {
+  function setFieldError(fieldElement: HTMLElement | null, message: string): void {
+    if (!fieldElement) return;
+    fieldElement.classList.add('is-invalid');
+    const parent =
+      fieldElement.closest('.field') ||
+      fieldElement.closest('.field-group') ||
+      fieldElement.closest('.checkbox-row') ||
+      fieldElement.parentElement;
+    if (parent) {
+      let err = parent.querySelector<HTMLElement>('.field-error-msg');
+      if (!err) {
+        err = document.createElement('span');
+        err.className = 'field-error-msg';
+        parent.appendChild(err);
+      }
+      err.textContent = message;
+    }
+  }
+
+  function clearFieldError(fieldElement: HTMLElement | null): void {
+    if (!fieldElement) return;
+    fieldElement.classList.remove('is-invalid');
+    const parent =
+      fieldElement.closest('.field') ||
+      fieldElement.closest('.field-group') ||
+      fieldElement.closest('.checkbox-row') ||
+      fieldElement.parentElement;
+    if (parent) {
+      const err = parent.querySelector('.field-error-msg');
+      if (err) err.remove();
+    }
+  }
+
+  [nameInput, phoneInput, emailInput, addressInput, dateInput, timeInput, typeInput, guestInput, requestInput, termsInput].forEach((el) => {
+    if (!el) return;
+    el.addEventListener('input', () => clearFieldError(el));
+    el.addEventListener('change', () => clearFieldError(el));
+  });
+
+  function showError(message: string, scroll = true): void {
     if (!errorBox) return;
     errorBox.textContent = message;
     errorBox.hidden = false;
-    errorBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (scroll) {
+      errorBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
   }
 
   form?.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (errorBox) errorBox.hidden = true;
 
+    [nameInput, phoneInput, emailInput, addressInput, dateInput, timeInput, typeInput, guestInput, requestInput, termsInput].forEach((el) => {
+      clearFieldError(el);
+    });
+
     const cart = readCart();
     if (cartTotal(cart) === 0) {
-      showError('Your cart is empty. Add a hall, room or catering package first.');
+      showError('Your cart is empty. Add a hall, room or catering package first.', true);
       return;
     }
+
+    let firstInvalid: HTMLElement | null = null;
 
     const name = nameInput?.value.trim() ?? '';
     const phone = phoneInput?.value.trim() ?? '';
@@ -215,13 +263,45 @@ if (root) {
     const eventDate = dateInput?.value ?? '';
     const eventType = typeInput?.value ?? '';
 
-    if (!name || !phone || !email || !eventDate || !eventType) {
-      showError('Please complete all required customer and event fields.');
-      return;
+    if (!name || name.length < 2) {
+      setFieldError(nameInput, 'Please enter your full name (at least 2 characters).');
+      if (!firstInvalid) firstInvalid = nameInput;
     }
 
-    if (!/^[0-9]{10}$/.test(phone.replace(/\D/g, ''))) {
-      showError('Please enter a valid 10-digit phone number.');
+    const cleanPhone = phone.replace(/[\s-]/g, '').replace(/^\+91/, '');
+    if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+      setFieldError(phoneInput, 'Please enter a valid 10-digit Indian mobile number (e.g. 9876543210).');
+      if (!firstInvalid) firstInvalid = phoneInput;
+    }
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setFieldError(emailInput, 'Please enter a valid email address.');
+      if (!firstInvalid) firstInvalid = emailInput;
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    if (!eventDate) {
+      setFieldError(dateInput, 'Please select your event date.');
+      if (!firstInvalid) firstInvalid = dateInput;
+    } else if (eventDate < today) {
+      setFieldError(dateInput, 'Event date cannot be in the past.');
+      if (!firstInvalid) firstInvalid = dateInput;
+    }
+
+    if (!eventType) {
+      setFieldError(typeInput, 'Please select an event type.');
+      if (!firstInvalid) firstInvalid = typeInput;
+    }
+
+    if (!termsInput?.checked) {
+      setFieldError(termsInput, 'You must confirm the details and accept the booking terms.');
+      if (!firstInvalid) firstInvalid = termsInput;
+    }
+
+    if (firstInvalid) {
+      showError('Please correct the highlighted fields before submitting your booking.', false);
+      firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      firstInvalid.focus({ preventScroll: true });
       return;
     }
 

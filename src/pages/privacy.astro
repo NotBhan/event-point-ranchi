@@ -1,0 +1,96 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
+import PolicyNav from '../components/PolicyNav.astro';
+import { getSiteSettings } from '../core/content/service';
+
+const settings = await getSiteSettings();
+const brandName = settings.name || 'Event Point Ranchi';
+const legalName = settings.legalName || 'Event Point Ranchi';
+const address = settings.address || 'Event Point, Main Road, Ranchi, Jharkhand 834001, India';
+const phone = settings.phone || '+91 98765 43210';
+const email = settings.email || 'info@eventpointranchi.com';
+---
+
+<BaseLayout
+  title={`Privacy Policy | ${brandName}`}
+  description={`DPDP Act 2023 compliant privacy policy, data protection principles, and secure transaction safeguards for ${brandName}.`}
+>
+  <section class="page-hero">
+    <div class="container">
+      <span class="eyebrow">Legal & Compliance</span>
+      <h1>Privacy Policy</h1>
+      <p>
+        How {brandName} collects, protects, and handles your personal information in compliance with Indian privacy laws and RBI directives.
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container-narrow policy-content">
+      <PolicyNav current="privacy" />
+
+      <div class="panel mb-8" style="padding:20px;background:var(--canvas-warm);border:1px solid var(--line);border-radius:var(--r-md);">
+        <p style="margin:0;font-size:13.5px;color:var(--muted);">
+          <strong>Entity details:</strong> {legalName} · Data Protection & Privacy Contact: <a href={`mailto:${email}`} class="text-link">{email}</a> · Operating Office: {address}.
+        </p>
+      </div>
+
+      <article id="data-collected">
+        <h2>1. Personal Data We Collect</h2>
+        <p>
+          We only collect data necessary to prepare accurate quotations, manage event reservations, and communicate with you:
+        </p>
+        <ul class="spec-list">
+          <li><Icon name="check-circle" size={15} /> <strong>Contact Information:</strong> Full name, 10-digit mobile phone number, email address, and event venue or residence address.</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Event Specifications:</strong> Event date, expected guest count, banquet selection, stage design preferences, and catering specifications.</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Transaction References:</strong> Internal payment reference identifiers, gateway order IDs, and payment verification timestamps.</li>
+        </ul>
+      </article>
+
+      <article id="zero-payment-secrets">
+        <h2>2. Zero Storage of Card and Banking Secrets (PCI DSS & RBI Compliance)</h2>
+        <div style="background:rgba(212, 175, 55, 0.08);border:1px solid var(--gold-bright);border-radius:var(--r-md);padding:18px 22px;margin:16px 0;">
+          <h4 style="margin:0 0 8px;color:var(--primary-dark);">Strict Payment Security Guarantee</h4>
+          <p style="margin:0;font-size:14px;line-height:1.6;color:var(--body);">
+            <strong>{brandName} NEVER collects, views, processes, or stores your credit/debit card numbers, CVV codes, expiry dates, net banking passwords, OTPs, or UPI PINs on any server or database.</strong>
+          </p>
+        </div>
+        <p>
+          All electronic payment sessions are routed directly through RBI-authorized, PCI-DSS Level 1 certified Payment Aggregator (PhonePe). Payment data entry occurs exclusively inside the gateway's secure, encrypted hosted checkout interface.
+        </p>
+      </article>
+
+      <article id="purpose-use">
+        <h2>3. How We Use Your Information</h2>
+        <ul class="spec-list">
+          <li><Icon name="check-circle" size={15} /> <strong>Fulfillment of Event Services:</strong> To reserve banquet dates, assign setup coordinators, order catering raw materials, and deliver furniture to your venue.</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Transaction Receipts & Invoicing:</strong> Generating verifiable payment confirmation slips, GST receipts, and statutory financial documentation.</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Operational Notifications:</strong> Sending automated email or WhatsApp confirmations for verified bookings and status updates.</li>
+          <li><Icon name="check-circle" size={15} /> <strong>No Third-Party Data Selling:</strong> We never sell, rent, monetize, or trade your contact or enquiry information with telemarketers or third-party advertisers.</li>
+        </ul>
+      </article>
+
+      <article id="data-retention">
+        <h2>4. Data Retention and Security Safeguards</h2>
+        <p>
+          We employ HTTPS/TLS 1.3 encryption across all website pages and API endpoints. Database records are protected by strong access controls, salted PBKDF2 password hashes for customer credentials, and tokenized session cookies. Accounting and payment receipt logs are retained solely for the statutory duration mandated by Indian taxation laws.
+        </p>
+      </article>
+
+      <article id="user-rights">
+        <h2>5. Your Rights Under the DPDP Act 2023</h2>
+        <p>
+          As a data principal, you have the right to request access to the personal data we hold about you, request corrections to erroneous details, or request deletion of non-statutory records once your event has concluded. To exercise these rights, email our compliance team at <a href={`mailto:${email}`} class="text-link">{email}</a> or call our verified support line at <a href={`tel:${phone.replace(/\s/g, '')}`} class="text-link">{phone}</a>.
+        </p>
+      </article>
+
+      <article id="grievance-link">
+        <h2>6. Grievance Redressal</h2>
+        <p>
+          If you have concerns regarding our privacy practices, please contact our Grievance Redressal Officer directly at <a href="/grievance" class="text-link">Grievance Information Page</a> or email <a href="mailto:grievance@eventpointranchi.com" class="text-link">grievance@eventpointranchi.com</a>.
+        </p>
+      </article>
+    </div>
+  </section>
+</BaseLayout>

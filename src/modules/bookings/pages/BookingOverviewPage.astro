@@ -41,54 +41,68 @@ const today = new Date().toISOString().slice(0, 10);
         </div>
 
         <form class="form-grid" id="booking-form" data-booking-form novalidate>
+          <p class="form-required-legend">
+            <span class="required-indicator" aria-hidden="true">*</span> Indicates required fields
+          </p>
+
           <div class="form-grid cols-2">
-            <div class="field">
-              <label for="customerName">Full name *</label>
-              <input class="input" id="customerName" name="customer_name" required placeholder="Aarav Sharma" />
+            <div class="field" data-field-wrap="customerName">
+              <label for="customerName">
+                Full name <span class="required-indicator" aria-hidden="true">*</span>
+              </label>
+              <input class="input" id="customerName" name="customer_name" required aria-required="true" placeholder="Aarav Sharma" />
             </div>
-            <div class="field">
-              <label for="customerPhone">Phone number *</label>
-              <input class="input" id="customerPhone" name="customer_phone" required inputmode="tel" maxlength="10" placeholder="9876543210" />
+            <div class="field" data-field-wrap="customerPhone">
+              <label for="customerPhone">
+                Phone number <span class="required-indicator" aria-hidden="true">*</span>
+              </label>
+              <input class="input" id="customerPhone" name="customer_phone" required aria-required="true" inputmode="tel" maxlength="10" placeholder="9876543210" pattern="[6-9][0-9]{9}" />
             </div>
           </div>
 
           <div class="form-grid cols-2">
-            <div class="field">
-              <label for="customerEmail">Email address *</label>
-              <input class="input" id="customerEmail" name="customer_email" type="email" required placeholder="you@example.com" />
+            <div class="field" data-field-wrap="customerEmail">
+              <label for="customerEmail">
+                Email address <span class="required-indicator" aria-hidden="true">*</span>
+              </label>
+              <input class="input" id="customerEmail" name="customer_email" type="email" required aria-required="true" placeholder="you@example.com" />
             </div>
-            <div class="field">
+            <div class="field" data-field-wrap="customerAddress">
               <label for="customerAddress">Billing address</label>
               <input class="input" id="customerAddress" name="customer_address" placeholder="Street, city, state" />
             </div>
           </div>
 
           <div class="form-grid cols-2">
-            <div class="field">
-              <label for="eventDate">Event date *</label>
-              <input class="input" id="eventDate" name="event_date" type="date" required min={today} />
+            <div class="field" data-field-wrap="eventDate">
+              <label for="eventDate">
+                Event date <span class="required-indicator" aria-hidden="true">*</span>
+              </label>
+              <input class="input" id="eventDate" name="event_date" type="date" required aria-required="true" min={today} />
             </div>
-            <div class="field">
+            <div class="field" data-field-wrap="eventTime">
               <label for="eventTime">Event start time</label>
               <input class="input" id="eventTime" name="event_time" type="time" />
             </div>
           </div>
 
           <div class="form-grid cols-2">
-            <div class="field">
-              <label for="eventType">Event type *</label>
-              <select class="select" id="eventType" name="event_type" required>
+            <div class="field" data-field-wrap="eventType">
+              <label for="eventType">
+                Event type <span class="required-indicator" aria-hidden="true">*</span>
+              </label>
+              <select class="select" id="eventType" name="event_type" required aria-required="true">
                 <option value="">Select event type</option>
                 {eventTypes.map((type) => <option value={type}>{type}</option>)}
               </select>
             </div>
-            <div class="field">
+            <div class="field" data-field-wrap="expectedGuests">
               <label for="expectedGuests">Expected guests</label>
               <input class="input" id="expectedGuests" name="expected_guests" type="number" min="1" placeholder="e.g. 400" />
             </div>
           </div>
 
-          <div class="field">
+          <div class="field" data-field-wrap="specialRequest">
             <label for="specialRequest">Special requests</label>
             <textarea
               class="textarea"
@@ -99,9 +113,9 @@ const today = new Date().toISOString().slice(0, 10);
             ></textarea>
           </div>
 
-          <label class="checkbox-row">
-            <input type="checkbox" required />
-            <span>I confirm the details above are correct and agree to the booking terms.</span>
+          <label class="checkbox-row" data-field-wrap="terms">
+            <input type="checkbox" id="termsConsent" required aria-required="true" />
+            <span>I confirm the details above are correct and agree to the booking terms <span class="required-indicator" aria-hidden="true">*</span>.</span>
           </label>
         </form>
       </section>

@@ -9,14 +9,13 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   const csrf = ensureCsrf(context.cookies);
   context.locals.csrf = csrf;
-  context.locals.auth = getAuth(context.cookies);
+  context.locals.auth = await getAuth(context.cookies);
   context.locals.flash = takeFlash(context.cookies);
 
   const method = context.request.method.toUpperCase();
   const isMutation = !['GET', 'HEAD', 'OPTIONS'].includes(method);
-  const isWebhook = context.url.pathname === '/api/sanity-webhook';
 
-  if (isMutation && !isWebhook) {
+  if (isMutation) {
     const submitted = await submittedCsrfToken(context.request);
     if (!csrfMatches(submitted, csrf)) {
       return new Response('Invalid or missing CSRF token. Refresh the page and try again.', {

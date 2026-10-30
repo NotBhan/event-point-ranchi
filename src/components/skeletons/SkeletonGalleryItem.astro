@@ -1,0 +1,27 @@
+---
+import Skeleton from './Skeleton.astro';
+
+interface Props {
+  aspectRatio?: string;
+  height?: string;
+  class?: string;
+}
+
+const { aspectRatio = '4/3', height = '260px', class: className = '' } = Astro.props;
+---
+
+<article
+  class:list={['pinterest-pin', 'skeleton-card', className]}
+  role="status"
+  aria-busy="true"
+  aria-label="Loading gallery photo..."
+  style="cursor: default;"
+>
+  <div class="pin-media-wrapper" style={`position: relative; overflow: hidden; min-height: ${height}; aspect-ratio: ${aspectRatio}; background: var(--skeleton-base, #ede6dc);`}>
+    <Skeleton width="100%" height="100%" class="skeleton-shimmer" />
+  </div>
+  <div class="pin-card-meta" style="padding: 0.75rem 1rem; display: flex; flex-direction: column; gap: 0.35rem;">
+    <Skeleton width="70%" height="0.875rem" borderRadius="3px" />
+    <Skeleton width="40%" height="0.65rem" borderRadius="2px" />
+  </div>
+</article>

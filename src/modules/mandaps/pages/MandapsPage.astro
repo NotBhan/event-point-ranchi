@@ -2,7 +2,9 @@
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import MandapCard from '../../../components/MandapCard.astro';
 import Icon from '../../../components/Icon.astro';
+import { imageUrl } from '../../../core/http';
 import type { MandapsPageData } from '../service';
+import { getPageContent } from '../../../core/content/service';
 
 interface Props {
   data: MandapsPageData;
@@ -10,6 +12,13 @@ interface Props {
 
 const { data } = Astro.props;
 const { mandaps, categories, category, query } = data;
+const pageContent = await getPageContent('mandaps');
+
+const heroTitle = pageContent.title || 'Wedding mandaps, designed around your ceremony.';
+const heroSubtitle = pageContent.subtitle || 'Every mandap has clear standard dimensions, honest material specifications and the option to request a custom size. Add your favourites to an event requirement for a tailored quotation.';
+const heroBadge = pageContent.content_json?.badge || 'Mandap collection';
+const heroBanner = pageContent.banner_image_url || '/storage/assets/banners/mandaps/banner-hero.webp';
+const showBanner = pageContent.banner_enabled !== false && Boolean(heroBanner);
 
 function filterHref(nextCategory: string): string {
   const params = new URLSearchParams();
@@ -21,18 +30,15 @@ function filterHref(nextCategory: string): string {
 ---
 
 <BaseLayout
-  title="Wedding Mandaps in Ranchi | Event Point Ranchi"
-  description="Explore traditional, floral and contemporary wedding mandap designs with standard and custom dimensions from Event Point Ranchi."
+  title={pageContent.seo_title || "Wedding Mandaps in Ranchi | Event Point Ranchi"}
+  description={pageContent.seo_description || "Explore traditional, floral and contemporary wedding mandap designs with standard and custom dimensions from Event Point Ranchi."}
 >
-  <section class="page-hero with-image">
-    <img class="page-hero-media" src="/storage/assets/banners/mandaps/banner-hero.webp" alt="" />
+  <section class:list={['page-hero', { 'with-image': showBanner }]}>
+    {showBanner && <img class="page-hero-media" src={imageUrl(heroBanner)} alt="" />}
     <div class="container">
-      <span class="eyebrow" style="color:var(--gold-bright);">Mandap collection</span>
-      <h1>Wedding mandaps, designed around your ceremony.</h1>
-      <p>
-        Every mandap has clear standard dimensions, honest material specifications and the option to
-        request a custom size. Add your favourites to an event requirement for a tailored quotation.
-      </p>
+      <span class="eyebrow" style="color:var(--gold-bright);">{heroBadge}</span>
+      <h1>{heroTitle}</h1>
+      <p>{heroSubtitle}</p>
       <div class="hero-chip-row">
         <span><Icon name="archway" size={14} /> 6 signature concepts</span>
         <span><Icon name="edit" size={14} /> Custom L × W × H</span>

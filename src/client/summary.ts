@@ -169,7 +169,7 @@ function render(card: HTMLElement, options: SummaryOptions): void {
   card.innerHTML = `
     <div class="summary-header">
       <h2>Event summary</h2>
-      <p>${hasAnything ? 'Your selections update as you explore.' : 'Start by choosing a hall, room or catering package.'}</p>
+      <p>${hasAnything ? 'Your selections update as you explore.' : 'Start by choosing a hall or catering package.'}</p>
     </div>
     ${body}
     <div class="summary-total">
@@ -180,8 +180,8 @@ function render(card: HTMLElement, options: SummaryOptions): void {
       <a href="/booking/overview" class="btn btn-primary btn-block ${hasAnything ? '' : 'is-disabled'}">Confirm booking</a>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
         <a href="/halls" class="btn btn-secondary btn-sm">Halls</a>
-        <a href="/rooms" class="btn btn-secondary btn-sm">Rooms</a>
         <a href="/catering" class="btn btn-secondary btn-sm">Menu</a>
+        <a href="/gallery" class="btn btn-secondary btn-sm">Gallery</a>
       </div>
     </div>`;
 }

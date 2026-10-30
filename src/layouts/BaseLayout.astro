@@ -3,13 +3,14 @@ import { ClientRouter } from 'astro:transitions';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import Toast from '../components/Toast.astro';
-import { getSiteSettings } from '../core/sanity/service';
+import { getSiteSettings } from '../core/content/service';
 import '../styles/tokens.css';
 import '../styles/base.css';
 import '../styles/components.css';
 import '../styles/layout.css';
 import '../styles/cards.css';
 import '../styles/wedding.css';
+import '../styles/skeletons.css';
 
 interface Props {
   title?: string;
@@ -75,6 +76,7 @@ const {
       import '../client/nav';
       import '../client/requirements-ui';
       import '../client/lightbox';
+      import '../client/image-loader';
     </script>
   </body>
 </html>

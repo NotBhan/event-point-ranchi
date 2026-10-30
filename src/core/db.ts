@@ -29,6 +29,7 @@ export function getDb(): DatabaseSync {
   db.exec(schemaSql);
   migrateTrafficEvents(db);
   migrateUsersRole(db);
+  migrateBookingsFinancials(db);
   initStorageSchema(db);
 
   const row = db.prepare('SELECT COUNT(*) AS count FROM users').get() as { count: number };
@@ -78,6 +79,37 @@ function migrateTrafficEvents(db: DatabaseSync): void {
   }
 
   db.exec('CREATE INDEX IF NOT EXISTS idx_traffic_events_campaign ON traffic_events(utm_source, utm_campaign)');
+}
+
+function migrateBookingsFinancials(db: DatabaseSync): void {
+  const tableCheck = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='bookings'").get();
+  if (!tableCheck) return;
+
+  const columns = db.prepare('PRAGMA table_info(bookings)').all() as Array<{ name: string }>;
+  const existing = new Set(columns.map((column) => column.name));
+
+  const columnsToAdd: Array<{ name: string; ddl: string }> = [
+    { name: 'advance_amount', ddl: 'ALTER TABLE bookings ADD COLUMN advance_amount INTEGER NOT NULL DEFAULT 0' },
+    { name: 'amount_paid', ddl: 'ALTER TABLE bookings ADD COLUMN amount_paid INTEGER NOT NULL DEFAULT 0' },
+    { name: 'outstanding_balance', ddl: 'ALTER TABLE bookings ADD COLUMN outstanding_balance INTEGER NOT NULL DEFAULT 0' },
+    { name: 'payment_status', ddl: "ALTER TABLE bookings ADD COLUMN payment_status TEXT NOT NULL DEFAULT 'unpaid'" },
+  ];
+
+  for (const { name, ddl } of columnsToAdd) {
+    if (!existing.has(name)) {
+      db.exec(ddl);
+    }
+  }
+
+  db.exec(`
+    UPDATE bookings
+    SET outstanding_balance = total_amount
+    WHERE (outstanding_balance = 0 OR outstanding_balance IS NULL)
+      AND (amount_paid = 0 OR amount_paid IS NULL)
+      AND total_amount > 0;
+  `);
+
+  db.exec('CREATE INDEX IF NOT EXISTS idx_bookings_payment_status ON bookings(payment_status)');
 }
 
 function ensureAdminUser(db: DatabaseSync): void {

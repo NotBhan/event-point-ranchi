@@ -121,7 +121,13 @@ export interface EnquiryPayload {
   stage?: EnquirySelectionPayload | null;
   equipment?: EnquiryEquipmentPayload[];
   equipmentNotes?: unknown;
-  accommodation?: { required?: unknown; roomCount?: unknown; notes?: unknown };
+  accommodation?: {
+    required?: unknown;
+    roomCount?: unknown;
+    acRoomCount?: unknown;
+    nonAcRoomCount?: unknown;
+    notes?: unknown;
+  };
   styling?: { lighting?: unknown; floralPalette?: unknown; specialInstructions?: unknown };
   contact?: {
     name?: unknown;
@@ -386,9 +392,16 @@ export function createEnquiry(payload: EnquiryPayload): { reference: string; id:
   }
 
   const requiresRooms = Boolean(accommodation.required);
-  const roomCount = requiresRooms ? integer(accommodation.roomCount, 0) : 0;
-  if (requiresRooms && (roomCount < 1 || roomCount > 500)) {
-    throw new EnquiryError('Enter the number of rooms required (between 1 and 500), or select No.');
+  const acRoomCount = requiresRooms ? integer(accommodation.acRoomCount, 0) : 0;
+  const nonAcRoomCount = requiresRooms ? integer(accommodation.nonAcRoomCount, 0) : 0;
+  let roomCount = requiresRooms ? integer(accommodation.roomCount, 0) : 0;
+  if (requiresRooms) {
+    if (acRoomCount + nonAcRoomCount > 0) {
+      roomCount = acRoomCount + nonAcRoomCount;
+    }
+    if (roomCount < 1 || roomCount > 500) {
+      throw new EnquiryError('Enter the number of rooms required (between 1 and 500 across AC and Non-AC), or select No.');
+    }
   }
 
   const mandapLine = selectedMandapLine(payload.mandap);
@@ -405,6 +418,11 @@ export function createEnquiry(payload: EnquiryPayload): { reference: string; id:
       : '',
     text(payload.equipmentNotes, 2000) ? `Equipment notes: ${text(payload.equipmentNotes, 2000)}` : '',
   ].filter(Boolean);
+
+  const accommodationBreakdown = requiresRooms && (acRoomCount > 0 || nonAcRoomCount > 0)
+    ? `Rooms requested: ${acRoomCount} AC, ${nonAcRoomCount} Non-AC (${roomCount} total)`
+    : '';
+  const accommodationNotes = [accommodationBreakdown, text(accommodation.notes, 2000)].filter(Boolean).join('\n');
 
   const reference = makeReferenceCode();
 
@@ -429,7 +447,7 @@ export function createEnquiry(payload: EnquiryPayload): { reference: string; id:
         budgetRange,
         requiresRooms ? 1 : 0,
         roomCount,
-        text(accommodation.notes, 2000),
+        accommodationNotes,
         decorationParts.join('\n'),
         preferredContact,
       ],

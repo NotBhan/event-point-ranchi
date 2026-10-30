@@ -1,4 +1,4 @@
-import { all, one } from '../../core/db';
+import { getStages, getStageBySlug } from '../../core/content/service';
 
 export interface StageRow {
   id: number;
@@ -22,55 +22,70 @@ export interface StagesPageData {
   query: string;
 }
 
-export function loadStageCategories(): string[] {
-  return all<{ style_category: string }>(
-    'SELECT DISTINCT style_category FROM stages WHERE is_active = 1 ORDER BY style_category',
-  ).map((row) => row.style_category);
+export async function loadStageCategories(): Promise<string[]> {
+  const stages = await getStages();
+  const cats = new Set<string>();
+  for (const s of stages) {
+    if (s.style_category) cats.add(s.style_category);
+  }
+  return Array.from(cats).sort();
 }
 
-export function loadStagesPage(options: { category?: string; query?: string } = {}): StagesPageData {
+export async function loadStagesPage(options: { category?: string; query?: string } = {}): Promise<StagesPageData> {
   const category = (options.category ?? '').trim();
-  const query = (options.query ?? '').trim();
-  const clauses = ['is_active = 1'];
-  const params: unknown[] = [];
+  const query = (options.query ?? '').trim().toLowerCase();
+  const allStages = await getStages();
 
-  if (category) {
-    clauses.push('style_category = ?');
-    params.push(category);
-  }
+  const filtered = allStages.filter((s) => {
+    if (category && s.style_category !== category) return false;
+    if (query) {
+      const match =
+        s.name.toLowerCase().includes(query) ||
+        s.description.toLowerCase().includes(query) ||
+        (s.decoration_notes || '').toLowerCase().includes(query);
+      if (!match) return false;
+    }
+    return true;
+  });
 
-  if (query) {
-    const like = `%${query}%`;
-    clauses.push('(name LIKE ? OR description LIKE ? OR decoration_notes LIKE ?)');
-    params.push(like, like, like);
-  }
+  const stages: StageRow[] = filtered.map((s) => ({
+    id: s.id,
+    name: s.name,
+    slug: s.slug,
+    description: s.description,
+    image: s.image_url || null,
+    style_category: s.style_category,
+    length_ft: s.length_ft,
+    width_ft: s.width_ft,
+    height_ft: s.height_ft,
+    dimension_unit: s.dimension_unit,
+    decoration_notes: s.decoration_notes,
+    sort: s.sort_order,
+  }));
 
-  const stages = all<StageRow>(
-    `SELECT id, name, slug, description, image, style_category, length_ft, width_ft, height_ft,
-            dimension_unit, decoration_notes, sort
-     FROM stages
-     WHERE ${clauses.join(' AND ')}
-     ORDER BY sort, id`,
-    params,
-  );
-
-  return { stages, categories: loadStageCategories(), category, query };
+  const categories = await loadStageCategories();
+  return { stages, categories, category, query: options.query ?? '' };
 }
 
-export function loadStageDetail(slug: string): (StageRow & { gallery: string[] }) | null {
-  const stage = one<StageRow>(
-    `SELECT id, name, slug, description, image, style_category, length_ft, width_ft, height_ft,
-            dimension_unit, decoration_notes, sort
-     FROM stages WHERE slug = ? AND is_active = 1`,
-    [slug],
-  );
+export async function loadStageDetail(slug: string): Promise<(StageRow & { gallery: string[] }) | null> {
+  const s = await getStageBySlug(slug);
+  if (!s) return null;
 
-  if (!stage) return null;
+  const stage: StageRow = {
+    id: s.id,
+    name: s.name,
+    slug: s.slug,
+    description: s.description,
+    image: s.image_url || null,
+    style_category: s.style_category,
+    length_ft: s.length_ft,
+    width_ft: s.width_ft,
+    height_ft: s.height_ft,
+    dimension_unit: s.dimension_unit,
+    decoration_notes: s.decoration_notes,
+    sort: s.sort_order,
+  };
 
-  const gallery = all<{ image: string }>(
-    'SELECT image FROM stage_gallery WHERE stage_id = ? ORDER BY sort, id',
-    [stage.id],
-  ).map((row) => row.image);
-
+  const gallery = (s.gallery || []).map((g) => g.image_url);
   return { ...stage, gallery };
 }

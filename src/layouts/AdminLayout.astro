@@ -20,7 +20,7 @@ const csrf = Astro.locals.csrf;
 const nav = getAdminNav();
 const path = Astro.url.pathname;
 const isEditorOnly = user.role === 'editor';
-const visibleNav = isEditorOnly ? nav.filter((item) => item.href === '/admin/studio') : nav;
+const visibleNav = isEditorOnly ? nav.filter((item) => item.href === '/admin/content') : nav;
 
 const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path.startsWith(href));
 ---

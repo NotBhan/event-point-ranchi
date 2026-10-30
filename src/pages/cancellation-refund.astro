@@ -1,0 +1,124 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
+import PolicyNav from '../components/PolicyNav.astro';
+import { getSiteSettings } from '../core/content/service';
+
+const settings = await getSiteSettings();
+const brandName = settings.name || 'Event Point Ranchi';
+const legalName = settings.legalName || 'Event Point Ranchi';
+const address = settings.address || 'Event Point, Main Road, Ranchi, Jharkhand 834001, India';
+const phone = settings.phone || '+91 98765 43210';
+const email = settings.email || 'info@eventpointranchi.com';
+---
+
+<BaseLayout
+  title={`Cancellation & Refund Policy | ${brandName}`}
+  description={`Official cancellation terms, refund turnaround timelines (5-7 business days), and booking adjustment rules for ${brandName}.`}
+>
+  <section class="page-hero">
+    <div class="container">
+      <span class="eyebrow">Legal & Compliance</span>
+      <h1>Cancellation & Refund Policy</h1>
+      <p>
+        Transparent cancellation timelines, refund eligibility, and payment reversal procedures for {brandName}.
+      </p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container-narrow policy-content">
+      <PolicyNav current="cancellation-refund" />
+
+      <div class="panel mb-8" style="padding:20px;background:var(--canvas-warm);border:1px solid var(--line);border-radius:var(--r-md);">
+        <p style="margin:0;font-size:13.5px;color:var(--muted);">
+          <strong>Entity details:</strong> {legalName} · Support & Cancellations: <a href={`mailto:${email}`} class="text-link">{email}</a> · Helpline: <a href={`tel:${phone.replace(/\s/g, '')}`} class="text-link">{phone}</a>.
+        </p>
+      </div>
+
+      <article id="turnaround-timeline">
+        <h2>1. Explicit Refund Processing Timeline (5–7 Business Days)</h2>
+        <div style="background:rgba(212, 175, 55, 0.08);border:1px solid var(--gold-bright);border-radius:var(--r-md);padding:18px 22px;margin:16px 0;">
+          <h4 style="margin:0 0 8px;color:var(--primary-dark);">Mandatory Gateway Turnaround Schedule</h4>
+          <p style="margin:0;font-size:14px;line-height:1.6;color:var(--body);">
+            All approved refunds are initiated through our acquiring payment gateway (PhonePe) and credited directly back to the customer's <strong>original payment method (debit card, credit card, net banking, or UPI ID) within 5 to 7 business days</strong> following written cancellation confirmation.
+          </p>
+        </div>
+      </article>
+
+      <article id="cancellation-schedule">
+        <h2>2. Cancellation Schedule & Refund Tiers</h2>
+        <p>
+          Because reserving banquet dates and manufacturing custom wedding mandaps involves irreversible procurement of flowers, decor materials, and date exclusivity, the following cancellation schedule applies to all bookings:
+        </p>
+
+        <div style="overflow-x:auto;margin:20px 0;">
+          <table style="width:100%;border-collapse:collapse;font-size:14px;">
+            <thead>
+              <tr style="background:var(--canvas-warm);border-bottom:2px solid var(--line);text-align:left;">
+                <th style="padding:12px 16px;">Notice Period Prior to Event</th>
+                <th style="padding:12px 16px;">Advance Deposit Refund</th>
+                <th style="padding:12px 16px;">Subsequent Partial Payments</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom:1px solid var(--line);">
+                <td style="padding:12px 16px;"><strong>30 or more days</strong></td>
+                <td style="padding:12px 16px;color:#2e7d32;font-weight:600;">80% Refund</td>
+                <td style="padding:12px 16px;color:#2e7d32;font-weight:600;">100% Refund</td>
+              </tr>
+              <tr style="border-bottom:1px solid var(--line);">
+                <td style="padding:12px 16px;"><strong>15 to 29 days</strong></td>
+                <td style="padding:12px 16px;color:#f57c00;font-weight:600;">50% Refund</td>
+                <td style="padding:12px 16px;color:#2e7d32;font-weight:600;">100% Refund</td>
+              </tr>
+              <tr style="border-bottom:1px solid var(--line);">
+                <td style="padding:12px 16px;"><strong>Less than 15 days</strong></td>
+                <td style="padding:12px 16px;color:#d32f2f;font-weight:600;">Non-Refundable (0%)</td>
+                <td style="padding:12px 16px;color:#f57c00;font-weight:600;">Subject to raw material deduction</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article id="rescheduling">
+        <h2>3. Date Rescheduling Option (Alternative to Cancellation)</h2>
+        <p>
+          We understand that unforeseen family circumstances can arise. To protect your investment:
+        </p>
+        <ul class="spec-list">
+          <li><Icon name="check-circle" size={15} /> <strong>Free Rescheduling Window:</strong> If requested in writing at least <strong>21 days before the original event date</strong>, you may transfer 100% of your paid amount to a new event date within the same calendar year, subject to hall and equipment availability.</li>
+          <li><Icon name="check-circle" size={15} /> <strong>Late Rescheduling:</strong> Rescheduling requests made within 20 days of the event date may incur a nominal re-procurement fee for perishable decor.</li>
+        </ul>
+      </article>
+
+      <article id="initiation-procedure">
+        <h2>4. How to Request a Cancellation and Refund</h2>
+        <p>
+          To ensure auditable transaction tracking and prevent unauthorized cancellations, requests must follow this procedure:
+        </p>
+        <ol style="padding-left:20px;line-height:1.8;font-size:14px;color:var(--body);">
+          <li>Send a formal cancellation email to <a href={`mailto:${email}`} class="text-link">{email}</a> using the email address registered on your booking.</li>
+          <li>Include your <strong>Booking Reference ID</strong>, customer full name, and the registered 10-digit mobile number.</li>
+          <li>Our operations desk will verify your identity, apply the applicable policy tier, and initiate the electronic gateway refund.</li>
+          <li>You will receive an automated refund transaction identifier and SMS/email confirmation. The reversal will reflect in your bank account within 5–7 business days.</li>
+        </ol>
+      </article>
+
+      <article id="payment-provider-disclaimer">
+        <h2>5. Gateway Processing Expectations</h2>
+        <p>
+          While {brandName} initiates approved refunds within 24 hours of confirmation, the actual bank credit depends on standard interbank clearing cycles (NPCI for UPI, Visa/MasterCard/RuPay networks for card transactions). Cash refunds are not provided for digital transactions.
+        </p>
+      </article>
+
+      <article id="disputes">
+        <h2>6. Escalations & Grievances</h2>
+        <p>
+          If your refund has not reflected after 7 business days, or if you believe an incorrect tier was applied, please escalate with your bank ARN / refund reference to our Grievance Officer at <a href="/grievance" class="text-link">Grievance Information</a>, email <a href="mailto:grievance@eventpointranchi.com" class="text-link">grievance@eventpointranchi.com</a>, or write to our office at {address}.
+        </p>
+      </article>
+    </div>
+  </section>
+</BaseLayout>

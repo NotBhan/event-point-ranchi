@@ -1,7 +1,7 @@
 ---
 import { site } from '../core/config';
 import { getNav } from '../core/registry';
-import type { MergedSiteSettings } from '../core/sanity/service';
+import type { MergedSiteSettings } from '../core/content/service';
 import Icon from './Icon.astro';
 
 interface Props {
@@ -29,12 +29,14 @@ const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWit
       Wedding planning across Ranchi &amp; Jharkhand
     </span>
     <span class="announcement-item announcement-mid">
-      Mandaps, stage designs, furniture &amp; equipment — enquiries are quotations, not automatic bookings
+      {settings?.announcementText || 'Mandaps, stage designs, furniture & equipment — enquiries are quotations, not automatic bookings'}
     </span>
-    <a class="announcement-item announcement-phone" href={phoneHref}>
-      <Icon name="phone" size={13} />
-      {phone}
-    </a>
+    {settings?.contactButtonsEnabled !== false && (
+      <a class="announcement-item announcement-phone" href={phoneHref}>
+        <Icon name="phone" size={13} />
+        {phone}
+      </a>
+    )}
   </div>
 </div>
 
@@ -100,21 +102,90 @@ const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWit
         <div class="user-menu" data-user-menu>
           <button type="button" class="user-menu-btn" data-user-toggle aria-expanded="false">
             <span class="avatar" style="width:26px;height:26px;font-size:10px;">{auth.user.firstName.slice(0, 1).toUpperCase()}</span>
-            <span>{auth.user.firstName}</span>
+            <span class="user-menu-btn-name">{auth.user.firstName}</span>
             <Icon name="chevron-down" size={11} strokeWidth={2} />
           </button>
-          <div class="user-menu-panel">
-            <a href="/profile"><Icon name="user" size={15} /> My profile</a>
-            <a href="/plan"><Icon name="receipt" size={15} /> Event requirements</a>
-            <a href="/my-bookings"><Icon name="calendar" size={15} /> My bookings</a>
-            {auth.isAdmin && (
-              <a href="/admin"><Icon name="dashboard" size={15} /> Admin console</a>
-            )}
-            <div class="user-menu-divider"></div>
-            <form method="POST" action="/logout">
+          <div class="user-menu-panel" role="menu" aria-label="User account menu">
+            <!-- User Profile Summary Header -->
+            <div class="user-menu-profile-card">
+              <div class="user-menu-profile-avatar">
+                <span>{auth.user.firstName.slice(0, 1).toUpperCase()}</span>
+              </div>
+              <div class="user-menu-profile-meta">
+                <span class="user-menu-profile-name">{auth.user.firstName}</span>
+                <span class="user-menu-profile-sub">
+                  {auth.user.email || `@${auth.user.username}`}
+                </span>
+                <span class={`user-menu-role-tag ${auth.isAdmin ? 'role-staff' : 'role-client'}`}>
+                  {auth.isAdmin ? 'Staff Administrator' : 'Client Account'}
+                </span>
+              </div>
+            </div>
+
+            <div class="user-menu-section-label">My Account</div>
+
+            <nav class="user-menu-links">
+              <a href="/profile" class="user-menu-item" role="menuitem">
+                <span class="user-menu-item-icon"><Icon name="user" size={15} /></span>
+                <div class="user-menu-item-content">
+                  <span class="user-menu-item-title">My profile</span>
+                  <span class="user-menu-item-desc">Personal details & security</span>
+                </div>
+              </a>
+
+              <a href="/my-bookings" class="user-menu-item" role="menuitem">
+                <span class="user-menu-item-icon"><Icon name="calendar" size={15} /></span>
+                <div class="user-menu-item-content">
+                  <span class="user-menu-item-title">My bookings</span>
+                  <span class="user-menu-item-desc">Reservations & receipts</span>
+                </div>
+              </a>
+
+              <a href="/plan" class="user-menu-item" role="menuitem">
+                <span class="user-menu-item-icon"><Icon name="receipt" size={15} /></span>
+                <div class="user-menu-item-content">
+                  <span class="user-menu-item-title">Event requirements</span>
+                  <span class="user-menu-item-desc">Saved wishlist & drafts</span>
+                </div>
+              </a>
+
+              {auth.isAdmin && (
+                <>
+                  <div class="user-menu-divider" />
+                  <div class="user-menu-section-label">Operations</div>
+
+                  <a href="/admin" class="user-menu-item admin-featured-item" role="menuitem">
+                    <span class="user-menu-item-icon admin-icon"><Icon name="dashboard" size={15} /></span>
+                    <div class="user-menu-item-content">
+                      <span class="user-menu-item-title">
+                        Admin console
+                        <span class="user-menu-badge-staff">Staff</span>
+                      </span>
+                      <span class="user-menu-item-desc">Bookings, content & catalogue</span>
+                    </div>
+                  </a>
+
+                  <a href="/admin/enquiries/scan" class="user-menu-item" role="menuitem">
+                    <span class="user-menu-item-icon"><Icon name="ticket" size={15} /></span>
+                    <div class="user-menu-item-content">
+                      <span class="user-menu-item-title">Scan Enquiry QR</span>
+                      <span class="user-menu-item-desc">Camera & code scanner</span>
+                    </div>
+                  </a>
+                </>
+              )}
+            </nav>
+
+            <div class="user-menu-divider" />
+
+            <!-- Logout action -->
+            <form method="POST" action="/logout" class="user-menu-logout-form">
               <input type="hidden" name="_csrf" value={csrf} />
-              <button type="submit" class="user-menu-link danger-link">
-                <Icon name="logout" size={15} /> Log out
+              <button type="submit" class="user-menu-item user-menu-logout-btn" role="menuitem">
+                <span class="user-menu-item-icon logout-icon"><Icon name="logout" size={15} /></span>
+                <div class="user-menu-item-content">
+                  <span class="user-menu-item-title">Log out</span>
+                </div>
               </button>
             </form>
           </div>

@@ -24,7 +24,14 @@ const dimensions = `${stage.length_ft} × ${stage.width_ft} × ${stage.height_ft
 <article class="catalogue-card">
   <a class="catalogue-media" href={`/stages/${stage.slug}`} aria-label={`View ${stage.name}`}>
     {stage.image ? (
-      <img src={imageUrl(stage.image)} alt={stage.name} loading="lazy" />
+      <div class="media-with-skeleton" style="width: 100%; height: 100%;">
+        <div class="skeleton-placeholder skeleton-shimmer" role="status" aria-busy="true" aria-label="Loading image..."></div>
+        <img src={imageUrl(stage.image)} alt={stage.name} loading="lazy" />
+        <div class="skeleton-error-fallback" role="alert">
+          <Icon name="image" size={24} />
+          <span>Image preview unavailable</span>
+        </div>
+      </div>
     ) : (
       <div class="catalogue-media-fallback"><Icon name="theater" size={40} /></div>
     )}

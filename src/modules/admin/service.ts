@@ -11,6 +11,32 @@ import {
   type StorageUsageSummary,
 } from '../../core/storage/service';
 import { getStorageUsage, saveUploadedImage, UploadError } from '../../core/uploads';
+import { getD1Client } from '../../core/content/d1-client';
+import {
+  invalidateContentCache,
+  listAllPageContent,
+  getMandaps,
+  savePageContent,
+  saveMandapLocation,
+  validateCoordinates,
+  validateExternalUrl,
+  getVideoPreviews,
+  saveVideoPreview,
+  deleteVideoPreview,
+  toggleVideoPreview,
+} from '../../core/content/service';
+import {
+  getPaymentMetrics,
+  listPayments,
+  getPaymentById,
+  getBookingById,
+  getRefundsByPaymentId,
+  getInvoiceByPaymentId,
+  type CustomerRow,
+  type PaymentWebhookEventRow,
+} from '../../core/operational/service';
+import { getNeonClient } from '../../core/operational/neon-client';
+import { getPaymentService } from '../../core/payment/payment-service';
 
 export { UploadError };
 
@@ -24,7 +50,6 @@ export function loadDashboard() {
       confirmed: number;
       revenue: number;
       halls: number;
-      rooms: number;
       packages: number;
       customers: number;
       inquiries: number;
@@ -35,7 +60,6 @@ export function loadDashboard() {
       (SELECT COUNT(*) FROM bookings WHERE status = 'confirmed') AS confirmed,
       (SELECT COALESCE(SUM(total_amount), 0) FROM bookings WHERE status IN ('pending','confirmed')) AS revenue,
       (SELECT COUNT(*) FROM halls WHERE is_active = 1) AS halls,
-      (SELECT COUNT(*) FROM rooms WHERE is_active = 1) AS rooms,
       (SELECT COUNT(*) FROM catering_packages WHERE is_active = 1) AS packages,
       (SELECT COUNT(*) FROM customers) AS customers,
       (SELECT COUNT(*) FROM contact_inquiries WHERE status = 'new') AS inquiries`,
@@ -45,7 +69,6 @@ export function loadDashboard() {
       confirmed: 0,
       revenue: 0,
       halls: 0,
-      rooms: 0,
       packages: 0,
       customers: 0,
       inquiries: 0,
@@ -235,80 +258,6 @@ export function deleteHall(id: number): void {
 
 export function toggleHall(id: number): void {
   run('UPDATE halls SET is_active = CASE is_active WHEN 1 THEN 0 ELSE 1 END WHERE id = ?', [id]);
-}
-
-/* ============================ Rooms ============================ */
-
-export function listRoomsAdmin() {
-  return all<{
-    id: number;
-    name: string;
-    image: string | null;
-    price_paise: number;
-    capacity: number;
-    total_rooms: number;
-    is_active: number;
-  }>(
-    `SELECT r.id, r.name, r.image, r.price_paise, r.capacity, r.total_rooms, r.is_active,
-            (SELECT COUNT(*) FROM room_features rf WHERE rf.room_id = r.id) AS feature_count
-     FROM rooms r ORDER BY r.is_active DESC, r.id`,
-  );
-}
-
-export function loadRoomAdmin(id: number) {
-  const room = one<Record<string, unknown>>('SELECT * FROM rooms WHERE id = ?', [id]);
-  if (!room) return null;
-  const features = all<{ name: string }>('SELECT name FROM room_features WHERE room_id = ? ORDER BY id', [id]);
-  return { room, features: features.map((feature) => feature.name) };
-}
-
-export async function saveRoom(form: FormData | null, id?: number): Promise<number> {
-  const name = getString(form, 'name');
-  if (!name) throw new Error('Room name is required.');
-
-  const uploaded = await saveUploadedImage(form, 'image', 'rooms');
-  const featureNames = getString(form, 'features')
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  const values = [
-    name,
-    parseMoneyToPaise(getString(form, 'price')),
-    getInt(form, 'capacity', 1),
-    getInt(form, 'total_rooms', 1),
-    (uploaded ?? getString(form, 'image_path')) || null,
-    getString(form, 'description'),
-    getBoolean(form, 'is_active') ? 1 : 0,
-  ];
-
-  const roomId = id
-    ? (run(
-        `UPDATE rooms SET name = ?, price_paise = ?, capacity = ?, total_rooms = ?, image = ?, description = ?,
-         is_active = ?, updated_at = datetime('now') WHERE id = ?`,
-        [...values, id],
-      ),
-      id)
-    : run(
-        `INSERT INTO rooms (name, price_paise, capacity, total_rooms, image, description, is_active)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        values,
-      ).lastId;
-
-  run('DELETE FROM room_features WHERE room_id = ?', [roomId]);
-  for (const feature of featureNames) {
-    run('INSERT INTO room_features (room_id, name) VALUES (?, ?)', [roomId, feature]);
-  }
-
-  return roomId;
-}
-
-export function deleteRoom(id: number): void {
-  run('DELETE FROM rooms WHERE id = ?', [id]);
-}
-
-export function toggleRoom(id: number): void {
-  run('UPDATE rooms SET is_active = CASE is_active WHEN 1 THEN 0 ELSE 1 END WHERE id = ?', [id]);
 }
 
 /* ============================ Catering ============================ */
@@ -965,7 +914,28 @@ export function deleteInquiry(id: number): void {
 
 /* ============================ Content ============================ */
 
-export function loadContentAdmin() {
+export async function loadContentAdmin() {
+  const d1 = getD1Client();
+  let siteSettings: any = null;
+  let seoSettings: any[] = [];
+  try {
+    const sRes = await d1.query('SELECT * FROM site_settings WHERE id = ? LIMIT 1', ['global']);
+    siteSettings = sRes.results?.[0] || null;
+    const seoRes = await d1.query('SELECT * FROM seo_settings ORDER BY page_key ASC');
+    seoSettings = seoRes.results || [];
+  } catch (err) {
+    console.warn('[D1] loadContentAdmin query error:', (err as Error).message);
+  }
+
+  // Load the 6 pages from D1
+  const pagesContent = await listAllPageContent(true);
+
+  // Load mandaps from D1 with location fields
+  const mandaps = await getMandaps(true);
+
+  // Load all video previews (published and draft) from D1
+  const videoPreviews = await getVideoPreviews({ onlyPublished: false });
+
   const homepage = one<{ hero_title: string; hero_description: string; hero_image: string | null }>(
     'SELECT hero_title, hero_description, hero_image FROM homepage WHERE id = 1',
   );
@@ -978,17 +948,247 @@ export function loadContentAdmin() {
   const contact = one<{ address: string; phone: string; email: string }>(
     'SELECT address, phone, email FROM contact_info WHERE id = 1',
   );
-  return { homepage, features, pages, contact };
+  return { homepage, features, pages, contact, siteSettings, seoSettings, pagesContent, mandaps, videoPreviews };
+}
+
+export async function saveSiteSettings(form: FormData | null): Promise<void> {
+  const d1 = getD1Client();
+  const name = getString(form, 'name');
+  const tagline = getString(form, 'tagline');
+  const short_description = getString(form, 'short_description');
+  const phone = getString(form, 'phone');
+  const whatsapp = getString(form, 'whatsapp');
+  const email = getString(form, 'email');
+  const address = getString(form, 'address');
+  const venue_address = getString(form, 'venue_address');
+  const business_hours = getString(form, 'business_hours');
+  const announcement_text = getString(form, 'announcement_text');
+  const google_maps_url = getString(form, 'google_maps_url');
+  const latStr = getString(form, 'latitude');
+  const lonStr = getString(form, 'longitude');
+  const latitude = latStr ? parseFloat(latStr) : null;
+  const longitude = lonStr ? parseFloat(lonStr) : null;
+  const footer_text = getString(form, 'footer_text');
+  const contact_buttons_enabled = form?.has('contact_buttons_enabled') ? 1 : 0;
+  const primary_color = getString(form, 'primary_color') || '#721224';
+  const gold_bright = getString(form, 'gold_bright') || '#e0b868';
+
+  const coordCheck = validateCoordinates(latitude, longitude);
+  if (!coordCheck.valid) {
+    throw new Error(coordCheck.error);
+  }
+
+  if (google_maps_url && !validateExternalUrl(google_maps_url)) {
+    throw new Error('Google Maps URL must be a valid HTTP or HTTPS link.');
+  }
+
+  await d1.query(
+    `UPDATE site_settings SET
+       name = COALESCE(NULLIF(?, ''), name),
+       tagline = COALESCE(NULLIF(?, ''), tagline),
+       short_description = COALESCE(NULLIF(?, ''), short_description),
+       phone = COALESCE(NULLIF(?, ''), phone),
+       whatsapp = COALESCE(NULLIF(?, ''), whatsapp),
+       email = COALESCE(NULLIF(?, ''), email),
+       address = COALESCE(NULLIF(?, ''), address),
+       venue_address = COALESCE(NULLIF(?, ''), venue_address),
+       business_hours = COALESCE(NULLIF(?, ''), business_hours),
+       announcement_text = COALESCE(NULLIF(?, ''), announcement_text),
+       google_maps_url = COALESCE(?, google_maps_url),
+       latitude = ?,
+       longitude = ?,
+       footer_text = COALESCE(?, footer_text),
+       contact_buttons_enabled = ?,
+       primary_color = ?,
+       gold_bright = ?,
+       updated_at = datetime('now')
+     WHERE id = 'global'`,
+    [
+      name,
+      tagline,
+      short_description,
+      phone,
+      whatsapp,
+      email,
+      address,
+      venue_address,
+      business_hours,
+      announcement_text,
+      google_maps_url,
+      latitude,
+      longitude,
+      footer_text,
+      contact_buttons_enabled,
+      primary_color,
+      gold_bright,
+    ],
+  );
+  invalidateContentCache();
+}
+
+export async function savePageAdmin(form: FormData | null): Promise<void> {
+  const page_key = getString(form, 'page_key');
+  if (!page_key) throw new Error('Page key is required.');
+
+  const uploaded = await saveUploadedImage(form, 'banner_image', 'content');
+  const banner_image_url = (uploaded ?? getString(form, 'banner_image_path')) || undefined;
+
+  const title = getString(form, 'title');
+  const subtitle = getString(form, 'subtitle');
+  const description = getString(form, 'description');
+  const seo_title = getString(form, 'seo_title');
+  const seo_description = getString(form, 'seo_description');
+  const banner_enabled = form?.has('banner_enabled');
+  const published = form?.has('published');
+
+  const badge = getString(form, 'badge');
+  const overlay = getString(form, 'overlay') || 'dark';
+  const textAlignment = getString(form, 'text_alignment') || 'left';
+  const primaryCtaLabel = getString(form, 'primary_cta_label');
+  const primaryCtaUrl = getString(form, 'primary_cta_url');
+  const secondaryCtaLabel = getString(form, 'secondary_cta_label');
+  const secondaryCtaUrl = getString(form, 'secondary_cta_url');
+
+  const content_json: Record<string, any> = {
+    badge,
+    overlay,
+    textAlignment,
+  };
+  if (primaryCtaLabel || primaryCtaUrl) {
+    content_json.primaryCta = { label: primaryCtaLabel, url: primaryCtaUrl };
+  }
+  if (secondaryCtaLabel || secondaryCtaUrl) {
+    content_json.secondaryCta = { label: secondaryCtaLabel, url: secondaryCtaUrl };
+  }
+
+  await savePageContent(page_key, {
+    title,
+    subtitle,
+    description,
+    banner_image_url,
+    banner_enabled,
+    content_json,
+    seo_title,
+    seo_description,
+    og_image_url: banner_image_url,
+    published,
+  });
+}
+
+export async function saveMandapLocationAdmin(form: FormData | null): Promise<void> {
+  const id = getInt(form, 'mandap_id');
+  if (!id) throw new Error('Mandap ID is required.');
+
+  const location_name = getString(form, 'location_name');
+  const address = getString(form, 'address');
+  const latStr = getString(form, 'latitude');
+  const lonStr = getString(form, 'longitude');
+  const latitude = latStr ? parseFloat(latStr) : null;
+  const longitude = lonStr ? parseFloat(lonStr) : null;
+  const google_maps_url = getString(form, 'google_maps_url');
+  const directions_url = getString(form, 'directions_url');
+  const show_location = form?.has('show_location');
+
+  await saveMandapLocation(id, {
+    location_name,
+    address,
+    latitude,
+    longitude,
+    google_maps_url,
+    directions_url,
+    show_location,
+  });
+}
+
+export async function saveVideoPreviewAdmin(form: FormData | null): Promise<void> {
+  const videoIdNum = getInt(form, 'id') || undefined;
+  const title = getString(form, 'title');
+  const description = getString(form, 'description');
+  const video_url = getString(form, 'video_url');
+  const aspect_ratio_str = getString(form, 'aspect_ratio');
+  const aspect_ratio = aspect_ratio_str === '9:16' ? '9:16' : aspect_ratio_str === '16:9' ? '16:9' : undefined;
+
+  // Optional custom thumbnail upload via Filebase
+  const uploaded = await saveUploadedImage(form, 'custom_thumbnail', 'content');
+  const thumbnail_url = (uploaded ?? getString(form, 'thumbnail_url')) || undefined;
+
+  const is_featured = form?.has('is_featured');
+  const is_published = form?.has('is_published');
+  const sort_order = getInt(form, 'sort_order') || 0;
+
+  await saveVideoPreview({
+    id: videoIdNum,
+    title,
+    description,
+    video_url,
+    thumbnail_url,
+    aspect_ratio,
+    is_featured,
+    is_published,
+    sort_order,
+  });
+}
+
+export async function deleteVideoPreviewAdmin(form: FormData | null): Promise<void> {
+  const id = getInt(form, 'video_id');
+  if (!id) throw new Error('Video preview ID is required for deletion.');
+  await deleteVideoPreview(id);
+}
+
+export async function toggleVideoPreviewAdmin(form: FormData | null): Promise<boolean> {
+  const id = getInt(form, 'video_id');
+  if (!id) throw new Error('Video preview ID is required to toggle.');
+  return await toggleVideoPreview(id);
+}
+
+export async function saveSeoSettings(form: FormData | null): Promise<void> {
+  const d1 = getD1Client();
+  const page_key = getString(form, 'page_key');
+  const title = getString(form, 'title');
+  const description = getString(form, 'description');
+  const canonical_url = getString(form, 'canonical_url');
+  const og_image_url = getString(form, 'og_image_url');
+
+  if (page_key) {
+    await d1.query(
+      `UPDATE seo_settings SET
+         title = ?,
+         description = ?,
+         canonical_url = ?,
+         og_image_url = COALESCE(NULLIF(?, ''), og_image_url),
+         updated_at = datetime('now')
+       WHERE page_key = ?`,
+      [title, description, canonical_url, og_image_url, page_key],
+    );
+    invalidateContentCache();
+  }
 }
 
 export async function saveHomepage(form: FormData | null): Promise<void> {
   const uploaded = await saveUploadedImage(form, 'hero_image', 'content');
   const image = (uploaded ?? getString(form, 'hero_image_path')) || null;
+  const title = getString(form, 'hero_title');
+  const description = getString(form, 'hero_description');
+
   run('UPDATE homepage SET hero_title = ?, hero_description = ?, hero_image = ? WHERE id = 1', [
-    getString(form, 'hero_title'),
-    getString(form, 'hero_description'),
+    title,
+    description,
     image,
   ]);
+
+  try {
+    const d1 = getD1Client();
+    await d1.query(
+      `UPDATE homepage_sections SET
+         title = ?,
+         description = ?,
+         image_url = COALESCE(?, image_url),
+         updated_at = datetime('now')
+       WHERE section_key = 'hero'`,
+      [title, description, image],
+    );
+    invalidateContentCache();
+  } catch {}
 }
 
 export function addHomeFeature(form: FormData | null): void {
@@ -999,10 +1199,12 @@ export function addHomeFeature(form: FormData | null): void {
      VALUES (?, ?, ?, (SELECT COALESCE(MAX(sort), 0) + 1 FROM homepage_features))`,
     [getString(form, 'icon') || 'sparkles', title, getString(form, 'description')],
   );
+  invalidateContentCache();
 }
 
 export function deleteHomeFeature(id: number): void {
   run('DELETE FROM homepage_features WHERE id = ?', [id]);
+  invalidateContentCache();
 }
 
 export async function savePageSettings(form: FormData | null): Promise<void> {
@@ -1023,14 +1225,33 @@ export async function savePageSettings(form: FormData | null): Promise<void> {
       getString(form, 'key'),
     ],
   );
+  invalidateContentCache();
 }
 
-export function saveContactInfo(form: FormData | null): void {
+export async function saveContactInfo(form: FormData | null): Promise<void> {
+  const address = getString(form, 'address');
+  const phone = getString(form, 'phone');
+  const email = getString(form, 'email');
+
   run('UPDATE contact_info SET address = ?, phone = ?, email = ? WHERE id = 1', [
-    getString(form, 'address'),
-    getString(form, 'phone'),
-    getString(form, 'email'),
+    address,
+    phone,
+    email,
   ]);
+
+  try {
+    const d1 = getD1Client();
+    await d1.query(
+      `UPDATE site_settings SET
+         address = ?,
+         phone = ?,
+         email = ?,
+         updated_at = datetime('now')
+       WHERE id = 'global'`,
+      [address, phone, email],
+    );
+    invalidateContentCache();
+  } catch {}
 }
 
 /* ============================ Event enquiries ============================ */
@@ -1121,4 +1342,65 @@ export function updateEventEnquiryStatus(id: number, status: string): void {
   }
   run('UPDATE event_enquiries SET status = ? WHERE id = ?', [status, id]);
 }
+
+/* ============================ Payments & Refunds Admin ============================ */
+
+export async function loadPaymentsAdmin(filters?: {
+  search?: string;
+  status?: string;
+  provider?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  const metrics = await getPaymentMetrics();
+  const listResult = await listPayments(filters);
+  return { metrics, payments: listResult.payments, total: listResult.total };
+}
+
+export async function loadPaymentDetailAdmin(paymentId: number) {
+  const payment = await getPaymentById(paymentId);
+  if (!payment) return null;
+
+  const booking = await getBookingById(payment.booking_id);
+  const refunds = await getRefundsByPaymentId(payment.id);
+  const invoice = await getInvoiceByPaymentId(payment.id);
+
+  const neon = getNeonClient();
+  const custRes = payment.customer_id
+    ? await neon.query<CustomerRow>('SELECT * FROM customers WHERE id = $1 LIMIT 1', [payment.customer_id])
+    : { rows: [] };
+  const customer = custRes.rows[0] || null;
+
+  const webhooksRes = await neon.query<PaymentWebhookEventRow>(
+    `SELECT * FROM payment_webhook_events 
+     WHERE provider_event_id = $1 OR raw_payload LIKE $2
+     ORDER BY id DESC LIMIT 10`,
+    [payment.provider_payment_id || '', `%${payment.internal_transaction_reference}%`]
+  );
+
+  return {
+    payment,
+    booking,
+    customer,
+    refunds,
+    invoice,
+    webhookEvents: webhooksRes.rows,
+  };
+}
+
+export async function processRefundAdmin(
+  paymentId: number,
+  amountPaise: number,
+  reason: string,
+  adminUserId?: number
+) {
+  const paymentService = getPaymentService();
+  return paymentService.initiateRefund({
+    paymentId,
+    amountPaise,
+    reason,
+    initiatedByUserId: adminUserId,
+  });
+}
+
 

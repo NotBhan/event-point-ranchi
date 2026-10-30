@@ -2,7 +2,9 @@
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import StageCard from '../../../components/StageCard.astro';
 import Icon from '../../../components/Icon.astro';
+import { imageUrl } from '../../../core/http';
 import type { StagesPageData } from '../service';
+import { getPageContent } from '../../../core/content/service';
 
 interface Props {
   data: StagesPageData;
@@ -10,6 +12,13 @@ interface Props {
 
 const { data } = Astro.props;
 const { stages, categories, category, query } = data;
+const pageContent = await getPageContent('stages');
+
+const heroTitle = pageContent.title || 'Stages that frame the moment.';
+const heroSubtitle = pageContent.subtitle || 'Reception backdrops, ceremony stages and sangeet sets designed around your venue, guest sightlines and photography. Every design lists its standard footprint and styling details.';
+const heroBadge = pageContent.content_json?.badge || 'Stage design studio';
+const heroBanner = pageContent.banner_image_url || '/storage/assets/banners/stages/banner-hero.webp';
+const showBanner = pageContent.banner_enabled !== false && Boolean(heroBanner);
 
 function filterHref(nextCategory: string): string {
   const params = new URLSearchParams();
@@ -21,18 +30,15 @@ function filterHref(nextCategory: string): string {
 ---
 
 <BaseLayout
-  title="Reception & Ceremony Stage Designs in Ranchi | Event Point Ranchi"
-  description="Explore royal, Mughal, botanical and LED stage designs with standard dimensions and custom sizing from Event Point Ranchi."
+  title={pageContent.seo_title || "Reception & Ceremony Stage Designs in Ranchi | Event Point Ranchi"}
+  description={pageContent.seo_description || "Explore royal, Mughal, botanical and LED stage designs with standard dimensions and custom sizing from Event Point Ranchi."}
 >
-  <section class="page-hero with-image">
-    <img class="page-hero-media" src="/storage/assets/banners/stages/banner-hero.webp" alt="" />
+  <section class:list={['page-hero', { 'with-image': showBanner }]}>
+    {showBanner && <img class="page-hero-media" src={imageUrl(heroBanner)} alt="" />}
     <div class="container">
-      <span class="eyebrow" style="color:var(--gold-bright);">Stage design studio</span>
-      <h1>Stages that frame the moment.</h1>
-      <p>
-        Reception backdrops, ceremony stages and sangeet sets designed around your venue, guest
-        sightlines and photography. Every design lists its standard footprint and styling details.
-      </p>
+      <span class="eyebrow" style="color:var(--gold-bright);">{heroBadge}</span>
+      <h1>{heroTitle}</h1>
+      <p>{heroSubtitle}</p>
       <div class="hero-chip-row">
         <span><Icon name="theater" size={14} /> 6 distinct styles</span>
         <span><Icon name="edit" size={14} /> Custom dimensions</span>

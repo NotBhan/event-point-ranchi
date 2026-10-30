@@ -1,4 +1,4 @@
-import { all } from '../../core/db';
+import { getFurnitureCategories, getFurnitureItems } from '../../core/content/service';
 
 export interface EquipmentCategoryRow {
   id: number;
@@ -37,31 +37,41 @@ export interface EquipmentPageData {
   totalItems: number;
 }
 
-export function loadEquipmentPage(options: { category?: string } = {}): EquipmentPageData {
+export async function loadEquipmentPage(options: { category?: string } = {}): Promise<EquipmentPageData> {
   const category = (options.category ?? '').trim();
 
-  const categories = all<EquipmentCategoryRow>(
-    'SELECT id, name, slug, icon, sort FROM equipment_categories WHERE is_active = 1 ORDER BY sort, id',
-  );
+  const rawCategories = await getFurnitureCategories();
+  const rawItems = await getFurnitureItems();
 
-  const clauses = ['ei.is_active = 1', 'ec.is_active = 1'];
-  const params: unknown[] = [];
+  const categories: EquipmentCategoryRow[] = rawCategories.map((c) => ({
+    id: c.id,
+    name: c.name,
+    slug: c.slug,
+    icon: c.icon,
+    sort: c.sort_order,
+  }));
 
-  if (category) {
-    clauses.push('ec.slug = ?');
-    params.push(category);
-  }
+  const catMap = new Map(categories.map((c) => [c.id, c]));
 
-  const items = all<EquipmentItemRow>(
-    `SELECT ei.id, ei.category_id, ec.name AS category, ec.slug AS category_slug, ec.icon AS category_icon,
-            ei.name, ei.slug, ei.description, ei.image, ei.unit, ei.specifications,
-            ei.min_quantity, ei.default_quantity, ei.sort
-     FROM equipment_items ei
-     JOIN equipment_categories ec ON ec.id = ei.category_id
-     WHERE ${clauses.join(' AND ')}
-     ORDER BY ec.sort, ec.id, ei.sort, ei.id`,
-    params,
-  );
+  const items: EquipmentItemRow[] = rawItems.map((i) => {
+    const parent = catMap.get(i.category_id);
+    return {
+      id: i.id,
+      category_id: i.category_id,
+      category: parent?.name || 'Equipment',
+      category_slug: parent?.slug || '',
+      category_icon: parent?.icon || 'chair',
+      name: i.name,
+      slug: i.slug,
+      description: i.description,
+      image: i.image_url || null,
+      unit: i.pricing_unit,
+      specifications: i.specifications,
+      min_quantity: i.min_quantity,
+      default_quantity: i.default_quantity,
+      sort: i.sort_order,
+    };
+  });
 
   const groups = categories
     .filter((entry) => !category || entry.slug === category)

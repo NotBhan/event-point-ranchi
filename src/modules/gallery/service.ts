@@ -1,7 +1,13 @@
 import { all } from '../../core/db';
 import { loadPageSettings } from '../halls/service';
 
-export function loadGalleryPage() {
+export interface GalleryPageData {
+  settings: ReturnType<typeof loadPageSettings>;
+  categories: Array<{ id: number; name: string; slug: string; count: number }>;
+  items: Array<{ id: number; title: string; image: string; category_id: number; category_name: string; category_slug: string }>;
+}
+
+export function loadGalleryPage(): GalleryPageData {
   const settings = loadPageSettings('gallery', {
     hero_title: 'Moments At Event Point Ranchi',
     hero_subtitle: 'Mandap details, stage settings and celebrations styled by our Ranchi team.',

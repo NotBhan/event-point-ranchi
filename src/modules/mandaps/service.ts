@@ -1,4 +1,4 @@
-import { all, one } from '../../core/db';
+import { getMandaps, getMandapBySlug } from '../../core/content/service';
 
 export interface MandapRow {
   id: number;
@@ -13,6 +13,13 @@ export interface MandapRow {
   dimension_unit: string;
   material_specs: string;
   sort: number;
+  location_name?: string;
+  address?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  google_maps_url?: string;
+  directions_url?: string;
+  show_location?: boolean;
 }
 
 export interface MandapGalleryImage {
@@ -27,55 +34,84 @@ export interface MandapsPageData {
   query: string;
 }
 
-export function loadMandapCategories(): string[] {
-  return all<{ category: string }>(
-    'SELECT DISTINCT category FROM mandaps WHERE is_active = 1 ORDER BY category',
-  ).map((row) => row.category);
+export async function loadMandapCategories(): Promise<string[]> {
+  const mandaps = await getMandaps();
+  const cats = new Set<string>();
+  for (const m of mandaps) {
+    if (m.category) cats.add(m.category);
+  }
+  return Array.from(cats).sort();
 }
 
-export function loadMandapsPage(options: { category?: string; query?: string } = {}): MandapsPageData {
+export async function loadMandapsPage(options: { category?: string; query?: string } = {}): Promise<MandapsPageData> {
   const category = (options.category ?? '').trim();
-  const query = (options.query ?? '').trim();
-  const clauses = ['is_active = 1'];
-  const params: unknown[] = [];
+  const query = (options.query ?? '').trim().toLowerCase();
+  const allMandaps = await getMandaps();
 
-  if (category) {
-    clauses.push('category = ?');
-    params.push(category);
-  }
+  const filtered = allMandaps.filter((m) => {
+    if (category && m.category !== category) return false;
+    if (query) {
+      const match =
+        m.name.toLowerCase().includes(query) ||
+        m.description.toLowerCase().includes(query) ||
+        (m.material_specs || '').toLowerCase().includes(query);
+      if (!match) return false;
+    }
+    return true;
+  });
 
-  if (query) {
-    const like = `%${query}%`;
-    clauses.push('(name LIKE ? OR description LIKE ? OR material_specs LIKE ?)');
-    params.push(like, like, like);
-  }
+  const mandaps: MandapRow[] = filtered.map((m) => ({
+    id: m.id,
+    name: m.name,
+    slug: m.slug,
+    description: m.description,
+    image: m.image_url || null,
+    category: m.category,
+    length_ft: m.length_ft,
+    width_ft: m.width_ft,
+    height_ft: m.height_ft,
+    dimension_unit: m.dimension_unit,
+    material_specs: m.material_specs,
+    sort: m.sort_order,
+    location_name: m.location_name,
+    address: m.address,
+    latitude: m.latitude,
+    longitude: m.longitude,
+    google_maps_url: m.google_maps_url,
+    directions_url: m.directions_url,
+    show_location: m.show_location,
+  }));
 
-  const mandaps = all<MandapRow>(
-    `SELECT id, name, slug, description, image, category, length_ft, width_ft, height_ft,
-            dimension_unit, material_specs, sort
-     FROM mandaps
-     WHERE ${clauses.join(' AND ')}
-     ORDER BY sort, id`,
-    params,
-  );
-
-  return { mandaps, categories: loadMandapCategories(), category, query };
+  const categories = await loadMandapCategories();
+  return { mandaps, categories, category, query: options.query ?? '' };
 }
 
-export function loadMandapDetail(slug: string): (MandapRow & { gallery: string[] }) | null {
-  const mandap = one<MandapRow>(
-    `SELECT id, name, slug, description, image, category, length_ft, width_ft, height_ft,
-            dimension_unit, material_specs, sort
-     FROM mandaps WHERE slug = ? AND is_active = 1`,
-    [slug],
-  );
+export async function loadMandapDetail(slug: string): Promise<(MandapRow & { gallery: string[] }) | null> {
+  const m = await getMandapBySlug(slug);
+  if (!m) return null;
 
-  if (!mandap) return null;
+  const mandap: MandapRow = {
+    id: m.id,
+    name: m.name,
+    slug: m.slug,
+    description: m.description,
+    image: m.image_url || null,
+    category: m.category,
+    length_ft: m.length_ft,
+    width_ft: m.width_ft,
+    height_ft: m.height_ft,
+    dimension_unit: m.dimension_unit,
+    material_specs: m.material_specs,
+    sort: m.sort_order,
+    location_name: m.location_name,
+    address: m.address,
+    latitude: m.latitude,
+    longitude: m.longitude,
+    google_maps_url: m.google_maps_url,
+    directions_url: m.directions_url,
+    show_location: m.show_location,
+  };
 
-  const gallery = all<MandapGalleryImage>(
-    'SELECT id, image FROM mandap_gallery WHERE mandap_id = ? ORDER BY sort, id',
-    [mandap.id],
-  ).map((row) => row.image);
-
+  const gallery = (m.gallery || []).map((g) => g.image_url);
   return { ...mandap, gallery };
 }

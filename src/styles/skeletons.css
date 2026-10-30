@@ -1,0 +1,200 @@
+/* ==========================================================================
+   Skeleton Loaders & Progressive Media State Styles
+   Zero CLS, GPU-accelerated shimmer, prefers-reduced-motion support
+   ========================================================================== */
+
+:root {
+  --skeleton-base: #ede6dc;
+  --skeleton-highlight: #f8f4ee;
+  --skeleton-base-dark: #3a1520;
+  --skeleton-highlight-dark: #4d212e;
+  --skeleton-duration: 1.5s;
+}
+
+/* Base Skeleton block */
+.skeleton-block {
+  display: block;
+  background-color: var(--skeleton-base);
+  border-radius: var(--r-sm, 6px);
+  position: relative;
+  overflow: hidden;
+  line-height: 1;
+}
+
+/* Shimmer animation */
+.skeleton-shimmer {
+  background-color: var(--skeleton-base);
+  background-image: linear-gradient(
+    90deg,
+    var(--skeleton-base) 0%,
+    var(--skeleton-highlight) 50%,
+    var(--skeleton-base) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer var(--skeleton-duration) cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Pulse animation variant */
+.skeleton-pulse {
+  background-color: var(--skeleton-base);
+  animation: skeleton-pulse var(--skeleton-duration) ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* prefers-reduced-motion: disable animations and display static neutral background */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer,
+  .skeleton-pulse,
+  .media-with-skeleton .skeleton-placeholder {
+    animation: none !important;
+    background-image: none !important;
+    background-color: var(--skeleton-base) !important;
+    opacity: 0.8 !important;
+  }
+}
+
+/* Progressive Image Loading Wrapper */
+.media-with-skeleton {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--skeleton-base);
+}
+
+.media-with-skeleton .skeleton-placeholder {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+  transition: opacity 0.3s ease-out;
+}
+
+.media-with-skeleton img,
+.media-with-skeleton picture,
+.media-with-skeleton video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  opacity: 0;
+  transition: opacity 0.35s ease-in-out;
+}
+
+/* Once image is loaded, hide skeleton shimmer and fade in image */
+.media-with-skeleton.is-loaded .skeleton-placeholder {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.media-with-skeleton.is-loaded img,
+.media-with-skeleton.is-loaded picture,
+.media-with-skeleton.is-loaded video {
+  opacity: 1;
+}
+
+/* Failed image fallback state */
+.media-with-skeleton.is-failed .skeleton-placeholder {
+  display: none;
+}
+
+.media-with-skeleton .skeleton-error-fallback {
+  display: none;
+  position: absolute;
+  inset: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--surface-2, #f5f0e6);
+  color: var(--muted, #8d7f82);
+  font-size: 0.8125rem;
+  text-align: center;
+  padding: 1rem;
+  gap: 0.5rem;
+  z-index: 2;
+}
+
+.media-with-skeleton.is-failed .skeleton-error-fallback {
+  display: flex;
+}
+
+.media-with-skeleton.is-failed img {
+  display: none;
+}
+
+/* Skeleton Aspect Ratios & Presets */
+.skeleton-banner {
+  width: 100%;
+  aspect-ratio: 21 / 9;
+  min-height: 280px;
+  border-radius: var(--r-md, 12px);
+}
+
+.skeleton-card-media {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+}
+
+.skeleton-video-16-9 {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--r-md, 12px);
+}
+
+.skeleton-video-9-16 {
+  width: 100%;
+  max-width: 320px;
+  aspect-ratio: 9 / 16;
+  border-radius: var(--r-md, 12px);
+  margin-inline: auto;
+}
+
+/* Standalone Card Skeleton Layouts matching exact production dimensions */
+.skeleton-card {
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line, #e9e0d5);
+  border-radius: var(--r-md, 12px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.skeleton-card-body {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex: 1;
+}
+
+.skeleton-line {
+  height: 0.875rem;
+  border-radius: var(--r-xs, 4px);
+}
+.skeleton-line.sm { height: 0.625rem; }
+.skeleton-line.lg { height: 1.25rem; }
+.skeleton-line.xl { height: 1.75rem; }
+
+.skeleton-btn-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 0.5rem;
+}
