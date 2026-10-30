@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { mkdirSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { d1SchemaSql } from './d1-schema';
 
@@ -90,9 +90,21 @@ export class D1Client {
 
   private initLocalDb(customPath?: string): void {
     if (this.localDb) return;
-    const dbDir = resolve(process.cwd(), './data');
+    const isVercelEnv = Boolean(
+      process.env.VERCEL ||
+      process.env.VERCEL_ENV ||
+      process.env.NOW_REGION ||
+      (typeof import.meta !== 'undefined' && (import.meta.env?.VERCEL || import.meta.env?.VERCEL_ENV))
+    );
+    const dbDir = isVercelEnv ? '/tmp/data' : resolve(process.cwd(), './data');
     mkdirSync(dbDir, { recursive: true });
     const filePath = customPath || join(dbDir, 'event-point-d1.db');
+    if (isVercelEnv && !existsSync(filePath)) {
+      const bundled = resolve(process.cwd(), './data/event-point-d1.db');
+      if (existsSync(bundled)) {
+        try { copyFileSync(bundled, filePath); } catch {}
+      }
+    }
     this.localDb = new DatabaseSync(filePath);
     this.localDb.exec(d1SchemaSql);
   }
