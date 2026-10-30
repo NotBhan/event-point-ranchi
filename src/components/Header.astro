@@ -14,8 +14,8 @@ const logoUrl = settings?.logo || site.logo;
 const phone = settings?.phone || site.phone;
 const phoneHref = `tel:${phone.replace(/\s/g, '')}`;
 
-const auth = Astro.locals.auth;
-const csrf = Astro.locals.csrf;
+const auth = Astro.locals.auth ?? { user: null, isAuthenticated: false, isAdmin: false, isEditor: false, isSuperadmin: false, isDeveloper: false };
+const csrf = Astro.locals.csrf ?? '';
 const path = Astro.url.pathname;
 const nav = getNav();
 

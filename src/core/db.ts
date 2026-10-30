@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import schemaSql from './schema.sql?raw';
@@ -8,10 +8,19 @@ import { initStorageSchema } from './storage/schema';
 
 let database: DatabaseSync | null = null;
 
+export function isVercel(): boolean {
+  return Boolean(
+    process.env.VERCEL ||
+    process.env.VERCEL_ENV ||
+    process.env.NOW_REGION ||
+    (typeof import.meta !== 'undefined' && (import.meta.env?.VERCEL || import.meta.env?.VERCEL_ENV))
+  );
+}
+
 export function dataDir(): string {
-  const configured = process.env.DATA_DIR || import.meta.env.DATA_DIR;
+  if (isVercel()) return '/tmp/data';
+  const configured = process.env.DATA_DIR || (typeof import.meta !== 'undefined' && import.meta.env?.DATA_DIR);
   if (configured) return resolve(process.cwd(), configured);
-  if (process.env.VERCEL) return '/tmp/data';
   return resolve(process.cwd(), './data');
 }
 
@@ -24,8 +33,29 @@ export function uploadsDir(): string {
 export function getDb(): DatabaseSync {
   if (database) return database;
 
-  mkdirSync(dataDir(), { recursive: true });
-  const db = new DatabaseSync(join(dataDir(), 'event-point.db'));
+  const targetDir = dataDir();
+  mkdirSync(targetDir, { recursive: true });
+  const dbPath = join(targetDir, 'event-point.db');
+
+  if (isVercel() && !existsSync(dbPath)) {
+    const bundledCandidates = [
+      resolve(process.cwd(), './data/event-point.db'),
+      resolve(process.cwd(), 'data/event-point.db'),
+      '/var/task/data/event-point.db',
+    ];
+    for (const candidate of bundledCandidates) {
+      if (existsSync(candidate)) {
+        try {
+          copyFileSync(candidate, dbPath);
+          break;
+        } catch (err) {
+          console.warn('[db] Could not copy bundled database to /tmp:', err);
+        }
+      }
+    }
+  }
+
+  const db = new DatabaseSync(dbPath);
   db.exec(schemaSql);
   migrateTrafficEvents(db);
   migrateUsersRole(db);

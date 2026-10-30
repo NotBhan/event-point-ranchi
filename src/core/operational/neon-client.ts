@@ -53,7 +53,13 @@ export class NeonOperationalClient {
 
   private initLocalDb(customPath?: string): void {
     if (this.localDb) return;
-    const dbDir = resolve(process.cwd(), './data');
+    const isVercelEnv = Boolean(
+      process.env.VERCEL ||
+      process.env.VERCEL_ENV ||
+      process.env.NOW_REGION ||
+      (typeof import.meta !== 'undefined' && (import.meta.env?.VERCEL || import.meta.env?.VERCEL_ENV))
+    );
+    const dbDir = isVercelEnv ? '/tmp/data' : resolve(process.cwd(), './data');
     mkdirSync(dbDir, { recursive: true });
     const filePath = customPath || join(dbDir, 'event-point-neon-fallback.db');
     this.localDb = new DatabaseSync(filePath);
