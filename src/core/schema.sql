@@ -125,26 +125,6 @@ CREATE TABLE IF NOT EXISTS services (
 );
 CREATE INDEX IF NOT EXISTS idx_services_category ON services(category_id);
 
-CREATE TABLE IF NOT EXISTS rooms (
-  id             INTEGER PRIMARY KEY AUTOINCREMENT,
-  name           TEXT NOT NULL,
-  price_paise    INTEGER NOT NULL DEFAULT 0,
-  capacity       INTEGER NOT NULL DEFAULT 1,
-  total_rooms    INTEGER NOT NULL DEFAULT 1,
-  image          TEXT,
-  description    TEXT NOT NULL DEFAULT '',
-  is_active      INTEGER NOT NULL DEFAULT 1,
-  created_at     TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE IF NOT EXISTS room_features (
-  id      INTEGER PRIMARY KEY AUTOINCREMENT,
-  room_id INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
-  name    TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_room_features_room ON room_features(room_id);
-
 CREATE TABLE IF NOT EXISTS catering_packages (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   name         TEXT NOT NULL,
@@ -227,15 +207,6 @@ CREATE TABLE IF NOT EXISTS booking_halls (
   booking_id INTEGER NOT NULL UNIQUE REFERENCES bookings(id) ON DELETE CASCADE,
   hall_id    INTEGER NOT NULL REFERENCES halls(id),
   price      INTEGER NOT NULL DEFAULT 0
-);
-
-CREATE TABLE IF NOT EXISTS booking_rooms (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  booking_id INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
-  room_id    INTEGER NOT NULL REFERENCES rooms(id),
-  quantity   INTEGER NOT NULL DEFAULT 1,
-  price      INTEGER NOT NULL DEFAULT 0,
-  subtotal   INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS booking_furniture (

@@ -1,6 +1,6 @@
 -- Cloudflare D1 Website Content Schema
 -- Source of truth for mutable website content: site settings, homepage sections,
--- services, mandaps, stages, furniture/equipment, catering packages, rooms, gallery items, and SEO.
+-- services, mandaps, stages, furniture/equipment, catering packages, gallery items, and SEO.
 
 CREATE TABLE IF NOT EXISTS site_settings (
   id                    TEXT PRIMARY KEY DEFAULT 'global',
@@ -198,23 +198,6 @@ CREATE TABLE IF NOT EXISTS catering_packages (
 
 CREATE INDEX IF NOT EXISTS idx_catering_packages_slug ON catering_packages(slug);
 CREATE INDEX IF NOT EXISTS idx_catering_packages_visible ON catering_packages(is_visible);
-
-CREATE TABLE IF NOT EXISTS rooms (
-  id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  name          TEXT NOT NULL,
-  description   TEXT NOT NULL DEFAULT '',
-  price_paise   INTEGER NOT NULL DEFAULT 0,
-  capacity      INTEGER NOT NULL DEFAULT 1,
-  total_rooms   INTEGER NOT NULL DEFAULT 1,
-  image_url     TEXT NOT NULL DEFAULT '',
-  features_json TEXT NOT NULL DEFAULT '[]',
-  is_visible    INTEGER NOT NULL DEFAULT 1,
-  sort_order    INTEGER NOT NULL DEFAULT 0,
-  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE INDEX IF NOT EXISTS idx_rooms_visible ON rooms(is_visible);
 
 CREATE TABLE IF NOT EXISTS gallery_categories (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,

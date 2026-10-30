@@ -9,10 +9,6 @@ import {
   hallForm,
   hallToggle,
   hallsList,
-  roomDelete,
-  roomForm,
-  roomToggle,
-  roomsList,
 } from './handlers/catalog';
 import {
   adminLogin,
@@ -41,8 +37,6 @@ import HallFormPage from './pages/HallFormPage.astro';
 import HallsPage from './pages/HallsPage.astro';
 import InquiriesPage from './pages/InquiriesPage.astro';
 import LoginPage from './pages/LoginPage.astro';
-import RoomFormPage from './pages/RoomFormPage.astro';
-import RoomsPage from './pages/RoomsPage.astro';
 
 export default defineModule({
   id: 'admin',
@@ -53,7 +47,6 @@ export default defineModule({
     { label: 'Bookings', href: '/admin/bookings', icon: 'ticket', order: 20 },
     { label: 'Event Enquiries', href: '/admin/enquiries', icon: 'calendar', order: 25 },
     { label: 'Halls', href: '/admin/halls', icon: 'building', order: 30 },
-    { label: 'Rooms', href: '/admin/rooms', icon: 'bed', order: 40 },
     { label: 'Catering', href: '/admin/catering', icon: 'utensils', order: 50 },
     { label: 'Gallery', href: '/admin/gallery', icon: 'image', order: 60 },
     { label: 'Customers', href: '/admin/customers', icon: 'users', order: 70 },
@@ -76,12 +69,6 @@ export default defineModule({
     { path: '/admin/halls/:id', component: HallFormPage, handle: hallForm },
     { path: '/admin/halls/:id/toggle', component: HallsPage, handle: hallToggle },
     { path: '/admin/halls/:id/delete', component: HallsPage, handle: hallDelete },
-
-    { path: '/admin/rooms', component: RoomsPage, handle: roomsList },
-    { path: '/admin/rooms/new', component: RoomFormPage, handle: roomForm },
-    { path: '/admin/rooms/:id', component: RoomFormPage, handle: roomForm },
-    { path: '/admin/rooms/:id/toggle', component: RoomsPage, handle: roomToggle },
-    { path: '/admin/rooms/:id/delete', component: RoomsPage, handle: roomDelete },
 
     { path: '/admin/catering', component: CateringPage, handle: cateringList },
     { path: '/admin/catering/action', component: CateringPage, handle: cateringListAction },

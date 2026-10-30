@@ -38,7 +38,6 @@ export function loadDashboard() {
       confirmed: number;
       revenue: number;
       halls: number;
-      rooms: number;
       packages: number;
       customers: number;
       inquiries: number;
@@ -49,7 +48,6 @@ export function loadDashboard() {
       (SELECT COUNT(*) FROM bookings WHERE status = 'confirmed') AS confirmed,
       (SELECT COALESCE(SUM(total_amount), 0) FROM bookings WHERE status IN ('pending','confirmed')) AS revenue,
       (SELECT COUNT(*) FROM halls WHERE is_active = 1) AS halls,
-      (SELECT COUNT(*) FROM rooms WHERE is_active = 1) AS rooms,
       (SELECT COUNT(*) FROM catering_packages WHERE is_active = 1) AS packages,
       (SELECT COUNT(*) FROM customers) AS customers,
       (SELECT COUNT(*) FROM contact_inquiries WHERE status = 'new') AS inquiries`,
@@ -59,7 +57,6 @@ export function loadDashboard() {
       confirmed: 0,
       revenue: 0,
       halls: 0,
-      rooms: 0,
       packages: 0,
       customers: 0,
       inquiries: 0,
@@ -249,80 +246,6 @@ export function deleteHall(id: number): void {
 
 export function toggleHall(id: number): void {
   run('UPDATE halls SET is_active = CASE is_active WHEN 1 THEN 0 ELSE 1 END WHERE id = ?', [id]);
-}
-
-/* ============================ Rooms ============================ */
-
-export function listRoomsAdmin() {
-  return all<{
-    id: number;
-    name: string;
-    image: string | null;
-    price_paise: number;
-    capacity: number;
-    total_rooms: number;
-    is_active: number;
-  }>(
-    `SELECT r.id, r.name, r.image, r.price_paise, r.capacity, r.total_rooms, r.is_active,
-            (SELECT COUNT(*) FROM room_features rf WHERE rf.room_id = r.id) AS feature_count
-     FROM rooms r ORDER BY r.is_active DESC, r.id`,
-  );
-}
-
-export function loadRoomAdmin(id: number) {
-  const room = one<Record<string, unknown>>('SELECT * FROM rooms WHERE id = ?', [id]);
-  if (!room) return null;
-  const features = all<{ name: string }>('SELECT name FROM room_features WHERE room_id = ? ORDER BY id', [id]);
-  return { room, features: features.map((feature) => feature.name) };
-}
-
-export async function saveRoom(form: FormData | null, id?: number): Promise<number> {
-  const name = getString(form, 'name');
-  if (!name) throw new Error('Room name is required.');
-
-  const uploaded = await saveUploadedImage(form, 'image', 'rooms');
-  const featureNames = getString(form, 'features')
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  const values = [
-    name,
-    parseMoneyToPaise(getString(form, 'price')),
-    getInt(form, 'capacity', 1),
-    getInt(form, 'total_rooms', 1),
-    (uploaded ?? getString(form, 'image_path')) || null,
-    getString(form, 'description'),
-    getBoolean(form, 'is_active') ? 1 : 0,
-  ];
-
-  const roomId = id
-    ? (run(
-        `UPDATE rooms SET name = ?, price_paise = ?, capacity = ?, total_rooms = ?, image = ?, description = ?,
-         is_active = ?, updated_at = datetime('now') WHERE id = ?`,
-        [...values, id],
-      ),
-      id)
-    : run(
-        `INSERT INTO rooms (name, price_paise, capacity, total_rooms, image, description, is_active)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        values,
-      ).lastId;
-
-  run('DELETE FROM room_features WHERE room_id = ?', [roomId]);
-  for (const feature of featureNames) {
-    run('INSERT INTO room_features (room_id, name) VALUES (?, ?)', [roomId, feature]);
-  }
-
-  return roomId;
-}
-
-export function deleteRoom(id: number): void {
-  run('DELETE FROM rooms WHERE id = ?', [id]);
-}
-
-export function toggleRoom(id: number): void {
-  run('UPDATE rooms SET is_active = CASE is_active WHEN 1 THEN 0 ELSE 1 END WHERE id = ?', [id]);
 }
 
 /* ============================ Catering ============================ */

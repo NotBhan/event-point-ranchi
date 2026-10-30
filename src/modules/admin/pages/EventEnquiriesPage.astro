@@ -88,7 +88,14 @@ const tabs = [
                   <td style="max-width:220px;">{enquiry.venue_location}</td>
                   <td>
                     {enquiry.requires_rooms === 1 ? (
-                      <span><strong>{enquiry.room_count}</strong><div class="text-xs text-muted">rooms requested</div></span>
+                      <span>
+                        <strong>{enquiry.room_count} rooms</strong>
+                        <div class="text-xs text-muted">
+                          {enquiry.accommodation_notes?.startsWith('Rooms requested:')
+                            ? enquiry.accommodation_notes.split('\n')[0].replace('Rooms requested: ', '')
+                            : 'AC / Non-AC requested'}
+                        </div>
+                      </span>
                     ) : (
                       <span class="text-xs text-muted">Not required</span>
                     )}

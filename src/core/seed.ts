@@ -268,71 +268,6 @@ export function seedDatabase(db: DatabaseSync): void {
       servicesByHall.push(serviceIds);
     }
 
-    const roomSeed = [
-      {
-        name: 'Presidential Luxury Suite',
-        price: 1_200_000,
-        capacity: 2,
-        total: 4,
-        image: '/storage/assets/rooms/1/primary.webp',
-        description:
-          'Master king suite with panoramic balcony views, jacuzzi bath, Italian furnishings and 24/7 butler service.',
-        features: ['King Size Plush Bed', 'Jacuzzi & Designer Bath', 'Private Scenic Balcony', 'Central AC', 'High-Speed Wi-Fi', 'Mini Bar'],
-      },
-      {
-        name: 'Bridal VIP Preparation Suite',
-        price: 1_500_000,
-        capacity: 4,
-        total: 2,
-        image: '/storage/assets/rooms/2/primary.webp',
-        description:
-          'Spacious styling suite with 360-degree vanity mirrors, makeup stations, steamer wardrobe and private stage access.',
-        features: ['Salon Makeup Station', 'Full-Length Mirrors', 'Garment Steamer', 'Attached Luxury Washroom', 'Direct Stage Access'],
-      },
-      {
-        name: 'Executive Deluxe Suite',
-        price: 750_000,
-        capacity: 2,
-        total: 14,
-        image: '/storage/assets/rooms/3/primary.webp',
-        description:
-          'Contemporary executive accommodation with plush queen bedding, ergonomic work desk, smart TV and garden views.',
-        features: ['Plush Queen Bed', 'En-suite Bathroom', 'Smart LED TV', 'Work Desk', 'Complimentary Wi-Fi'],
-      },
-      {
-        name: 'Family Celebration Suite',
-        price: 900_000,
-        capacity: 5,
-        total: 6,
-        image: '/storage/assets/rooms/4/primary.webp',
-        description:
-          'Dual-bedroom family suite for wedding parties, with a shared lounge and dining space.',
-        features: ['Dual Bedrooms', 'Living & Dining Lounge', '2 Attached Bathrooms', 'Climate Control', 'Tea/Coffee Maker'],
-      },
-      {
-        name: 'Standard Guest Accommodation',
-        price: 450_000,
-        capacity: 2,
-        total: 25,
-        image: '/storage/assets/rooms/5/primary.webp',
-        description:
-          'Comfortable, climate-controlled guest rooms for travelling event attendees with all essential amenities.',
-        features: ['Twin / Queen Bedding', 'Attached Washroom', 'Air Conditioning', 'High-Speed Internet', 'Daily Housekeeping'],
-      },
-    ];
-
-    const roomIds: number[] = [];
-    for (const room of roomSeed) {
-      const roomId = insert(
-        `INSERT INTO rooms (name, price_paise, capacity, total_rooms, image, description) VALUES (?, ?, ?, ?, ?, ?)`,
-        [room.name, room.price, room.capacity, room.total, room.image, room.description],
-      );
-      roomIds.push(roomId);
-      for (const feature of room.features) {
-        insert(`INSERT INTO room_features (room_id, name) VALUES (?, ?)`, [roomId, feature]);
-      }
-    }
-
     const cateringSeed = [
       {
         name: 'Royal Shahi Feast (Platinum Menu)',
@@ -526,11 +461,6 @@ export function seedDatabase(db: DatabaseSync): void {
         guests: 450,
         status: 'confirmed',
         hallIndex: 0,
-        rooms: [
-          [0, 2],
-          [1, 1],
-          [2, 4],
-        ],
         stageIndex: 0,
         furniture: [
           [0, 250],
@@ -555,10 +485,6 @@ export function seedDatabase(db: DatabaseSync): void {
         guests: 300,
         status: 'confirmed',
         hallIndex: 1,
-        rooms: [
-          [2, 3],
-          [4, 5],
-        ],
         stageIndex: 1,
         furniture: [
           [0, 150],
@@ -582,10 +508,6 @@ export function seedDatabase(db: DatabaseSync): void {
         guests: 250,
         status: 'confirmed',
         hallIndex: 1,
-        rooms: [
-          [0, 1],
-          [2, 5],
-        ],
         stageIndex: 1,
         furniture: [
           [0, 200],
@@ -608,10 +530,6 @@ export function seedDatabase(db: DatabaseSync): void {
         guests: 200,
         status: 'pending',
         hallIndex: 2,
-        rooms: [
-          [2, 2],
-          [1, 1],
-        ],
         stageIndex: 2,
         furniture: [
           [0, 120],
@@ -634,11 +552,6 @@ export function seedDatabase(db: DatabaseSync): void {
         guests: 500,
         status: 'pending',
         hallIndex: 3,
-        rooms: [
-          [0, 2],
-          [2, 6],
-          [1, 1],
-        ],
         stageIndex: 0,
         furniture: [
           [0, 300],
@@ -658,10 +571,6 @@ export function seedDatabase(db: DatabaseSync): void {
     for (const booking of bookingSeed) {
       const hallId = hallIds[booking.hallIndex];
       const hallPrice = hallSeed[booking.hallIndex].price;
-      const roomTotal = booking.rooms.reduce(
-        (sum, [roomIndex, quantity]) => sum + roomSeed[roomIndex].price * quantity,
-        0,
-      );
       const furnitureIds = furnitureByHall[booking.hallIndex];
       const furnitureTotal = booking.furniture.reduce(
         (sum, [itemIndex, quantity]) => sum + [25_000, 85_000, 500_000, 40_000][itemIndex] * quantity,
@@ -678,7 +587,7 @@ export function seedDatabase(db: DatabaseSync): void {
       const packageId = packageIds[booking.packageIndex];
       const perPlate = cateringSeed[booking.packageIndex].price;
       const cateringTotal = perPlate * booking.cateringGuests;
-      const total = hallPrice + roomTotal + furnitureTotal + stagePrice + serviceTotal + cateringTotal;
+      const total = hallPrice + furnitureTotal + stagePrice + serviceTotal + cateringTotal;
 
       const bookingId = insert(
         `INSERT INTO bookings (customer_id, access_token, event_date, event_time, event_type, total_guest, special_request, status, total_amount)
@@ -701,13 +610,6 @@ export function seedDatabase(db: DatabaseSync): void {
         hallId,
         hallPrice,
       ]);
-
-      for (const [roomIndex, quantity] of booking.rooms) {
-        insert(
-          `INSERT INTO booking_rooms (booking_id, room_id, quantity, price, subtotal) VALUES (?, ?, ?, ?, ?)`,
-          [bookingId, roomIds[roomIndex], quantity, roomSeed[roomIndex].price, roomSeed[roomIndex].price * quantity],
-        );
-      }
 
       for (const [itemIndex, quantity] of booking.furniture) {
         const price = [25_000, 85_000, 500_000, 40_000][itemIndex];

@@ -70,28 +70,6 @@ export function createBooking(auth: AuthState, payload: CartPayload): CreatedBoo
       hallPrice = Number(hall.price_paise);
     }
 
-    const rooms: Array<{ id: number; price: number; quantity: number; subtotal: number }> = [];
-    for (const item of payload.rooms ?? []) {
-      const room = one<{ id: number; name: string; price_paise: number; total_rooms: number; is_active: number }>(
-        'SELECT id, name, price_paise, total_rooms, is_active FROM rooms WHERE id = ?',
-        [Number(item.id)],
-      );
-      if (!room || !room.is_active) fail('One of the selected rooms is no longer available.');
-
-      const quantity = Math.floor(Number(item.quantity) || 0);
-      if (quantity <= 0) continue;
-      if (quantity > Number(room.total_rooms)) {
-        fail(`Only ${room.total_rooms} rooms are available in the "${room.name}" category.`);
-      }
-
-      rooms.push({
-        id: room.id,
-        price: Number(room.price_paise),
-        quantity,
-        subtotal: Number(room.price_paise) * quantity,
-      });
-    }
-
     const furniture: Array<{ id: number; price: number; quantity: number; subtotal: number }> = [];
     for (const item of payload.furniture ?? []) {
       const row = one<{ id: number; price_paise: number; max_quantity: number; hall_id: number }>(
@@ -208,13 +186,12 @@ export function createBooking(auth: AuthState, payload: CartPayload): CreatedBoo
 
     const total =
       hallPrice +
-      rooms.reduce((sum, room) => sum + room.subtotal, 0) +
       furniture.reduce((sum, item) => sum + item.subtotal, 0) +
       stagePrice +
       services.reduce((sum, service) => sum + service.price, 0) +
       (catering?.total ?? 0);
 
-    if (total <= 0) fail('Your cart is empty — add a hall, room, catering package or service before booking.');
+    if (total <= 0) fail('Your cart is empty — add a hall, catering package or service before booking.');
 
     // ---------- Customer ----------
     let customerId: number;
@@ -277,13 +254,6 @@ export function createBooking(auth: AuthState, payload: CartPayload): CreatedBoo
         hallId,
         hallPrice,
       ]);
-    }
-
-    for (const room of rooms) {
-      run(
-        'INSERT INTO booking_rooms (booking_id, room_id, quantity, price, subtotal) VALUES (?, ?, ?, ?, ?)',
-        [bookingId, room.id, room.quantity, room.price, room.subtotal],
-      );
     }
 
     for (const item of furniture) {
@@ -402,19 +372,6 @@ export function loadBookingForViewer(
   );
   if (hall) {
     lines.push({ label: 'Hall venue', detail: `${hall.name} · up to ${hall.capacity} guests`, amount: Number(hall.price) });
-  }
-
-  for (const room of all<{ name: string; quantity: number; subtotal: number }>(
-    `SELECT r.name AS name, br.quantity AS quantity, br.subtotal AS subtotal
-     FROM booking_rooms br JOIN rooms r ON r.id = br.room_id
-     WHERE br.booking_id = ?`,
-    [bookingId],
-  )) {
-    lines.push({
-      label: 'Room stay',
-      detail: `${room.name} × ${room.quantity} night${Number(room.quantity) === 1 ? '' : 's'}`,
-      amount: Number(room.subtotal),
-    });
   }
 
   for (const item of all<{ name: string; quantity: number; subtotal: number }>(

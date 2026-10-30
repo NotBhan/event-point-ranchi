@@ -301,10 +301,16 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
 
             <div class="form-grid cols-2" data-room-count-field hidden>
               <div class="field">
-                <label for="roomCount">Number of rooms required *</label>
-                <input class="input" id="roomCount" name="roomCount" type="number" min="1" max="500" step="1" inputmode="numeric" placeholder="e.g. 20" data-room-count-input />
-                <span class="hint">We will confirm availability and share options separately.</span>
+                <label for="acRoomCount">AC rooms required *</label>
+                <input class="input" id="acRoomCount" name="acRoomCount" type="number" min="0" max="500" step="1" inputmode="numeric" placeholder="e.g. 10" data-ac-room-input />
+                <span class="hint">Air-conditioned guest rooms.</span>
               </div>
+              <div class="field">
+                <label for="nonAcRoomCount">Non-AC rooms required *</label>
+                <input class="input" id="nonAcRoomCount" name="nonAcRoomCount" type="number" min="0" max="500" step="1" inputmode="numeric" placeholder="e.g. 5" data-non-ac-room-input />
+                <span class="hint">Standard / Non-AC guest rooms.</span>
+              </div>
+              <input type="hidden" id="roomCount" name="roomCount" data-room-count-input />
             </div>
 
             <div class="field">

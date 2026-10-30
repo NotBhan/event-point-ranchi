@@ -85,7 +85,10 @@ function requestedDimensions(line: {
             </div>
           </div>
           <div class="summary-row">
-            <div class="summary-left"><small>Notes</small><h4>{data.enquiry.accommodation_notes || '—'}</h4></div>
+            <div class="summary-left">
+              <small>Accommodation details &amp; notes</small>
+              <h4 style="white-space: pre-line; line-height: 1.4;">{data.enquiry.accommodation_notes || '—'}</h4>
+            </div>
           </div>
         </div>
       </div>

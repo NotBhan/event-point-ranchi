@@ -84,6 +84,8 @@ interface PlanDraft {
   equipmentNotes: string;
   requiresRooms: string;
   roomCount: string;
+  acRoomCount: string;
+  nonAcRoomCount: string;
   accommodationNotes: string;
   lighting: string;
   floralPalette: string;
@@ -150,6 +152,8 @@ function defaultDraft(): PlanDraft {
     equipmentNotes: '',
     requiresRooms: '',
     roomCount: '',
+    acRoomCount: '',
+    nonAcRoomCount: '',
     accommodationNotes: '',
     lighting: 'Warm fairy lights',
     floralPalette: 'Maroon & ivory',
@@ -241,6 +245,8 @@ function collectDraft(): PlanDraft {
     equipmentNotes: fieldValue('equipmentNotes'),
     requiresRooms: radioValue('requiresRooms'),
     roomCount: fieldValue('roomCount'),
+    acRoomCount: fieldValue('acRoomCount'),
+    nonAcRoomCount: fieldValue('nonAcRoomCount'),
     accommodationNotes: fieldValue('accommodationNotes'),
     lighting: fieldValue('lighting'),
     floralPalette: fieldValue('floralPalette'),
@@ -271,10 +277,20 @@ function syncRoomField(): void {
   const wantsRooms = radioValue('requiresRooms') === 'yes';
   const container = document.querySelector<HTMLElement>('[data-room-count-field]');
   const roomInput = document.querySelector<HTMLInputElement>('[data-room-count-input]');
+  const acInput = document.querySelector<HTMLInputElement>('[data-ac-room-input]');
+  const nonAcInput = document.querySelector<HTMLInputElement>('[data-non-ac-room-input]');
   if (container) container.hidden = !wantsRooms;
-  if (roomInput) {
-    roomInput.required = wantsRooms;
-    if (!wantsRooms) roomInput.value = '';
+  if (acInput && nonAcInput && roomInput) {
+    if (!wantsRooms) {
+      acInput.value = '';
+      nonAcInput.value = '';
+      roomInput.value = '';
+    } else {
+      const ac = Number(acInput.value) || 0;
+      const nonAc = Number(nonAcInput.value) || 0;
+      const total = ac + nonAc;
+      roomInput.value = total > 0 ? String(total) : '';
+    }
   }
 }
 
@@ -335,9 +351,11 @@ function validateStep(step: number): boolean {
     const requiresRooms = radioValue('requiresRooms');
     if (!requiresRooms) return fail('Tell us whether you require rooms.');
     if (requiresRooms === 'yes') {
-      const rooms = Number(fieldValue('roomCount'));
+      const ac = Number(fieldValue('acRoomCount')) || 0;
+      const nonAc = Number(fieldValue('nonAcRoomCount')) || 0;
+      const rooms = ac + nonAc;
       if (!Number.isInteger(rooms) || rooms < 1 || rooms > 500) {
-        return fail('Enter the number of rooms required, between 1 and 500.');
+        return fail('Enter the number of AC and/or Non-AC rooms required (at least 1 room in total, up to 500).');
       }
     }
   }
@@ -746,7 +764,12 @@ function renderReview(): void {
     ]),
     reviewSection('Accommodation', 5, [
       ['Rooms required', draft.requiresRooms === 'yes' ? 'Yes' : draft.requiresRooms === 'no' ? 'No' : 'Not answered'],
-      ['Room count', draft.requiresRooms === 'yes' ? esc(draft.roomCount) : '—'],
+      [
+        'Rooms breakdown',
+        draft.requiresRooms === 'yes'
+          ? `${draft.acRoomCount || '0'} AC, ${draft.nonAcRoomCount || '0'} Non-AC (${draft.roomCount || '0'} total)`
+          : '—',
+      ],
       ['Notes', esc(draft.accommodationNotes)],
     ]),
     reviewSection('Styling', 6, [
@@ -775,6 +798,10 @@ function buildPayload(): Record<string, unknown> {
         }
       : null;
 
+  const acRooms = Number(fieldValue('acRoomCount')) || 0;
+  const nonAcRooms = Number(fieldValue('nonAcRoomCount')) || 0;
+  const totalRooms = acRooms + nonAcRooms || Number(fieldValue('roomCount')) || 0;
+
   return {
     event: {
       type: fieldValue('eventType'),
@@ -795,7 +822,9 @@ function buildPayload(): Record<string, unknown> {
     equipmentNotes: fieldValue('equipmentNotes'),
     accommodation: {
       required: radioValue('requiresRooms') === 'yes',
-      roomCount: Number(fieldValue('roomCount')) || 0,
+      roomCount: totalRooms,
+      acRoomCount: acRooms,
+      nonAcRoomCount: nonAcRooms,
       notes: fieldValue('accommodationNotes'),
     },
     styling: {
@@ -1056,7 +1085,7 @@ if (state && form) {
       return;
     }
 
-    if (target.matches('[name="requiresRooms"]')) {
+    if (target.matches('[name="requiresRooms"], [name="acRoomCount"], [name="nonAcRoomCount"]')) {
       syncRoomField();
       saveDraft();
       return;

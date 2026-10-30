@@ -11,7 +11,6 @@ import type {
   FurnitureCategory,
   FurnitureItem,
   CateringPackage,
-  RoomOption,
   GalleryCategory,
   GalleryItem,
   SeoSettings,
@@ -33,7 +32,6 @@ export type {
   FurnitureCategory,
   FurnitureItem,
   CateringPackage,
-  RoomOption,
   GalleryCategory,
   GalleryItem,
   SeoSettings,
@@ -543,32 +541,6 @@ export async function getCateringPackages(): Promise<CateringPackage[]> {
 export async function getCateringPackageBySlug(slug: string): Promise<CateringPackage | null> {
   const all = await getCateringPackages();
   return all.find((p) => p.slug === slug) || null;
-}
-
-/**
- * Returns room configuration options from Cloudflare D1 (for enquiry forms).
- */
-export async function getRooms(): Promise<RoomOption[]> {
-  return getCached<RoomOption[]>('rooms', async () => {
-    const d1 = getD1Client();
-    const res = await d1.query<any>('SELECT * FROM rooms WHERE is_visible = 1 ORDER BY sort_order ASC');
-    return (res.results || []).map((r) => {
-      let features: string[] = [];
-      try { features = JSON.parse(r.features_json || '[]'); } catch {}
-      return {
-        id: r.id,
-        name: r.name,
-        description: r.description || '',
-        price_paise: Number(r.price_paise || 0),
-        capacity: Number(r.capacity || 1),
-        total_rooms: Number(r.total_rooms || 1),
-        image_url: r.image_url || '',
-        features,
-        is_visible: Boolean(r.is_visible),
-        sort_order: r.sort_order || 0,
-      };
-    });
-  });
 }
 
 /**

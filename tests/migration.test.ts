@@ -180,12 +180,9 @@ test('7. fresh seedDatabase populates /storage/ URLs and initial storage objects
     assert.ok(row.banner_image.startsWith('/storage/'), `Expected /storage/ banner, got: ${row.banner_image}`);
   }
 
-  // Check that all room images start with /storage/
-  const roomImages = freshDb.prepare('SELECT image FROM rooms').all() as Array<{ image: string }>;
-  assert.ok(roomImages.length > 0);
-  for (const row of roomImages) {
-    assert.ok(row.image.startsWith('/storage/'), `Expected /storage/ path, got: ${row.image}`);
-  }
+  // Check that rooms table is removed
+  const roomTable = freshDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='rooms'").get();
+  assert.equal(roomTable, undefined, 'rooms table must not exist');
 
   // Check that all catering images start with /storage/
   const cateringImages = freshDb.prepare('SELECT image FROM catering_packages').all() as Array<{ image: string }>;

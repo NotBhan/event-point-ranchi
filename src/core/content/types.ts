@@ -236,19 +236,6 @@ export interface CateringPackage {
   sort_order: number;
 }
 
-export interface RoomOption {
-  id: number;
-  name: string;
-  description: string;
-  price_paise: number;
-  capacity: number;
-  total_rooms: number;
-  image_url: string;
-  features: string[];
-  is_visible: boolean;
-  sort_order: number;
-}
-
 export interface GalleryCategory {
   id: number;
   name: string;

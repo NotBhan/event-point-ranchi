@@ -65,7 +65,7 @@ if (rootElement) {
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 2-1.6L21 8H6"/></svg>
           </div>
           <h3>Your event cart is empty</h3>
-          <p>Browse our venues, rooms and menus to start building your celebration.</p>
+          <p>Browse our venues and menus to start building your celebration.</p>
           <div class="flex-center gap-3 mt-6 wrap">
             <a href="/halls" class="btn btn-primary">Browse halls</a>
             <a href="/catering" class="btn btn-secondary">View catering</a>

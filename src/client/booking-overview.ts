@@ -94,7 +94,7 @@ if (root) {
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 2-1.6L21 8H6"/></svg>
             </div>
             <h3>Your cart is empty</h3>
-            <p>Choose a hall, rooms or catering before checking out.</p>
+            <p>Choose a hall or catering before checking out.</p>
             <a href="/halls" class="btn btn-primary mt-4">Browse halls</a>
           </div>`;
       } else {
