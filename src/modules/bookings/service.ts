@@ -452,29 +452,57 @@ export function loadBookingForViewer(
 }
 
 export function loadCustomerBookings(userId: number) {
-  return all<{
-    id: number;
-    event_date: string | null;
-    event_type: string;
-    total_guest: number;
-    total_amount: number;
-    advance_amount: number;
-    amount_paid: number;
-    outstanding_balance: number;
-    payment_status: string;
-    status: string;
-    created_at: string;
-  }>(
-    `SELECT b.id, b.event_date, b.event_type, b.total_guest, b.total_amount,
-            COALESCE(b.advance_amount, 0) as advance_amount,
-            COALESCE(b.amount_paid, 0) as amount_paid,
-            COALESCE(b.outstanding_balance, b.total_amount) as outstanding_balance,
-            COALESCE(b.payment_status, 'unpaid') as payment_status,
-            b.status, b.created_at
-     FROM bookings b
-     JOIN customers c ON c.id = b.customer_id
-     WHERE c.user_id = ?
-     ORDER BY b.id DESC`,
-    [userId],
-  );
+  try {
+    return all<{
+      id: number;
+      event_date: string | null;
+      event_type: string;
+      total_guest: number;
+      total_amount: number;
+      advance_amount: number;
+      amount_paid: number;
+      outstanding_balance: number;
+      payment_status: string;
+      status: string;
+      created_at: string;
+    }>(
+      `SELECT b.id, b.event_date, b.event_type, b.total_guest, b.total_amount,
+              COALESCE(b.advance_amount, 0) as advance_amount,
+              COALESCE(b.amount_paid, 0) as amount_paid,
+              COALESCE(b.outstanding_balance, b.total_amount) as outstanding_balance,
+              COALESCE(b.payment_status, 'unpaid') as payment_status,
+              b.status, b.created_at
+       FROM bookings b
+       JOIN customers c ON c.id = b.customer_id
+       WHERE c.user_id = ?
+       ORDER BY b.id DESC`,
+      [userId],
+    );
+  } catch (error) {
+    console.warn('[loadCustomerBookings fallback triggered]:', error);
+    const fallbackRows = all<{
+      id: number;
+      event_date: string | null;
+      event_type: string;
+      total_guest: number;
+      total_amount: number;
+      status: string;
+      created_at: string;
+    }>(
+      `SELECT b.id, b.event_date, b.event_type, b.total_guest, b.total_amount,
+              b.status, b.created_at
+       FROM bookings b
+       JOIN customers c ON c.id = b.customer_id
+       WHERE c.user_id = ?
+       ORDER BY b.id DESC`,
+      [userId],
+    );
+    return fallbackRows.map((r) => ({
+      ...r,
+      advance_amount: Math.round(Number(r.total_amount) * 0.25),
+      amount_paid: 0,
+      outstanding_balance: Number(r.total_amount),
+      payment_status: 'unpaid',
+    }));
+  }
 }
