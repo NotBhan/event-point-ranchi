@@ -19,8 +19,12 @@ const { heroImage, mandaps, stages, equipment, galleryCategories, galleryItems, 
 const [pageContent, homepageContent, featuredVideos] = await Promise.all([
   getPageContent('home'),
   getHomepageContent(heroImage ?? undefined),
-  getVideoPreviews({ onlyPublished: true, featuredOnly: true, limit: 3 }),
+  getVideoPreviews({ onlyPublished: true, limit: 4 }),
 ]);
+
+const primaryVideo = featuredVideos.find((v) => v.aspect_ratio === '16:9') || featuredVideos[0];
+const reelVideos = featuredVideos.filter((v) => v.id !== primaryVideo?.id);
+const hasMixedAspectRatios = primaryVideo && reelVideos.length > 0 && reelVideos.some((v) => v.aspect_ratio === '9:16');
 
 const heroHeading = pageContent.title || homepageContent.heroHeading;
 const heroSubtitle = pageContent.subtitle || homepageContent.heroSubtitle;
@@ -195,7 +199,7 @@ const steps = homepageContent.steps.map((s) => [s.stepNumber, s.title, s.descrip
         </div>
 
         <div class="gallery-grid home-gallery-grid">
-          {galleryItems.map((item) => (
+          {galleryItems.map((item, index) => (
             <button
               type="button"
               class="gallery-tile"
@@ -204,8 +208,26 @@ const steps = homepageContent.steps.map((s) => [s.stepNumber, s.title, s.descrip
               data-lightbox
               data-src={imageUrl(item.image)}
               data-caption={item.title}
+              aria-label={`View ${item.title} (${item.category}) in full resolution`}
             >
-              <img src={imageUrl(item.image)} alt={item.title} loading="lazy" />
+              <div class="media-with-skeleton gallery-tile-media">
+                <div
+                  class="skeleton-placeholder skeleton-shimmer"
+                  role="status"
+                  aria-busy="true"
+                  aria-label={`Loading ${item.title}`}
+                ></div>
+                <img
+                  src={imageUrl(item.image)}
+                  alt={item.title}
+                  loading={index < 4 ? 'eager' : 'lazy'}
+                  decoding="async"
+                />
+                <div class="skeleton-error-fallback" role="alert">
+                  <Icon name="image" size={24} />
+                  <span>Photo unavailable</span>
+                </div>
+              </div>
               <span class="gallery-overlay">
                 <span>{item.title}</span>
                 <small>{item.category}</small>
@@ -218,23 +240,64 @@ const steps = homepageContent.steps.map((s) => [s.stepNumber, s.title, s.descrip
   )}
 
   {featuredVideos.length > 0 && (
-    <section class="section section-warm" aria-labelledby="home-videos-heading">
+    <section class="section section-cinema" aria-labelledby="home-videos-heading">
       <div class="container">
-        <div class="section-head flex-between" style="align-items: flex-end; margin-bottom: 2rem;">
+        <div class="cinema-head">
           <div>
-            <span class="eyebrow" style="color:var(--gold-deep);">Motion &amp; Highlights</span>
+            <span class="eyebrow eyebrow-gold">
+              <Icon name="play" size={12} /> Motion &amp; Highlights
+            </span>
             <h2 id="home-videos-heading">Celebrations in Motion</h2>
-            <p>Watch authentic event walk-throughs, floral mandap setups and festive stage moments.</p>
+            <p>
+              Experience the scale, floral artistry, and authentic celebration energy of Ranchi weddings
+              through high-definition walk-throughs, YouTube Shorts, and Instagram Reels.
+            </p>
           </div>
-          <a href="/gallery#videosSection" class="btn btn-secondary btn-sm" style="margin-bottom: 0.5rem;">
-            Explore all videos <Icon name="arrow-right" size={14} />
+          <a href="/gallery#videosSection" class="cinema-btn-outline">
+            <span>Explore All Videos</span>
+            <Icon name="arrow-right" size={14} />
           </a>
         </div>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; align-items: start;">
-          {featuredVideos.map((video) => (
-            <VideoPreviewCard video={video} />
-          ))}
-        </div>
+
+        {hasMixedAspectRatios ? (
+          <div class="cinema-studio-layout">
+            <!-- Primary Widescreen Walkthrough -->
+            <div class="cinema-spotlight-col">
+              <div class="cinema-spotlight-card">
+                <div class="spotlight-badge-bar">
+                  <span class="spotlight-pill">
+                    <Icon name="video" size={13} />
+                    <span>Featured Walkthrough</span>
+                  </span>
+                  <span class="spotlight-hd">1080p HD</span>
+                </div>
+                <VideoPreviewCard video={primaryVideo} eagerThumbnail={true} />
+              </div>
+            </div>
+
+            <!-- Vertical Shorts & Reels Showcase -->
+            <div class="cinema-reels-col">
+              <div class="reels-header">
+                <div class="reels-title-wrap">
+                  <Icon name="film" size={15} />
+                  <h3>Shorts &amp; Reels</h3>
+                </div>
+                <span class="reels-badge">{reelVideos.length} Moments</span>
+              </div>
+              <div class="cinema-reels-grid">
+                {reelVideos.map((video) => (
+                  <VideoPreviewCard video={video} />
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div class="cinema-grid-balanced">
+            {featuredVideos.map((video, idx) => (
+              <VideoPreviewCard video={video} eagerThumbnail={idx === 0} />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   )}
@@ -292,6 +355,8 @@ const steps = homepageContent.steps.map((s) => [s.stepNumber, s.title, s.descrip
   </section>
 
   <script>
+    import { setupProgressiveMedia } from '../../../client/image-loader';
+
     const filterButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-home-gallery-filter]'));
     const galleryItems = Array.from(document.querySelectorAll<HTMLElement>('[data-home-gallery-item]'));
 
@@ -302,6 +367,7 @@ const steps = homepageContent.steps.map((s) => [s.stepNumber, s.title, s.descrip
         galleryItems.forEach((item) => {
           item.hidden = filter !== 'all' && item.dataset.homeGalleryCategory !== filter;
         });
+        setupProgressiveMedia();
       });
     });
   </script>

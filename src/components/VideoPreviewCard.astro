@@ -43,13 +43,21 @@ const platformBadgeClass =
 >
   <div class="video-media-facade">
     <!-- Media skeleton wrapper -->
-    <div class="media-with-skeleton video-facade-cover" style="width: 100%; height: 100%;">
+    <div
+      class:list={[
+        'media-with-skeleton',
+        'video-facade-cover',
+        !effectiveThumbnail ? 'is-loaded' : '',
+      ]}
+      style="width: 100%; height: 100%;"
+    >
       <div class="skeleton-placeholder skeleton-shimmer" role="status" aria-busy="true" aria-label={`Loading preview for ${video.title}`}></div>
       {effectiveThumbnail ? (
         <img
           src={effectiveThumbnail}
           alt={video.title}
           loading={eagerThumbnail ? 'eager' : 'lazy'}
+          decoding="async"
         />
       ) : (
         <div class="video-default-poster">
@@ -70,9 +78,14 @@ const platformBadgeClass =
           )}
         </div>
       )}
-      <div class="skeleton-error-fallback" role="alert">
-        <Icon name="play" size={28} />
-        <span>Preview unavailable</span>
+      <div class="skeleton-error-fallback video-poster-fallback" role="img" aria-label={`Video poster for ${video.title}`}>
+        <div class="poster-ornament">
+          <Icon name="play" size={36} />
+        </div>
+        <div class="poster-label-group">
+          <span class="poster-platform">{platformLabel}</span>
+          <span class="poster-brand">Event Point Ranchi</span>
+        </div>
       </div>
     </div>
 
@@ -89,9 +102,7 @@ const platformBadgeClass =
       aria-label={`Play video: ${video.title}`}
     >
       <span class="play-icon-disc">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-          <polygon points="5 3 19 12 5 21 5 3"></polygon>
-        </svg>
+        <Icon name="play" size={22} />
       </span>
       <span class="sr-only">Play video</span>
     </button>
@@ -139,6 +150,88 @@ const platformBadgeClass =
   .video-preview-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(42, 20, 25, 0.08);
+  }
+
+  /* Cinema & Dark Theme Overrides */
+  :global(.section-cinema) .video-preview-card,
+  :global(.section-dark) .video-preview-card {
+    background: #1c060b;
+    border-color: rgba(212, 175, 55, 0.25);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  }
+
+  :global(.section-cinema) .video-preview-card:hover,
+  :global(.section-dark) .video-preview-card:hover {
+    border-color: rgba(212, 175, 55, 0.6);
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.65), 0 0 16px rgba(212, 175, 55, 0.15);
+  }
+
+  :global(.section-cinema) .video-title,
+  :global(.section-dark) .video-title {
+    color: #ffffff;
+  }
+
+  :global(.section-cinema) .video-description,
+  :global(.section-dark) .video-description {
+    color: rgba(247, 240, 220, 0.78);
+  }
+
+  :global(.section-cinema) .video-external-link,
+  :global(.section-dark) .video-external-link {
+    color: var(--gold-bright, #d4af37);
+  }
+
+  :global(.section-cinema) .video-external-link:hover,
+  :global(.section-dark) .video-external-link:hover {
+    color: #ffffff;
+    background: rgba(212, 175, 55, 0.22);
+  }
+
+  /* Rich fallback video poster styles */
+  .video-preview-card .skeleton-error-fallback.video-poster-fallback {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 35%, #3d0711 0%, #150307 100%);
+    color: #f7f0dc;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 1.25rem;
+    text-align: center;
+    z-index: 2;
+    border: none;
+  }
+
+  .media-with-skeleton.is-failed .skeleton-error-fallback.video-poster-fallback {
+    display: flex;
+  }
+
+  .poster-ornament {
+    color: var(--gold-bright, #d4af37);
+    opacity: 0.9;
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4));
+  }
+
+  .poster-label-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .poster-platform {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--gold-bright, #d4af37);
+  }
+
+  .poster-brand {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #ffffff;
   }
 
   .video-card-vertical {
@@ -242,8 +335,8 @@ const platformBadgeClass =
   }
 
   .play-icon-disc {
-    width: 60px;
-    height: 60px;
+    width: 58px;
+    height: 58px;
     border-radius: 50%;
     background: rgba(255, 255, 255, 0.95);
     color: var(--brand-maroon, #721224);
@@ -252,7 +345,12 @@ const platformBadgeClass =
     justify-content: center;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
     transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease;
-    padding-left: 3px;
+    padding-left: 2px;
+  }
+
+  .video-card-vertical .play-icon-disc {
+    width: 48px;
+    height: 48px;
   }
 
   .video-play-btn:hover .play-icon-disc {
