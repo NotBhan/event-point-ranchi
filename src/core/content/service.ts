@@ -1,4 +1,5 @@
 import { getD1Client } from './d1-client';
+import { getSnapshot } from './snapshot';
 import type {
   PageContent,
   SiteSettings,
@@ -105,198 +106,221 @@ async function getCached<T>(key: string, fetcher: () => Promise<T>, preview = fa
 }
 
 /**
- * Returns merged site settings from Cloudflare D1 with static fallback.
+ * Merges a raw site_settings row with static fallbacks. Pure, so the snapshot
+ * path and the live D1 path produce identical output.
+ */
+export function mergeSiteSettingsRow(row: SiteSettings | null | undefined): MergedSiteSettings {
+  if (row) {
+    let social: Array<{ label: string; href: string }> = [];
+    try {
+      const parsed = JSON.parse(row.social_links_json || '[]');
+      social = Array.isArray(parsed)
+        ? parsed.map((s: any) => ({ label: s.platform || s.label, href: s.url || s.href }))
+        : [];
+    } catch {
+      social = site.social.map((s) => ({ label: s.label, href: s.href }));
+    }
+    if (social.length === 0) {
+      social = site.social.map((s) => ({ label: s.label, href: s.href }));
+    }
+
+    return {
+      name: row.name || site.name,
+      legalName: row.legal_name || site.legalName,
+      tagline: row.tagline || site.tagline,
+      shortDescription: row.short_description || site.shortDescription,
+      logo: row.logo_url || site.logo,
+      favicon: row.favicon_url || site.logo,
+      phone: row.phone || site.phone,
+      whatsapp: row.whatsapp || site.whatsapp,
+      email: row.email || site.email,
+      address: row.address || site.address,
+      venueAddress: row.venue_address || site.venueAddress,
+      businessHours: row.business_hours || 'Daily, 10:00 – 19:00',
+      announcementText: row.announcement_text || undefined,
+      googleMapsUrl: row.google_maps_url || 'https://maps.google.com/?q=Event+Point+Main+Road+Ranchi',
+      latitude: row.latitude !== null && row.latitude !== undefined ? Number(row.latitude) : 23.3441,
+      longitude: row.longitude !== null && row.longitude !== undefined ? Number(row.longitude) : 85.3096,
+      footerText: row.footer_text || '',
+      contactButtonsEnabled: Boolean(row.contact_buttons_enabled ?? 1),
+      social,
+      theme: {
+        primaryColor: row.primary_color || '#721224',
+        goldBright: row.gold_bright || '#e0b868',
+        fontPreset: row.font_preset || 'heritage',
+      },
+      seo: {
+        defaultTitle: row.default_title || `${site.name} | Wedding Mandaps, Stage Designs & Event Equipment in Ranchi`,
+        defaultDescription: row.default_description || site.shortDescription,
+        ogImage: row.og_image_url || '/storage/assets/banners/homepage/banner-hero.webp',
+      },
+    };
+  }
+
+  return {
+    name: site.name,
+    legalName: site.legalName,
+    tagline: site.tagline,
+    shortDescription: site.shortDescription,
+    logo: site.logo,
+    favicon: site.logo,
+    phone: site.phone,
+    whatsapp: site.whatsapp,
+    email: site.email,
+    address: site.address,
+    venueAddress: site.venueAddress,
+    businessHours: 'Daily, 10:00 – 19:00',
+    googleMapsUrl: 'https://maps.google.com/?q=Event+Point+Main+Road+Ranchi',
+    latitude: 23.3441,
+    longitude: 85.3096,
+    footerText: '',
+    contactButtonsEnabled: true,
+    social: site.social.map((s) => ({ label: s.label, href: s.href })),
+    theme: {
+      primaryColor: '#721224',
+      goldBright: '#e0b868',
+      fontPreset: 'heritage',
+    },
+    seo: {
+      defaultTitle: `${site.name} | Wedding Mandaps, Stage Designs & Event Equipment in Ranchi`,
+      defaultDescription: site.shortDescription,
+      ogImage: '/storage/assets/banners/homepage/banner-hero.webp',
+    },
+  };
+}
+
+/**
+ * Returns merged site settings from the bundled snapshot (public builds) or
+ * live Cloudflare D1 (admin preview / local dev without a snapshot).
  */
 export async function getSiteSettings(preview = false): Promise<MergedSiteSettings> {
+  const snapshot = preview ? null : getSnapshot();
+  if (snapshot) return mergeSiteSettingsRow(snapshot.settings);
+
   return getCached<MergedSiteSettings>(
     `site_settings:${preview}`,
     async () => {
       try {
         const d1 = getD1Client();
         const res = await d1.query<SiteSettings>('SELECT * FROM site_settings WHERE id = ? LIMIT 1', ['global']);
-        const row = res.results?.[0];
-
-        if (row) {
-          let social: Array<{ label: string; href: string }> = [];
-          try {
-            const parsed = JSON.parse(row.social_links_json || '[]');
-            social = Array.isArray(parsed)
-              ? parsed.map((s: any) => ({ label: s.platform || s.label, href: s.url || s.href }))
-              : [];
-          } catch {
-            social = site.social.map((s) => ({ label: s.label, href: s.href }));
-          }
-          if (social.length === 0) {
-            social = site.social.map((s) => ({ label: s.label, href: s.href }));
-          }
-
-          return {
-            name: row.name || site.name,
-            legalName: row.legal_name || site.legalName,
-            tagline: row.tagline || site.tagline,
-            shortDescription: row.short_description || site.shortDescription,
-            logo: row.logo_url || site.logo,
-            favicon: row.favicon_url || site.logo,
-            phone: row.phone || site.phone,
-            whatsapp: row.whatsapp || site.whatsapp,
-            email: row.email || site.email,
-            address: row.address || site.address,
-            venueAddress: row.venue_address || site.venueAddress,
-            businessHours: row.business_hours || 'Daily, 10:00 – 19:00',
-            announcementText: row.announcement_text || undefined,
-            googleMapsUrl: row.google_maps_url || 'https://maps.google.com/?q=Event+Point+Main+Road+Ranchi',
-            latitude: row.latitude !== null && row.latitude !== undefined ? Number(row.latitude) : 23.3441,
-            longitude: row.longitude !== null && row.longitude !== undefined ? Number(row.longitude) : 85.3096,
-            footerText: row.footer_text || '',
-            contactButtonsEnabled: Boolean(row.contact_buttons_enabled ?? 1),
-            social,
-            theme: {
-              primaryColor: row.primary_color || '#721224',
-              goldBright: row.gold_bright || '#e0b868',
-              fontPreset: row.font_preset || 'heritage',
-            },
-            seo: {
-              defaultTitle: row.default_title || `${site.name} | Wedding Mandaps, Stage Designs & Event Equipment in Ranchi`,
-              defaultDescription: row.default_description || site.shortDescription,
-              ogImage: row.og_image_url || '/storage/assets/banners/homepage/banner-hero.webp',
-            },
-          };
-        }
+        return mergeSiteSettingsRow(res.results?.[0] ?? null);
       } catch (err) {
         console.warn('[D1] getSiteSettings failed, using static config fallback:', (err as Error).message);
+        return mergeSiteSettingsRow(null);
       }
-
-      // Static fallback
-      return {
-        name: site.name,
-        legalName: site.legalName,
-        tagline: site.tagline,
-        shortDescription: site.shortDescription,
-        logo: site.logo,
-        favicon: site.logo,
-        phone: site.phone,
-        whatsapp: site.whatsapp,
-        email: site.email,
-        address: site.address,
-        venueAddress: site.venueAddress,
-        businessHours: 'Daily, 10:00 – 19:00',
-        googleMapsUrl: 'https://maps.google.com/?q=Event+Point+Main+Road+Ranchi',
-        latitude: 23.3441,
-        longitude: 85.3096,
-        footerText: '',
-        contactButtonsEnabled: true,
-        social: site.social.map((s) => ({ label: s.label, href: s.href })),
-        theme: {
-          primaryColor: '#721224',
-          goldBright: '#e0b868',
-          fontPreset: 'heritage',
-        },
-        seo: {
-          defaultTitle: `${site.name} | Wedding Mandaps, Stage Designs & Event Equipment in Ranchi`,
-          defaultDescription: site.shortDescription,
-          ogImage: '/storage/assets/banners/homepage/banner-hero.webp',
-        },
-      };
     },
     preview,
   );
 }
 
 /**
- * Returns merged homepage content from Cloudflare D1.
+ * Merges homepage sections into the render model. Pure, so the snapshot path
+ * and the live D1 path produce identical output.
+ */
+export function mergeHomepageContentFromSections(
+  sections: HomepageSection[],
+  fallbackHeroImage: string,
+): MergedHomepageContent {
+  const hero = sections.find((s) => s.section_key === 'hero');
+  const featuresSec = sections.find((s) => s.section_key === 'features');
+  const stepsSec = sections.find((s) => s.section_key === 'steps');
+  const promoSec = sections.find((s) => s.section_key === 'promo_banner');
+
+  let features: Array<{ icon: string; title: string; description: string }> = [];
+  if (featuresSec?.config_json) {
+    try {
+      features = JSON.parse(featuresSec.config_json);
+    } catch {}
+  }
+  if (!features || features.length === 0) {
+    features = [
+      { icon: 'archway', title: 'Signature Mandaps', description: 'Carved, floral and contemporary mandap concepts built to your dimensions.' },
+      { icon: 'theater', title: 'Stage Design Studio', description: 'Reception and ceremony stages styled around your palette and venue.' },
+      { icon: 'chair', title: 'Furniture & Equipment', description: 'Chairs, tables, lounge seating, lighting and event essentials in one place.' },
+      { icon: 'shield', title: 'One Planning Team', description: 'A single Ranchi-based coordinator from first enquiry to final setup.' },
+    ];
+  }
+
+  let steps: Array<{ stepNumber: string; title: string; description: string }> = [];
+  if (stepsSec?.config_json) {
+    try {
+      steps = JSON.parse(stepsSec.config_json);
+    } catch {}
+  }
+  if (!steps || steps.length === 0) {
+    steps = [
+      { stepNumber: '01', title: 'Share your date & venue', description: 'Tell us the event type, date, guest count and location in Ranchi.' },
+      { stepNumber: '02', title: 'Select mandap & stage', description: 'Choose a design or request custom dimensions for your venue.' },
+      { stepNumber: '03', title: 'Build your equipment list', description: 'Add chairs, tables, lounge seating, lighting and essentials with quantities.' },
+      { stepNumber: '04', title: 'Receive a quotation', description: 'Our team checks availability and sends an itemised quotation — not an auto-booking.' },
+      { stepNumber: '05', title: 'Confirm in writing', description: 'Dates and stock are held only after you confirm the quotation with us.' },
+    ];
+  }
+
+  let secondaryCta = { label: 'Plan Your Event', url: '/plan' };
+  if (hero?.config_json) {
+    try {
+      const parsed = JSON.parse(hero.config_json);
+      if (parsed.secondaryCta) secondaryCta = parsed.secondaryCta;
+    } catch {}
+  }
+
+  return {
+    heroHeading: hero?.title || "Create the Wedding Setup You've Always Imagined.",
+    heroSubtitle: hero?.subtitle || 'Mandaps, stage designs, furniture and event equipment — planned and delivered by one Ranchi team.',
+    heroImage: hero?.image_url || fallbackHeroImage,
+    primaryCta: {
+      label: hero?.cta_label || 'Explore Mandaps',
+      url: hero?.cta_url || '/mandaps',
+    },
+    secondaryCta,
+    announcementBar: {
+      enabled: true,
+      text: 'Mandaps, stage designs, furniture & equipment — enquiries are quotations, not automatic bookings',
+      location: 'Wedding planning across Ranchi & Jharkhand',
+      phone: site.phone,
+    },
+    features,
+    steps,
+    sectionsVisibility: {
+      mandaps: true,
+      stages: true,
+      equipment: true,
+      catering: true,
+      gallery: true,
+      stats: true,
+    },
+    promotionalBanner: promoSec
+      ? {
+          enabled: Boolean(promoSec.is_visible),
+          badge: promoSec.badge || 'Special Offer',
+          headline: promoSec.title || '',
+          description: promoSec.description || '',
+          ctaLabel: promoSec.cta_label || 'Learn More',
+          ctaUrl: promoSec.cta_url || '/plan',
+        }
+      : undefined,
+  };
+}
+
+/**
+ * Returns merged homepage content from the bundled snapshot (public builds) or
+ * live Cloudflare D1 (admin preview / local dev without a snapshot).
  */
 export async function getHomepageContent(
   fallbackHeroImage = '/storage/assets/banners/homepage/banner-hero.webp',
   preview = false,
 ): Promise<MergedHomepageContent> {
+  const snapshot = preview ? null : getSnapshot();
+  if (snapshot) return mergeHomepageContentFromSections(snapshot.homeSections, fallbackHeroImage);
+
   return getCached<MergedHomepageContent>(
     `homepage_content:${preview}`,
     async () => {
       try {
         const d1 = getD1Client();
         const res = await d1.query<HomepageSection>('SELECT * FROM homepage_sections WHERE is_visible = 1 ORDER BY sort_order ASC');
-        const sections = res.results || [];
-
-        const hero = sections.find((s) => s.section_key === 'hero');
-        const featuresSec = sections.find((s) => s.section_key === 'features');
-        const stepsSec = sections.find((s) => s.section_key === 'steps');
-        const promoSec = sections.find((s) => s.section_key === 'promo_banner');
-
-        let features: Array<{ icon: string; title: string; description: string }> = [];
-        if (featuresSec?.config_json) {
-          try {
-            features = JSON.parse(featuresSec.config_json);
-          } catch {}
-        }
-        if (!features || features.length === 0) {
-          features = [
-            { icon: 'archway', title: 'Signature Mandaps', description: 'Carved, floral and contemporary mandap concepts built to your dimensions.' },
-            { icon: 'theater', title: 'Stage Design Studio', description: 'Reception and ceremony stages styled around your palette and venue.' },
-            { icon: 'chair', title: 'Furniture & Equipment', description: 'Chairs, tables, lounge seating, lighting and event essentials in one place.' },
-            { icon: 'shield', title: 'One Planning Team', description: 'A single Ranchi-based coordinator from first enquiry to final setup.' },
-          ];
-        }
-
-        let steps: Array<{ stepNumber: string; title: string; description: string }> = [];
-        if (stepsSec?.config_json) {
-          try {
-            steps = JSON.parse(stepsSec.config_json);
-          } catch {}
-        }
-        if (!steps || steps.length === 0) {
-          steps = [
-            { stepNumber: '01', title: 'Share your date & venue', description: 'Tell us the event type, date, guest count and location in Ranchi.' },
-            { stepNumber: '02', title: 'Select mandap & stage', description: 'Choose a design or request custom dimensions for your venue.' },
-            { stepNumber: '03', title: 'Build your equipment list', description: 'Add chairs, tables, lounge seating, lighting and essentials with quantities.' },
-            { stepNumber: '04', title: 'Receive a quotation', description: 'Our team checks availability and sends an itemised quotation — not an auto-booking.' },
-            { stepNumber: '05', title: 'Confirm in writing', description: 'Dates and stock are held only after you confirm the quotation with us.' },
-          ];
-        }
-
-        let secondaryCta = { label: 'Plan Your Event', url: '/plan' };
-        if (hero?.config_json) {
-          try {
-            const parsed = JSON.parse(hero.config_json);
-            if (parsed.secondaryCta) secondaryCta = parsed.secondaryCta;
-          } catch {}
-        }
-
-        return {
-          heroHeading: hero?.title || "Create the Wedding Setup You've Always Imagined.",
-          heroSubtitle: hero?.subtitle || 'Mandaps, stage designs, furniture and event equipment — planned and delivered by one Ranchi team.',
-          heroImage: hero?.image_url || fallbackHeroImage,
-          primaryCta: {
-            label: hero?.cta_label || 'Explore Mandaps',
-            url: hero?.cta_url || '/mandaps',
-          },
-          secondaryCta,
-          announcementBar: {
-            enabled: true,
-            text: 'Mandaps, stage designs, furniture & equipment — enquiries are quotations, not automatic bookings',
-            location: 'Wedding planning across Ranchi & Jharkhand',
-            phone: site.phone,
-          },
-          features,
-          steps,
-          sectionsVisibility: {
-            mandaps: true,
-            stages: true,
-            equipment: true,
-            catering: true,
-            gallery: true,
-            stats: true,
-          },
-          promotionalBanner: promoSec
-            ? {
-                enabled: Boolean(promoSec.is_visible),
-                badge: promoSec.badge || 'Special Offer',
-                headline: promoSec.title || '',
-                description: promoSec.description || '',
-                ctaLabel: promoSec.cta_label || 'Learn More',
-                ctaUrl: promoSec.cta_url || '/plan',
-              }
-            : undefined,
-        };
+        return mergeHomepageContentFromSections(res.results || [], fallbackHeroImage);
       } catch (err) {
         console.warn('[D1] getHomepageContent fallback:', (err as Error).message);
         return {
@@ -344,6 +368,9 @@ export async function getHomepageContent(
  * Returns services from Cloudflare D1.
  */
 export async function getServices(preview = false): Promise<ServiceItem[]> {
+  const snapshot = preview ? null : getSnapshot();
+  if (snapshot) return snapshot.services.slice();
+
   return getCached<ServiceItem[]>(
     `services:${preview}`,
     async () => {
@@ -377,6 +404,9 @@ export async function getServices(preview = false): Promise<ServiceItem[]> {
  * Returns mandap list from Cloudflare D1.
  */
 export async function getMandaps(preview = false): Promise<MandapItem[]> {
+  const snapshot = preview ? null : getSnapshot();
+  if (snapshot) return snapshot.mandaps.slice();
+
   return getCached<MandapItem[]>(
     `mandaps:${preview}`,
     async () => {
@@ -449,6 +479,9 @@ export async function getMandapBySlug(slug: string, preview = false): Promise<Ma
  * Returns stages list from Cloudflare D1.
  */
 export async function getStages(preview = false): Promise<StageItem[]> {
+  const snapshot = preview ? null : getSnapshot();
+  if (snapshot) return snapshot.stages.slice();
+
   return getCached<StageItem[]>(
     `stages:${preview}`,
     async () => {
@@ -510,6 +543,9 @@ export async function getStageBySlug(slug: string, preview = false): Promise<Sta
  * Returns furniture/equipment categories and items from Cloudflare D1.
  */
 export async function getFurnitureCategories(): Promise<FurnitureCategory[]> {
+  const snapshot = getSnapshot();
+  if (snapshot) return snapshot.furnitureCategories.slice();
+
   return getCached<FurnitureCategory[]>('furniture_categories', async () => {
     const d1 = getD1Client();
     const res = await d1.query<any>('SELECT * FROM furniture_categories WHERE is_visible = 1 ORDER BY sort_order ASC');
@@ -525,6 +561,14 @@ export async function getFurnitureCategories(): Promise<FurnitureCategory[]> {
 }
 
 export async function getFurnitureItems(categoryId?: number): Promise<FurnitureItem[]> {
+  const snapshot = getSnapshot();
+  if (snapshot) {
+    const items = categoryId
+      ? snapshot.furnitureItems.filter((item) => item.category_id === categoryId)
+      : snapshot.furnitureItems;
+    return items.slice();
+  }
+
   return getCached<FurnitureItem[]>(`furniture_items:${categoryId ?? 'all'}`, async () => {
     const d1 = getD1Client();
     const sql = categoryId
@@ -555,6 +599,9 @@ export async function getFurnitureItems(categoryId?: number): Promise<FurnitureI
  * Returns catering packages from Cloudflare D1.
  */
 export async function getCateringPackages(): Promise<CateringPackage[]> {
+  const snapshot = getSnapshot();
+  if (snapshot) return snapshot.cateringPackages.slice();
+
   return getCached<CateringPackage[]>('catering_packages', async () => {
     const d1 = getD1Client();
     const res = await d1.query<any>('SELECT * FROM catering_packages WHERE is_visible = 1 ORDER BY sort_order ASC');
@@ -593,6 +640,9 @@ export async function getCateringPackageBySlug(slug: string): Promise<CateringPa
  * Returns gallery categories and items from Cloudflare D1.
  */
 export async function getGalleryCategories(): Promise<GalleryCategory[]> {
+  const snapshot = getSnapshot();
+  if (snapshot) return snapshot.galleryCategories.slice();
+
   return getCached<GalleryCategory[]>('gallery_categories', async () => {
     const d1 = getD1Client();
     const res = await d1.query<any>('SELECT * FROM gallery_categories WHERE is_visible = 1 ORDER BY sort_order ASC');
@@ -607,6 +657,15 @@ export async function getGalleryCategories(): Promise<GalleryCategory[]> {
 }
 
 export async function getGalleryItems(categorySlug?: string): Promise<GalleryItem[]> {
+  const snapshot = getSnapshot();
+  if (snapshot) {
+    const items =
+      categorySlug && categorySlug !== 'all'
+        ? snapshot.galleryItems.filter((item) => item.category_slug === categorySlug)
+        : snapshot.galleryItems;
+    return items.slice();
+  }
+
   return getCached<GalleryItem[]>(`gallery_items:${categorySlug ?? 'all'}`, async () => {
     const d1 = getD1Client();
     let sql = `
@@ -640,6 +699,9 @@ export async function getGalleryItems(categorySlug?: string): Promise<GalleryIte
  * Returns page-level SEO settings from Cloudflare D1.
  */
 export async function getSeoSettings(pageKey: string): Promise<SeoSettings | null> {
+  const snapshot = getSnapshot();
+  if (snapshot) return snapshot.seo.find((row) => row.page_key === pageKey) ?? null;
+
   return getCached<SeoSettings | null>(`seo_settings:${pageKey}`, async () => {
     const d1 = getD1Client();
     const res = await d1.query<any>('SELECT * FROM seo_settings WHERE page_key = ? LIMIT 1', [pageKey]);
@@ -799,23 +861,71 @@ export async function getSeoSettingsRowsCached(): Promise<Array<Record<string, a
   });
 }
 
+function pageContentFallback(pageKey: string): Omit<PageContent, 'id' | 'created_at' | 'updated_at'> {
+  return defaultPageContent[pageKey] || {
+    page_key: pageKey,
+    title: pageKey.charAt(0).toUpperCase() + pageKey.slice(1),
+    subtitle: '',
+    description: '',
+    banner_image_url: '',
+    banner_enabled: true,
+    content_json: {},
+    seo_title: '',
+    seo_description: '',
+    og_image_url: '',
+    published: true,
+  };
+}
+
+/**
+ * Merges a raw page_content row (string or parsed JSON) with its fallback.
+ * Pure, so the snapshot path and the live D1 path produce identical output.
+ */
+export function mergePageContentRow(
+  row: Record<string, any>,
+  fallback: Omit<PageContent, 'id' | 'created_at' | 'updated_at'>,
+): PageContent {
+  let parsedContentJson: Record<string, any> = {};
+  if (typeof row.content_json === 'string') {
+    try {
+      parsedContentJson = JSON.parse(row.content_json || '{}');
+    } catch {}
+  } else if (row.content_json && typeof row.content_json === 'object') {
+    parsedContentJson = row.content_json;
+  }
+
+  return {
+    id: row.id ?? 0,
+    page_key: row.page_key || fallback.page_key,
+    title: row.title || fallback.title,
+    subtitle: row.subtitle || fallback.subtitle,
+    description: row.description || fallback.description,
+    banner_image_url:
+      row.banner_image_url !== undefined && row.banner_image_url !== ''
+        ? row.banner_image_url
+        : fallback.banner_image_url,
+    banner_enabled: Boolean(row.banner_enabled ?? 1),
+    content_json: { ...fallback.content_json, ...parsedContentJson },
+    seo_title: row.seo_title || fallback.seo_title,
+    seo_description: row.seo_description || fallback.seo_description,
+    og_image_url: row.og_image_url || fallback.og_image_url,
+    published: Boolean(row.published ?? 1),
+    created_at: row.created_at || new Date().toISOString(),
+    updated_at: row.updated_at || new Date().toISOString(),
+  };
+}
+
 export async function getPageContent(pageKey: string, preview = false): Promise<PageContent> {
+  const snapshot = preview ? null : getSnapshot();
+  if (snapshot) {
+    const row = snapshot.pages.find((page) => page.page_key === pageKey);
+    return mergePageContentRow(row ?? {}, pageContentFallback(pageKey));
+  }
+
   return getCached<PageContent>(
     `page_content:${pageKey}:${preview}`,
     async () => {
-      const fallback = defaultPageContent[pageKey] || {
-        page_key: pageKey,
-        title: pageKey.charAt(0).toUpperCase() + pageKey.slice(1),
-        subtitle: '',
-        description: '',
-        banner_image_url: '',
-        banner_enabled: true,
-        content_json: {},
-        seo_title: '',
-        seo_description: '',
-        og_image_url: '',
-        published: true,
-      };
+      const fallback = pageContentFallback(pageKey);
 
       try {
         const d1 = getD1Client();
@@ -826,32 +936,7 @@ export async function getPageContent(pageKey: string, preview = false): Promise<
           [pageKey],
         );
         const row = res.results?.[0];
-        if (row) {
-          let parsedContentJson: Record<string, any> = {};
-          try {
-            parsedContentJson = JSON.parse(row.content_json || '{}');
-          } catch {}
-
-          return {
-            id: row.id,
-            page_key: row.page_key,
-            title: row.title || fallback.title,
-            subtitle: row.subtitle || fallback.subtitle,
-            description: row.description || fallback.description,
-            banner_image_url:
-              row.banner_image_url !== undefined && row.banner_image_url !== ''
-                ? row.banner_image_url
-                : fallback.banner_image_url,
-            banner_enabled: Boolean(row.banner_enabled ?? 1),
-            content_json: { ...fallback.content_json, ...parsedContentJson },
-            seo_title: row.seo_title || fallback.seo_title,
-            seo_description: row.seo_description || fallback.seo_description,
-            og_image_url: row.og_image_url || fallback.og_image_url,
-            published: Boolean(row.published ?? 1),
-            created_at: row.created_at || new Date().toISOString(),
-            updated_at: row.updated_at || new Date().toISOString(),
-          };
-        }
+        if (row) return mergePageContentRow(row, fallback);
       } catch (err) {
         console.warn(`[D1] getPageContent(${pageKey}) error, using fallback:`, (err as Error).message);
       }
@@ -1187,6 +1272,15 @@ export async function getVideoPreviews(options?: {
   limit?: number;
 }): Promise<VideoPreviewItem[]> {
   const onlyPublished = options?.onlyPublished !== false;
+  const snapshot = onlyPublished ? getSnapshot() : null;
+  if (snapshot) {
+    let videos = snapshot.videos;
+    if (options?.featuredOnly) videos = videos.filter((video) => video.is_featured);
+    if (options?.platform) videos = videos.filter((video) => video.platform === options.platform);
+    if (options?.limit && options.limit > 0) videos = videos.slice(0, options.limit);
+    return videos.slice();
+  }
+
   const cacheKey = `video_previews:${options?.platform ?? 'all'}:${onlyPublished}:${options?.featuredOnly ?? false}:${options?.limit ?? 'all'}`;
 
   return getCached<VideoPreviewItem[]>(cacheKey, async () => {

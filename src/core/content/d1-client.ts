@@ -38,6 +38,7 @@ export interface D1ClientConfig {
   databaseId?: string;
   apiToken?: string;
   localDbPath?: string;
+  timeoutMs?: number;
 }
 
 export class D1Client {
@@ -46,11 +47,13 @@ export class D1Client {
   private apiToken?: string;
   private localDb: DatabaseSync | null = null;
   private isRemote = false;
+  private timeoutMs: number;
 
   constructor(config?: D1ClientConfig) {
     if (typeof process !== 'undefined' && process.loadEnvFile) {
       try { process.loadEnvFile(); } catch {}
     }
+    this.timeoutMs = config?.timeoutMs && config.timeoutMs > 0 ? config.timeoutMs : 8000;
     this.accountId =
       config?.accountId !== undefined
         ? config.accountId
@@ -167,7 +170,7 @@ export class D1Client {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ sql, params: cleanParams }),
-          signal: AbortSignal.timeout(5000),
+          signal: AbortSignal.timeout(this.timeoutMs),
         });
 
         if (response.status === 429 || (response.status >= 500 && response.status <= 504)) {
@@ -222,7 +225,7 @@ export class D1Client {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ batch: cleaned }),
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(this.timeoutMs),
     });
 
     const data = (await response.json()) as D1ApiResponse<T>;

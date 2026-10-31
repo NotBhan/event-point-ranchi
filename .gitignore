@@ -6,6 +6,7 @@ data/*
 !data/migration-manifest.json
 !data/archive/
 !data/archive/**
+content-snapshot/*.json
 .env
 .DS_Store
 *.log

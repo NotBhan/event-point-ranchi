@@ -4,6 +4,8 @@ import Icon from '../components/Icon.astro';
 import PolicyNav from '../components/PolicyNav.astro';
 import { getSiteSettings } from '../core/content/service';
 
+export const prerender = true;
+
 const settings = await getSiteSettings();
 const brandName = settings.name || 'Event Point Ranchi';
 const legalName = settings.legalName || 'Event Point Ranchi';

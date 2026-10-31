@@ -338,3 +338,23 @@ CREATE INDEX IF NOT EXISTS idx_enquiry_qr_contact ON enquiry_qr_tokens(contact_i
 CREATE INDEX IF NOT EXISTS idx_enquiry_qr_ref ON enquiry_qr_tokens(reference_code);
 CREATE INDEX IF NOT EXISTS idx_enquiry_qr_token_hash ON enquiry_qr_tokens(token_hash);
 
+-- Content publishing jobs (public content snapshot → Vercel deployment)
+CREATE TABLE IF NOT EXISTS content_publications (
+  id                TEXT PRIMARY KEY,
+  requested_by      INTEGER,
+  requested_by_name TEXT NOT NULL DEFAULT '',
+  status            TEXT NOT NULL DEFAULT 'requested',
+  requested_version TEXT NOT NULL DEFAULT '',
+  built_version     TEXT NOT NULL DEFAULT '',
+  published_version TEXT NOT NULL DEFAULT '',
+  deploy_hook_status INTEGER,
+  deployment_id     TEXT NOT NULL DEFAULT '',
+  deployment_url    TEXT NOT NULL DEFAULT '',
+  error             TEXT NOT NULL DEFAULT '',
+  requested_at      TEXT NOT NULL,
+  built_at          TEXT,
+  completed_at      TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_content_publications_status ON content_publications(status);
+

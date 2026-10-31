@@ -1,5 +1,14 @@
 import { requireAdmin, requireEditor } from '../../../core/auth';
-import { getInt, getString, parsePageParams, redirect } from '../../../core/http';
+import { getInt, getString, json, parsePageParams, redirect } from '../../../core/http';
+import { setError, setSuccess } from '../../../core/flash';
+import {
+  createPublication,
+  deployHookConfigured,
+  markDeploying,
+  markFailed,
+  triggerDeployHook,
+  validatePublishReadiness,
+} from '../../../core/operational/publication-service';
 import type { PageContext } from '../../../core/types';
 import {
   saveSiteSettings,
@@ -239,11 +248,70 @@ function contentTabFromRequest(ctx: PageContext) {
   return parseContentStudioTab(null);
 }
 
+const PUBLISH_REDIRECT = '/admin/content?tab=publish';
+
+/**
+ * Validates live D1 content, records the publication in Neon and triggers the
+ * Vercel deploy hook. Publishing is admin-only and never fires for autosaves.
+ */
+async function publishChangesAction(ctx: PageContext): Promise<Response> {
+  const wantsJson = ctx.request.headers.get('accept')?.includes('application/json') ?? false;
+
+  if (!ctx.auth.isAdmin) {
+    return wantsJson
+      ? json({ status: 'error', message: 'Administrator access is required to publish.' }, 403)
+      : redirect('/admin/login');
+  }
+
+  try {
+    if (!deployHookConfigured()) {
+      throw new Error(
+        'Publishing is not configured on this server. Set VERCEL_DEPLOY_HOOK_URL before publishing.',
+      );
+    }
+
+    const manifest = await validatePublishReadiness();
+    const created = await createPublication({
+      requestedBy: ctx.auth.user?.id ?? null,
+      requestedByName: ctx.auth.user?.firstName || ctx.auth.user?.username || 'Administrator',
+      requestedVersion: manifest.contentVersion,
+    });
+
+    if (!created.created || !created.publication) {
+      throw new Error('A publication is already in progress. Wait for it to finish before publishing again.');
+    }
+
+    let hookStatus: number;
+    try {
+      hookStatus = await triggerDeployHook();
+      await markDeploying(created.publication.id, { deployHookStatus: hookStatus });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'The deploy hook could not be triggered.';
+      await markFailed(created.publication.id, message);
+      throw new Error(message);
+    }
+
+    const message = `Publication started for content version ${manifest.contentVersion}. The status updates here once Vercel reports the deployment.`;
+    return wantsJson
+      ? json({ status: 'ok', data: { publicationId: created.publication.id, contentVersion: manifest.contentVersion } })
+      : (setSuccess(ctx.cookies, message), redirect(PUBLISH_REDIRECT));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Publishing failed.';
+    return wantsJson
+      ? json({ status: 'error', message }, 400)
+      : (setError(ctx.cookies, message), redirect(PUBLISH_REDIRECT));
+  }
+}
+
 export async function contentAdmin(ctx: PageContext) {
   const denied = requireEditor(ctx);
   if (denied) return denied;
 
   if (ctx.request.method === 'POST') {
+    if (getString(ctx.form, 'action') === 'publish_changes') {
+      return publishChangesAction(ctx);
+    }
+
     return runFormAction(
       ctx,
       {
@@ -265,6 +333,10 @@ export async function contentAdmin(ctx: PageContext) {
   }
 
   const tab = parseContentStudioTab(ctx.url.searchParams.get('tab'));
-  const content = await loadContentAdmin(tab);
+  if (tab === 'publish' && !ctx.auth.isAdmin) {
+    return redirect('/admin/content?tab=brand');
+  }
+
+  const content = await loadContentAdmin(tab, { origin: ctx.url.origin });
   return { props: content };
 }

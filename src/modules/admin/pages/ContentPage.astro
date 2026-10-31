@@ -41,6 +41,30 @@ interface Props {
   pagesContent?: PageContent[];
   mandaps?: MandapItem[];
   videoPreviews?: VideoPreviewItem[];
+  publications?: Array<{
+    id: string;
+    status: string;
+    requested_by_name: string;
+    requested_version: string;
+    built_version: string;
+    published_version: string;
+    deployment_url: string;
+    error: string;
+    requested_at: string;
+    built_at: string | null;
+    completed_at: string | null;
+  }>;
+  activePublication?: {
+    id: string;
+    status: string;
+    requested_version: string;
+  } | null;
+  liveManifest?: { contentVersion: string | null; generatedAt: string | null } | null;
+  publishConfig?: {
+    deployHookConfigured: boolean;
+    vercelConfigured: boolean;
+    dashboardUrl: string;
+  };
   tab?: string;
 }
 
@@ -50,6 +74,7 @@ const CONTENT_STUDIO_TABS = [
   'videos',
   'seo',
   'features',
+  'publish',
   'page-home',
   'page-mandaps',
   'page-gallery',
@@ -65,6 +90,10 @@ const {
   pagesContent = [],
   mandaps = [],
   videoPreviews = [],
+  publications = [],
+  activePublication = null,
+  liveManifest = null,
+  publishConfig = { deployHookConfigured: false, vercelConfigured: false, dashboardUrl: 'https://vercel.com/dashboard' },
 } = Astro.props;
 
 const activeTab = (CONTENT_STUDIO_TABS as readonly string[]).includes(Astro.props.tab ?? '')
@@ -74,6 +103,34 @@ const tabHref = (target: string) => `/admin/content?tab=${encodeURIComponent(tar
 const tabClass = (target: string) => (target === activeTab ? 'studio-tab-btn active' : 'studio-tab-btn');
 
 const csrf = Astro.locals.csrf;
+const isAdmin = Boolean(Astro.locals.auth?.isAdmin);
+
+const formatStamp = (value: string | null | undefined) => {
+  if (!value) return '—';
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime())
+    ? value
+    : parsed.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+};
+
+const publicationStatusLabel: Record<string, string> = {
+  requested: 'Requested',
+  deploying: 'Deploying',
+  built: 'Build complete',
+  published: 'Published',
+  failed: 'Failed',
+};
+
+const publicationStatusClass = (status: string) =>
+  status === 'published'
+    ? 'badge-success'
+    : status === 'failed'
+      ? 'badge-danger'
+      : status === 'built'
+        ? 'badge-gold'
+        : 'badge-muted';
+
+const publishBlocked = !publishConfig.deployHookConfigured || Boolean(activePublication);
 
 const corePages = [
   { key: 'home', label: 'Home Page', icon: 'home', desc: 'Main landing page hero and branding' },
@@ -125,6 +182,13 @@ const pageContentMap = new Map(pagesContent.map((p) => [p.page_key, p]));
           <Icon name="sparkles" size={15} />
           <span>Feature Tiles</span>
         </a>
+        {isAdmin && (
+          <a class={tabClass('publish')} href={tabHref('publish')} role="tab" aria-selected={activeTab === 'publish'}>
+            <Icon name="upload" size={15} />
+            <span>Publish Changes</span>
+            {activePublication && <span class="tab-badge">1</span>}
+          </a>
+        )}
       </div>
     </div>
 
@@ -769,6 +833,136 @@ const pageContentMap = new Map(pagesContent.map((p) => [p.page_key, p]));
       </div>
     </div>
     )}
+
+    <!-- ==================== TAB: PUBLISH CHANGES ==================== -->
+    {activeTab === 'publish' && isAdmin && (
+    <div
+      id="tab-publish"
+      class="studio-panel active"
+      role="tabpanel"
+      data-publish-poll
+      data-active-id={activePublication?.id ?? ''}
+      data-active-status={activePublication?.status ?? ''}
+    >
+      <div class="admin-panel">
+        <div class="admin-panel-head">
+          <div>
+            <h2>Publish Changes</h2>
+            <p>Snapshots the current Cloudflare D1 content, rebuilds the static pages on Vercel and confirms the deployment before it is treated as live.</p>
+          </div>
+          <form method="POST" action="/admin/content">
+            <input type="hidden" name="_csrf" value={csrf} />
+            <input type="hidden" name="action" value="publish_changes" />
+            <button
+              type="submit"
+              class="btn btn-primary btn-sm"
+              disabled={publishBlocked}
+              data-confirm="Publish the current content to the live site?"
+            >
+              {activePublication ? 'Publication in progress…' : 'Publish changes'}
+            </button>
+          </form>
+        </div>
+        <div class="admin-panel-body">
+          {!publishConfig.deployHookConfigured && (
+            <div class="publish-notice warn">
+              <Icon name="alert" size={15} />
+              <span><strong>Publishing is not configured.</strong> Set <code>VERCEL_DEPLOY_HOOK_URL</code> on the server to enable this button.</span>
+            </div>
+          )}
+          {publishConfig.deployHookConfigured && !publishConfig.vercelConfigured && (
+            <div class="publish-notice info">
+              <Icon name="info" size={15} />
+              <span>
+                Deployment confirmation needs <code>VERCEL_API_TOKEN</code> and <code>VERCEL_PROJECT_ID</code>.
+                Until then a finished build is shown as “Build complete”, never as published.
+              </span>
+            </div>
+          )}
+
+          <div class="admin-grid-2">
+            <div class="publish-stat">
+              <span class="text-xs text-muted">Currently live version</span>
+              <strong>{liveManifest?.contentVersion ?? 'Unknown'}</strong>
+              <span class="text-xs text-muted">
+                {liveManifest?.generatedAt ? `Snapshot built ${formatStamp(liveManifest.generatedAt)}` : 'Read from the live /content-manifest.json'}
+              </span>
+            </div>
+            <div class="publish-stat">
+              <span class="text-xs text-muted">Publication in progress</span>
+              {activePublication ? (
+                <>
+                  <strong>{publicationStatusLabel[activePublication.status] ?? activePublication.status}</strong>
+                  <span class="text-xs text-muted">Requested version {activePublication.requested_version || '—'}</span>
+                </>
+              ) : (
+                <>
+                  <strong>None</strong>
+                  <span class="text-xs text-muted">The last published version stays live until a new build is confirmed.</span>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-panel">
+        <div class="admin-panel-head">
+          <div>
+            <h2>Publication history ({publications.length})</h2>
+            <p>Publishing jobs recorded in Neon, newest first.</p>
+          </div>
+        </div>
+        <div class="admin-panel-body">
+          {publications.length === 0 ? (
+            <p class="text-sm text-muted">No publications yet.</p>
+          ) : (
+            <div class="publish-history">
+              {publications.map((pub) => (
+                <div class="publish-row">
+                  <div class="publish-row-main">
+                    <span class={`badge ${publicationStatusClass(pub.status)}`}>
+                      {publicationStatusLabel[pub.status] ?? pub.status}
+                    </span>
+                    <span class="text-xs text-muted">{pub.requested_by_name || 'Administrator'}</span>
+                    <span class="text-xs text-muted">requested v{pub.requested_version || '—'}</span>
+                    {pub.built_version && <span class="text-xs text-muted">built v{pub.built_version}</span>}
+                    {pub.published_version && <span class="text-xs text-muted">live v{pub.published_version}</span>}
+                  </div>
+                  <div class="publish-row-meta">
+                    <span class="text-xs text-muted">Requested {formatStamp(pub.requested_at)}</span>
+                    {pub.completed_at && <span class="text-xs text-muted">Finished {formatStamp(pub.completed_at)}</span>}
+                    {pub.deployment_url && (
+                      <a
+                        class="text-xs"
+                        href={`https://${pub.deployment_url.replace(/^https?:\/\//, '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Deployment
+                      </a>
+                    )}
+                  </div>
+                  {pub.error && <div class="publish-error text-xs">{pub.error}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div class="admin-panel">
+        <div class="admin-panel-body" style="display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;">
+          <span class="text-xs text-muted">
+            To roll back, promote a previous deployment in the Vercel dashboard — the live version above then reflects the promoted build.
+          </span>
+          <a class="btn btn-secondary btn-sm" href={publishConfig.dashboardUrl} target="_blank" rel="noopener noreferrer">
+            <Icon name="external" size={13} /> Open Vercel deployments
+          </a>
+        </div>
+      </div>
+    </div>
+    )}
   </div>
 </AdminLayout>
 
@@ -847,6 +1041,69 @@ const pageContentMap = new Map(pagesContent.map((p) => [p.page_key, p]));
     display: grid;
     gap: 16px;
   }
+  .publish-notice {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 12px 14px;
+    border-radius: var(--r-sm);
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+  .publish-notice.warn {
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+    color: #92400e;
+  }
+  .publish-notice.info {
+    background: rgba(59, 130, 246, 0.08);
+    border: 1px solid rgba(59, 130, 246, 0.35);
+    color: var(--text-soft);
+  }
+  .publish-notice code {
+    background: rgba(0, 0, 0, 0.06);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+  .publish-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+  }
+  .publish-stat strong {
+    font-size: 18px;
+    letter-spacing: 0.02em;
+  }
+  .publish-history {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .publish-row {
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .publish-row-main,
+  .publish-row-meta {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .publish-row-meta {
+    gap: 14px;
+  }
+  .publish-error {
+    color: var(--danger, #b42318);
+  }
 </style>
 
 <script>
@@ -908,6 +1165,51 @@ const pageContentMap = new Map(pagesContent.map((p) => [p.page_key, p]));
     lonInput?.addEventListener('input', updateMapPreview);
   }
 
+  // While a publication is in flight, poll the status endpoint and reload the
+  // server-rendered panel as soon as the status changes. Stops on its own once
+  // there is nothing active to watch.
+  let publishPollTimer = 0;
+
+  function setupPublishPoll() {
+    const root = document.querySelector<HTMLElement>('[data-publish-poll]');
+    window.clearInterval(publishPollTimer);
+    if (!root) return;
+
+    const activeId = root.getAttribute('data-active-id') || '';
+    const activeStatus = root.getAttribute('data-active-status') || '';
+
+    const poll = async () => {
+      try {
+        const response = await fetch('/api/admin/publish/status', {
+          headers: { accept: 'application/json' },
+        });
+        if (!response.ok) return;
+        const data = (await response.json()) as {
+          publications?: Array<{ id: string; status: string }>;
+        };
+        const publications = data.publications ?? [];
+        const active = publications.find((entry) => entry.status === 'requested' || entry.status === 'deploying' || entry.status === 'built');
+
+        if (!activeId) {
+          if (active) window.location.reload();
+          return;
+        }
+
+        const current = publications.find((entry) => entry.id === activeId);
+        if (!current || current.status !== activeStatus) {
+          window.location.reload();
+        }
+      } catch {
+        /* transient network errors are ignored */
+      }
+    };
+
+    publishPollTimer = window.setInterval(poll, 8000);
+    window.addEventListener('astro:before-swap', () => window.clearInterval(publishPollTimer), { once: true });
+  }
+
   setupStudioTabs();
+  setupPublishPoll();
   document.addEventListener('astro:page-load', setupStudioTabs);
+  document.addEventListener('astro:page-load', setupPublishPoll);
 </script>

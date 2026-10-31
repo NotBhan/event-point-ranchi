@@ -250,3 +250,54 @@ Copy `.env.example` to `.env`:
 | `DATA_DIR` | SQLite + uploads directory (default `./data`) |
 | `DISABLED_MODULES` | Comma-separated module ids to switch off, e.g. `gallery,about` |
 | `COOKIE_SECURE` | `true` to mark session cookies `Secure` (HTTPS deployments) |
+
+## Content snapshots & publishing
+
+Public pages never query Cloudflare D1 at request time. Instead, the production build
+fetches every published public row in **one batched D1 request**, validates it, and writes
+a snapshot that is inlined into the server bundle:
+
+```
+npm run build:vercel
+  → npm run sync:content    # content-snapshot/public-content.json + manifest.json
+  → astro build             # prerenders detail/legal pages from the snapshot
+  → npm run report:publish  # tells the running deployment which version was built
+```
+
+- `src/core/content/snapshot-builder.ts` builds and validates the snapshot (published/visible
+  rows only, explicit field allowlists — no customer, booking or payment data can leak).
+- `src/core/content/snapshot.ts` serves it to the content service; `preview: true` reads
+  (admin CMS, editor preview) always go live to D1.
+- `astro dev` keeps reading live D1 so CMS edits appear immediately;
+  `CONTENT_SOURCE=snapshot` forces snapshot mode locally.
+- Failing D1 or validation fails the build **before** anything is written, so the previously
+  deployed site keeps serving.
+
+Prerendered routes: `/mandaps/:slug`, `/stages/:slug`, `/about`, `/policies`, the legal pages
+and `/content-manifest.json`. Listing pages with filters (`/mandaps`, `/stages`, `/equipment`,
+`/gallery`), `/`, `/catering`, `/contact` and all account/admin/API routes stay server-rendered,
+reading the snapshot where they used to call D1. A new mandap or stage slug needs a publish
+before its prerendered page exists.
+
+### Publishing changes
+
+Content Studio → **Publish Changes** (administrators only):
+
+1. Live D1 content is validated with the exact rules the build uses.
+2. A `content_publications` row is inserted in Neon (a single conditional INSERT prevents
+   two concurrent publications).
+3. The server POSTs the Deploy Hook; Vercel runs `npm run build:vercel`.
+4. After a successful build the post-build step reports the built content version back.
+5. The CMS polls `/api/admin/publish/status` and only shows **Published** once Vercel reports
+   the deployment as `READY` (requires `VERCEL_API_TOKEN` + `VERCEL_PROJECT_ID`). Without
+   those credentials a finished build is shown as “Build complete”, never as published.
+
+A failed build never replaces the live deployment — Vercel keeps the previous one serving.
+To roll back, promote a previous deployment in the Vercel dashboard; the live content version
+above updates to match.
+
+Server-only variables (never `PUBLIC_`-prefixed): `VERCEL_DEPLOY_HOOK_URL`, `VERCEL_API_TOKEN`,
+`VERCEL_PROJECT_ID`, `VERCEL_TEAM_ID`, `VERCEL_DASHBOARD_URL`, `PUBLISH_REPORT_URL`,
+`PUBLISH_REPORT_SECRET`. See `.env.example`. Create the Neon table with
+`npm run db:migrate:publications` (it is also created automatically on first publish).
+

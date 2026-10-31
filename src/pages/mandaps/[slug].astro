@@ -1,0 +1,15 @@
+---
+import MandapDetailPage from '../../modules/mandaps/pages/MandapDetailPage.astro';
+import { loadMandapDetail } from '../../modules/mandaps/service';
+import { mandapStaticPaths } from '../../core/content/static-paths';
+
+export const prerender = true;
+
+export async function getStaticPaths() {
+  return mandapStaticPaths();
+}
+
+const data = await loadMandapDetail(Astro.params.slug ?? '');
+---
+
+<MandapDetailPage data={data ?? undefined} notFound={!data} />

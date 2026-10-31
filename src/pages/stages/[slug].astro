@@ -1,0 +1,15 @@
+---
+import StageDetailPage from '../../modules/stages/pages/StageDetailPage.astro';
+import { loadStageDetail } from '../../modules/stages/service';
+import { stageStaticPaths } from '../../core/content/static-paths';
+
+export const prerender = true;
+
+export async function getStaticPaths() {
+  return stageStaticPaths();
+}
+
+const data = await loadStageDetail(Astro.params.slug ?? '');
+---
+
+<StageDetailPage data={data ?? undefined} notFound={!data} />

@@ -10,14 +10,17 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro check && astro build",
-    "build:vercel": "BUILD_TARGET=vercel npm run build",
+    "build:vercel": "BUILD_TARGET=vercel npm run sync:content && BUILD_TARGET=vercel npm run build && npm run report:publish",
+    "sync:content": "node --import tsx scripts/sync-content.ts",
+    "report:publish": "node --import tsx scripts/report-publish.ts",
     "preview": "node ./dist/server/entry.mjs",
     "start": "node ./dist/server/entry.mjs",
     "check": "astro check",
     "test": "node --import tsx --test 'tests/**/*.test.ts'",
     "perf:baseline": "node --import tsx scripts/perf-baseline.ts",
     "db:reset": "node scripts/reset-db.mjs",
-    "db:audit": "node --import tsx scripts/db-audit.ts"
+    "db:audit": "node --import tsx scripts/db-audit.ts",
+    "db:migrate:publications": "node --import tsx scripts/migrate-publications-neon.ts"
   },
   "dependencies": {
     "@astrojs/node": "^11.1.9",

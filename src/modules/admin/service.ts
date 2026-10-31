@@ -13,6 +13,14 @@ import {
 import { getStorageUsage, saveUploadedImage, UploadError } from '../../core/uploads';
 import { getD1Client } from '../../core/content/d1-client';
 import {
+  dashboardUrl,
+  deployHookConfigured,
+  fetchLiveManifest,
+  getActivePublication,
+  listPublications,
+  vercelConfig,
+} from '../../core/operational/publication-service';
+import {
   invalidateContentCache,
   getPageContent,
   getMandaps,
@@ -1008,6 +1016,7 @@ export const CONTENT_STUDIO_TABS = [
   'videos',
   'seo',
   'features',
+  'publish',
   'page-home',
   'page-mandaps',
   'page-gallery',
@@ -1028,7 +1037,10 @@ export function parseContentStudioTab(raw: string | null | undefined): ContentSt
  * everything (~11 sequential D1 round trips) and rendered every panel; the
  * active tab is now the only thing fetched and rendered server-side.
  */
-export async function loadContentAdmin(tab: ContentStudioTab = 'brand') {
+export async function loadContentAdmin(
+  tab: ContentStudioTab = 'brand',
+  options: { origin?: string } = {},
+) {
   if (tab === 'brand') {
     let siteSettings: any = null;
     try {
@@ -1064,6 +1076,25 @@ export async function loadContentAdmin(tab: ContentStudioTab = 'brand') {
       'SELECT id, icon, title, description FROM homepage_features ORDER BY sort, id',
     );
     return { tab, features };
+  }
+
+  if (tab === 'publish') {
+    const [publications, activePublication, liveManifest] = await Promise.all([
+      listPublications(8),
+      getActivePublication(),
+      options.origin ? fetchLiveManifest(options.origin) : Promise.resolve(null),
+    ]);
+    return {
+      tab,
+      publications,
+      activePublication,
+      liveManifest,
+      publishConfig: {
+        deployHookConfigured: deployHookConfigured(),
+        vercelConfigured: vercelConfig().configured,
+        dashboardUrl: dashboardUrl(),
+      },
+    };
   }
 
   const pageKey = tab.slice('page-'.length);

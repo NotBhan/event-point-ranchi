@@ -48,6 +48,10 @@ function cachedPageResponse(entry: PageCacheEntry): Response {
 
 const STATIC_ASSET_PREFIXES = ['/storage/', '/uploads/', '/_astro/', '/images/'];
 
+// Server-to-server endpoints authenticate with their own secret header instead
+// of the browser CSRF token.
+const CSRF_EXEMPT_PREFIXES = ['/api/internal/'];
+
 function isStaticAssetRequest(pathname: string, method: string): boolean {
   if (method !== 'GET' && method !== 'HEAD') return false;
   if (pathname === '/favicon.ico' || pathname.startsWith('/favicon')) return true;
@@ -63,6 +67,12 @@ export const onRequest = defineMiddleware(async (context, next) => {
     return next();
   }
 
+  // Prerendered pages render at build time, where cookies, sessions and CSRF
+  // do not exist. Building them must not try to mutate a response cookie.
+  if (context.isPrerendered) {
+    return next();
+  }
+
   return runWithPerf(async () => {
     const csrf = ensureCsrf(context.cookies);
     context.locals.csrf = csrf;
@@ -71,7 +81,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
     const isMutation = !['GET', 'HEAD', 'OPTIONS'].includes(method);
 
-    if (isMutation) {
+    if (isMutation && !CSRF_EXEMPT_PREFIXES.some((prefix) => context.url.pathname.startsWith(prefix))) {
       const submitted = await submittedCsrfToken(context.request);
       if (!csrfMatches(submitted, csrf)) {
         return new Response('Invalid or missing CSRF token. Refresh the page and try again.', {
