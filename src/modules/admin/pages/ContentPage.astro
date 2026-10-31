@@ -41,7 +41,22 @@ interface Props {
   pagesContent?: PageContent[];
   mandaps?: MandapItem[];
   videoPreviews?: VideoPreviewItem[];
+  tab?: string;
 }
+
+const CONTENT_STUDIO_TABS = [
+  'brand',
+  'locations',
+  'videos',
+  'seo',
+  'features',
+  'page-home',
+  'page-mandaps',
+  'page-gallery',
+  'page-catering',
+  'page-stages',
+  'page-equipment',
+] as const;
 
 const {
   features = [],
@@ -51,6 +66,12 @@ const {
   mandaps = [],
   videoPreviews = [],
 } = Astro.props;
+
+const activeTab = (CONTENT_STUDIO_TABS as readonly string[]).includes(Astro.props.tab ?? '')
+  ? (Astro.props.tab as string)
+  : 'brand';
+const tabHref = (target: string) => `/admin/content?tab=${encodeURIComponent(target)}`;
+const tabClass = (target: string) => (target === activeTab ? 'studio-tab-btn active' : 'studio-tab-btn');
 
 const csrf = Astro.locals.csrf;
 
@@ -73,41 +94,42 @@ const pageContentMap = new Map(pagesContent.map((p) => [p.page_key, p]));
       <span><Icon name="alert" size={16} /> You have unsaved changes in this form.</span>
     </div>
 
-    <!-- Tab Bar -->
+    <!-- Tab Bar (server-rendered per tab: only the active section is fetched and rendered) -->
     <div class="studio-tab-bar" role="tablist" aria-label="Content Studio Sections">
       <div class="studio-tabs">
-        <button type="button" class="studio-tab-btn active" data-tab-target="brand" role="tab" aria-selected="true">
+        <a class={tabClass('brand')} href={tabHref('brand')} role="tab" aria-selected={activeTab === 'brand'}>
           <Icon name="building" size={15} />
           <span>Brand &amp; Contact</span>
-        </button>
-        <button type="button" class="studio-tab-btn" data-tab-target="locations" role="tab" aria-selected="false">
+        </a>
+        <a class={tabClass('locations')} href={tabHref('locations')} role="tab" aria-selected={activeTab === 'locations'}>
           <Icon name="pin" size={15} />
           <span>Mandap Map Locations</span>
-          <span class="tab-badge">{mandaps.length}</span>
-        </button>
+          {mandaps.length > 0 && <span class="tab-badge">{mandaps.length}</span>}
+        </a>
         {corePages.map((page) => (
-          <button type="button" class="studio-tab-btn" data-tab-target={`page-${page.key}`} role="tab" aria-selected="false">
+          <a class={tabClass(`page-${page.key}`)} href={tabHref(`page-${page.key}`)} role="tab" aria-selected={activeTab === `page-${page.key}`}>
             <Icon name={page.icon} size={15} />
             <span>{page.label}</span>
-          </button>
+          </a>
         ))}
-        <button type="button" class="studio-tab-btn" data-tab-target="videos" role="tab" aria-selected="false">
+        <a class={tabClass('videos')} href={tabHref('videos')} role="tab" aria-selected={activeTab === 'videos'}>
           <Icon name="play" size={15} />
           <span>Videos &amp; Reels</span>
-          <span class="tab-badge">{videoPreviews.length}</span>
-        </button>
-        <button type="button" class="studio-tab-btn" data-tab-target="seo" role="tab" aria-selected="false">
+          {videoPreviews.length > 0 && <span class="tab-badge">{videoPreviews.length}</span>}
+        </a>
+        <a class={tabClass('seo')} href={tabHref('seo')} role="tab" aria-selected={activeTab === 'seo'}>
           <Icon name="search" size={15} />
           <span>SEO Metadata</span>
-        </button>
-        <button type="button" class="studio-tab-btn" data-tab-target="features" role="tab" aria-selected="false">
+        </a>
+        <a class={tabClass('features')} href={tabHref('features')} role="tab" aria-selected={activeTab === 'features'}>
           <Icon name="sparkles" size={15} />
           <span>Feature Tiles</span>
-        </button>
+        </a>
       </div>
     </div>
 
     <!-- ==================== TAB 1: BRAND & CONTACT ==================== -->
+    {activeTab === 'brand' && (
     <div id="tab-brand" class="studio-panel active" role="tabpanel">
       <form method="POST" action="/admin/content" class="admin-panel" data-track-changes>
         <input type="hidden" name="_csrf" value={csrf} />
@@ -241,9 +263,11 @@ const pageContentMap = new Map(pagesContent.map((p) => [p.page_key, p]));
         </div>
       </form>
     </div>
+    )}
 
     <!-- ==================== TAB 2: MANDAP MAP LOCATIONS ==================== -->
-    <div id="tab-locations" class="studio-panel" role="tabpanel" style="display:none;">
+    {activeTab === 'locations' && (
+    <div id="tab-locations" class="studio-panel active" role="tabpanel">
       <div class="admin-panel">
         <div class="admin-panel-head">
           <div>
@@ -336,15 +360,17 @@ const pageContentMap = new Map(pagesContent.map((p) => [p.page_key, p]));
         </div>
       </div>
     </div>
+    )}
 
     <!-- ==================== TABS 3–8: DYNAMIC PAGE CONTENT ==================== -->
     {corePages.map((page) => {
+      if (activeTab !== `page-${page.key}`) return null;
       const pc = pageContentMap.get(page.key);
       const json = pc?.content_json || {};
       const pageUrl = page.key === 'home' ? '/' : `/${page.key}`;
 
       return (
-        <div id={`tab-page-${page.key}`} class="studio-panel" role="tabpanel" style="display:none;">
+        <div id={`tab-page-${page.key}`} class="studio-panel active" role="tabpanel">
           <form method="POST" action="/admin/content" class="admin-panel" enctype="multipart/form-data" data-track-changes>
             <input type="hidden" name="_csrf" value={csrf} />
             <input type="hidden" name="action" value="save_page_content" />
@@ -485,7 +511,8 @@ const pageContentMap = new Map(pagesContent.map((p) => [p.page_key, p]));
     })}
 
     <!-- ==================== TAB 9: SEO METADATA ==================== -->
-    <div id="tab-seo" class="studio-panel" role="tabpanel" style="display:none;">
+    {activeTab === 'seo' && (
+    <div id="tab-seo" class="studio-panel active" role="tabpanel">
       <div class="admin-panel">
         <div class="admin-panel-head">
           <div>
@@ -528,9 +555,11 @@ const pageContentMap = new Map(pagesContent.map((p) => [p.page_key, p]));
         </div>
       </div>
     </div>
+    )}
 
     <!-- ==================== TAB 10: HOMEPAGE FEATURE TILES ==================== -->
-    <div id="tab-features" class="studio-panel" role="tabpanel" style="display:none;">
+    {activeTab === 'features' && (
+    <div id="tab-features" class="studio-panel active" role="tabpanel">
       <div class="admin-panel">
         <div class="admin-panel-head">
           <div>
@@ -583,9 +612,11 @@ const pageContentMap = new Map(pagesContent.map((p) => [p.page_key, p]));
         </div>
       </div>
     </div>
+    )}
 
     <!-- ==================== TAB: VIDEOS & REELS ==================== -->
-    <div id="tab-videos" class="studio-panel" role="tabpanel" style="display:none;">
+    {activeTab === 'videos' && (
+    <div id="tab-videos" class="studio-panel active" role="tabpanel">
       <!-- Add New Video Preview Form -->
       <form method="POST" action="/admin/content" enctype="multipart/form-data" class="admin-panel" style="margin-bottom: 24px;" data-track-changes>
         <input type="hidden" name="_csrf" value={csrf} />
@@ -737,6 +768,7 @@ const pageContentMap = new Map(pagesContent.map((p) => [p.page_key, p]));
         </div>
       </div>
     </div>
+    )}
   </div>
 </AdminLayout>
 
@@ -818,43 +850,20 @@ const pageContentMap = new Map(pagesContent.map((p) => [p.page_key, p]));
 </style>
 
 <script>
+  // Server-side tabs: the active panel is already rendered; this only tracks
+  // unsaved changes, keeps the map preview in sync, and upgrades legacy
+  // #tab-<name> hash links to the new ?tab=<name> URLs.
+  let studioInitialised = false;
+
   function setupStudioTabs() {
-    const tabBtns = document.querySelectorAll<HTMLButtonElement>('.studio-tab-btn');
-    const panels = document.querySelectorAll<HTMLElement>('.studio-panel');
     const unsavedBanner = document.getElementById('unsavedChangesBanner');
     let isFormDirty = false;
 
-    function switchTab(targetId: string, pushHash: boolean = true) {
-      tabBtns.forEach((btn) => {
-        const isMatch = btn.dataset.tabTarget === targetId;
-        btn.classList.toggle('active', isMatch);
-        btn.setAttribute('aria-selected', isMatch ? 'true' : 'false');
-      });
-
-      panels.forEach((p) => {
-        if (p.id === `tab-${targetId}`) {
-          p.style.display = 'block';
-        } else {
-          p.style.display = 'none';
-        }
-      });
-
-      if (pushHash && history.replaceState) {
-        history.replaceState(null, '', `#${targetId}`);
-      }
-    }
-
-    tabBtns.forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const target = btn.dataset.tabTarget;
-        if (target) switchTab(target);
-      });
-    });
-
-    // Handle initial hash in URL
+    // Legacy hash links (#tab-videos) redirect to the server-rendered tab URL.
     const hash = window.location.hash.replace(/^#/, '');
-    if (hash && document.getElementById(`tab-${hash}`)) {
-      switchTab(hash, false);
+    if (hash && !window.location.search.includes('tab=')) {
+      window.location.replace(`/admin/content?tab=${encodeURIComponent(hash)}`);
+      return;
     }
 
     // Track unsaved changes
@@ -874,11 +883,14 @@ const pageContentMap = new Map(pagesContent.map((p) => [p.page_key, p]));
       });
     });
 
-    window.addEventListener('beforeunload', (e) => {
-      if (isFormDirty) {
-        e.preventDefault();
-      }
-    });
+    if (!studioInitialised) {
+      studioInitialised = true;
+      window.addEventListener('beforeunload', (e) => {
+        if (isFormDirty) {
+          e.preventDefault();
+        }
+      });
+    }
 
     // Dynamic map preview updater for Brand Lat/Lon
     const latInput = document.getElementById('brand_lat') as HTMLInputElement | null;

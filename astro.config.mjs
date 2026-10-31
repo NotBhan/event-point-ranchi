@@ -3,20 +3,27 @@ import vercel from '@astrojs/vercel';
 import { defineConfig } from 'astro/config';
 
 const useVercel = Boolean(process.env.VERCEL || process.env.BUILD_TARGET === 'vercel');
+// `astro dev` may inherit NODE_ENV=production from the shell, so detect the
+// command explicitly instead of relying on NODE_ENV.
+const isDevCommand = process.argv.includes('dev') && !process.argv.includes('build');
 
 export default defineConfig({
   output: 'server',
   adapter: useVercel ? vercel() : node({ mode: 'standalone' }),
   server: { port: 4321, host: true },
-  prefetch: {
-    prefetchAll: true,
-    defaultStrategy: 'hover',
-  },
+  // Hover prefetching multiplies SSR renders on every link hover; useful in
+  // production, noise in dev (each hover re-renders the page server-side).
+  prefetch: isDevCommand ? false : { prefetchAll: true, defaultStrategy: 'hover' },
   devToolbar: { enabled: false },
   security: {
     checkOrigin: false,
   },
   vite: {
+    optimizeDeps: {
+      // jsQR is imported on demand by the admin scanner; pre-bundling keeps the
+      // first scan instant in dev.
+      include: ['jsqr'],
+    },
     server: {
       fs: { allow: ['..'] },
       cors: true,

@@ -1,0 +1,36 @@
+---
+interface Props {
+  page: number;
+  totalPages: number;
+  totalCount: number;
+  startItem: number;
+  endItem: number;
+  label?: string;
+  href: (page: number) => string;
+}
+
+const { page, totalPages, totalCount, startItem, endItem, label = 'records', href } = Astro.props;
+---
+
+{totalCount > 0 && (
+  <div class="flex-between wrap gap-3" style="margin-top:20px;padding-top:14px;border-top:1px solid var(--line);">
+    <div class="text-sm text-muted">
+      Showing {startItem}–{endItem} of {totalCount} {label}
+    </div>
+    {totalPages > 1 && (
+      <div style="display:flex;gap:6px;align-items:center;">
+        {page > 1 ? (
+          <a class="btn btn-secondary btn-sm" href={href(page - 1)}>← Previous</a>
+        ) : (
+          <span class="btn btn-secondary btn-sm" style="opacity:0.5;pointer-events:none;">← Previous</span>
+        )}
+        <span class="text-xs text-muted" style="padding:0 8px;">Page {page} of {totalPages}</span>
+        {page < totalPages ? (
+          <a class="btn btn-secondary btn-sm" href={href(page + 1)}>Next →</a>
+        ) : (
+          <span class="btn btn-secondary btn-sm" style="opacity:0.5;pointer-events:none;">Next →</span>
+        )}
+      </div>
+    )}
+  </div>
+)}

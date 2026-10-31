@@ -391,7 +391,7 @@ export async function auditExistingImages(): Promise<ImageAuditItem[]> {
   }
 
   // 3. Add unreferenced archive asset
-  const alevPath = join(cwd, 'public/images/archive/alev-takil-lw3Lqe2K7xc-unsplash.jpg');
+  const alevPath = join(cwd, 'data/archive/alev-takil-lw3Lqe2K7xc-unsplash.jpg');
   if (existsSync(alevPath)) {
     const buf = readFileSync(alevPath);
     const sha256 = createHash('sha256').update(buf).digest('hex');

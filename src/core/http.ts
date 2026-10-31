@@ -62,18 +62,22 @@ export function formatMoney(paise: number | string | null | undefined): string {
   })}`;
 }
 
-export function formatDate(value: string | null | undefined): string {
+export function formatDate(value: string | Date | null | undefined): string {
   if (!value) return 'To be announced';
-  const date = new Date(value.length <= 10 ? `${value}T00:00:00` : value);
-  if (Number.isNaN(date.getTime())) return value;
+  const date =
+    value instanceof Date
+      ? value
+      : new Date(value.length <= 10 ? `${value}T00:00:00` : value);
+  if (Number.isNaN(date.getTime())) return value instanceof Date ? '—' : value;
   return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-export function formatDateTime(value: string | null | undefined): string {
+export function formatDateTime(value: string | Date | null | undefined): string {
   if (!value) return '—';
-  const normalized = value.includes('T') ? value : `${value.replace(' ', 'T')}Z`;
-  const date = new Date(normalized);
-  if (Number.isNaN(date.getTime())) return value;
+  const date = value instanceof Date
+    ? value
+    : new Date(value.includes('T') ? value : `${value.replace(' ', 'T')}Z`);
+  if (Number.isNaN(date.getTime())) return value instanceof Date ? '—' : value;
   return date.toLocaleString('en-IN', {
     day: '2-digit',
     month: 'short',
@@ -100,6 +104,55 @@ export function escapeHtml(value: unknown): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+export interface PaginationState {
+  page: number;
+  perPage: number;
+  totalCount: number;
+  totalPages: number;
+  startItem: number;
+  endItem: number;
+  offset: number;
+}
+
+export function parsePageParams(
+  source: URL | URLSearchParams,
+  options: { defaultPerPage?: number; maxPerPage?: number } = {},
+): { page: number; perPage: number; offset: number } {
+  const searchParams = source instanceof URL ? source.searchParams : source;
+  const defaultPerPage = options.defaultPerPage ?? 25;
+  const maxPerPage = options.maxPerPage ?? 100;
+
+  const rawPerPage = Number(searchParams.get('per') ?? '');
+  const perPage = Number.isFinite(rawPerPage) && rawPerPage > 0
+    ? Math.min(Math.floor(rawPerPage), maxPerPage)
+    : defaultPerPage;
+
+  const rawPage = Number(searchParams.get('page') ?? '');
+  const page = Number.isFinite(rawPage) && rawPage > 0 ? Math.floor(rawPage) : 1;
+
+  return { page, perPage, offset: (page - 1) * perPage };
+}
+
+export function buildPagination(
+  page: number,
+  perPage: number,
+  totalCount: number,
+  itemCount: number,
+): PaginationState {
+  const totalPages = Math.max(1, Math.ceil(totalCount / perPage));
+  const currentPage = Math.min(Math.max(1, page), totalPages);
+  const offset = (currentPage - 1) * perPage;
+  return {
+    page: currentPage,
+    perPage,
+    totalCount,
+    totalPages,
+    offset,
+    startItem: totalCount === 0 ? 0 : offset + 1,
+    endItem: Math.min(offset + itemCount, totalCount),
+  };
 }
 
 export function imageUrl(path: string | null | undefined, fallback = '/images/placeholder.jpg'): string {

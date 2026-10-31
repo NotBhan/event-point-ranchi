@@ -2,7 +2,8 @@
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import Icon from '../../../components/Icon.astro';
 import NotFound from '../../../components/NotFound.astro';
-import { formatMoney, imageUrl } from '../../../core/http';
+import { formatMoney } from '../../../core/http';
+import { heroImage } from '../../../core/media';
 import type { PackageDetail } from '../service';
 import '../catering.css';
 
@@ -12,6 +13,7 @@ interface Props {
 }
 
 const { data, notFound = false } = Astro.props;
+const packageImage = heroImage(data?.package?.image);
 ---
 
 {notFound || !data ? (
@@ -25,7 +27,7 @@ const { data, notFound = false } = Astro.props;
       data-price={data.package.price_paise}
     >
       <section class:list={['page-hero', { 'with-image': Boolean(data.package.image) }]}>
-        {data.package.image && <img class="page-hero-media" src={imageUrl(data.package.image)} alt="" />}
+        {data.package.image && <img class="page-hero-media" src={packageImage.src} srcset={packageImage.srcset} sizes={packageImage.sizes} width="1600" height="900" alt="" fetchpriority="high" decoding="async" />}
         <div class="container">
           {data.package.badge && <span class="eyebrow">{data.package.badge}</span>}
           <h1>{data.package.name}</h1>

@@ -3,6 +3,7 @@ import BaseLayout from '../../../layouts/BaseLayout.astro';
 import Icon from '../../../components/Icon.astro';
 import NotFound from '../../../components/NotFound.astro';
 import { formatMoney, imageUrl } from '../../../core/http';
+import { heroImage, thumbnailUrl } from '../../../core/media';
 import type { HallDetail } from '../service';
 import '../halls.css';
 
@@ -12,6 +13,7 @@ interface Props {
 }
 
 const { data, notFound = false } = Astro.props;
+const hallHero = heroImage(data?.hall?.banner_image);
 ---
 
 {notFound || !data ? (
@@ -26,7 +28,7 @@ const { data, notFound = false } = Astro.props;
       data-capacity={data.hall.capacity}
     >
       <section class:list={['hall-hero', { 'with-banner': Boolean(data.hall.banner_image) }]}>
-        {data.hall.banner_image && <img class="hall-hero-media" src={imageUrl(data.hall.banner_image)} alt="" />}
+        {data.hall.banner_image && <img class="hall-hero-media" src={hallHero.src} srcset={hallHero.srcset} sizes={hallHero.sizes} width="1600" height="900" alt="" fetchpriority="high" decoding="async" />}
         <div class="container hall-hero-inner">
           <div>
             {data.hall.show_badge === 1 && <span class="badge badge-gold">Premium wedding venue</span>}
@@ -108,7 +110,7 @@ const { data, notFound = false } = Astro.props;
                     data-src={imageUrl(image.image)}
                     data-caption={image.title || data.hall.name}
                   >
-                    <img src={imageUrl(image.image)} alt={image.title || data.hall.name} loading="lazy" />
+                    <img src={thumbnailUrl(image.image, 480)} width="400" height="400" alt={image.title || data.hall.name} loading="lazy" decoding="async" />
                     <span class="gallery-overlay">View full image</span>
                   </button>
                 ))}
@@ -166,7 +168,7 @@ const { data, notFound = false } = Astro.props;
                   <article class="stage-card">
                     <div class="stage-media">
                       {design.image ? (
-                        <img src={imageUrl(design.image)} alt={design.name} loading="lazy" />
+                        <img src={thumbnailUrl(design.image, 640)} width="480" height="320" alt={design.name} loading="lazy" decoding="async" />
                       ) : (
                         <div class="stage-fallback"><Icon name="theater" size={30} /></div>
                       )}

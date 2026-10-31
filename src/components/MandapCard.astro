@@ -1,6 +1,6 @@
 ---
 import Icon from './Icon.astro';
-import { imageUrl } from '../core/http';
+import { responsiveImage } from '../core/media';
 
 interface Props {
   mandap: {
@@ -19,6 +19,10 @@ interface Props {
 
 const { mandap } = Astro.props;
 const dimensions = `${mandap.length_ft} × ${mandap.width_ft} × ${mandap.height_ft} ${mandap.dimension_unit}`;
+const image = responsiveImage(mandap.image, {
+  widths: [320, 480, 640],
+  sizes: '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 360px',
+});
 ---
 
 <article class="catalogue-card">
@@ -26,7 +30,7 @@ const dimensions = `${mandap.length_ft} × ${mandap.width_ft} × ${mandap.height
     {mandap.image ? (
       <div class="media-with-skeleton" style="width: 100%; height: 100%;">
         <div class="skeleton-placeholder skeleton-shimmer" role="status" aria-busy="true" aria-label="Loading image..."></div>
-        <img src={imageUrl(mandap.image)} alt={mandap.name} loading="lazy" />
+        <img src={image.src} srcset={image.srcset} sizes={image.sizes} width="640" height="480" alt={mandap.name} loading="lazy" decoding="async" />
         <div class="skeleton-error-fallback" role="alert">
           <Icon name="image" size={24} />
           <span>Image preview unavailable</span>

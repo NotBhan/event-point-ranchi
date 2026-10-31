@@ -4,6 +4,8 @@ dist/
 .vercel/
 data/*
 !data/migration-manifest.json
+!data/archive/
+!data/archive/**
 .env
 .DS_Store
 *.log

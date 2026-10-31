@@ -136,11 +136,11 @@ test('5. migration manifest records migration status and quotas within limits', 
 
 test('6. local original image files remain untouched on disk', () => {
   const localArchiveImages = [
-    'public/images/archive/frames-for-your-heart-zSG-kd-L6vw-unsplash.jpg',
-    'public/images/archive/fernando-alvarez-rodriguez-M7GddPqJowg-unsplash.jpg',
-    'public/images/archive/point3d-commercial-imaging-ltd-oxeCZrodz78-unsplash.jpg',
-    'public/images/archive/bilderboken-rlwE8f8anOc-unsplash.jpg',
-    'public/images/archive/runnyrem-LfqmND-hym8-unsplash.jpg',
+    'data/archive/frames-for-your-heart-zSG-kd-L6vw-unsplash.jpg',
+    'data/archive/fernando-alvarez-rodriguez-M7GddPqJowg-unsplash.jpg',
+    'data/archive/point3d-commercial-imaging-ltd-oxeCZrodz78-unsplash.jpg',
+    'data/archive/bilderboken-rlwE8f8anOc-unsplash.jpg',
+    'data/archive/runnyrem-LfqmND-hym8-unsplash.jpg',
   ];
 
   for (const relPath of localArchiveImages) {

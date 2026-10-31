@@ -106,7 +106,7 @@ export function authStateFor(user: SessionUser | null): AuthState {
   };
 }
 
-import { findUserById } from './operational/service';
+import { findUserByIdCached } from './operational/service';
 
 export async function getAuth(cookies: CookieJar): Promise<AuthState> {
   const cookie = cookies.get(SESSION_COOKIE)?.value;
@@ -115,7 +115,7 @@ export async function getAuth(cookies: CookieJar): Promise<AuthState> {
   const payload = decodeSession(cookie);
   if (!payload) return emptyAuth;
 
-  const row = await findUserById(payload.uid);
+  const row = await findUserByIdCached(payload.uid);
   if (!row) return emptyAuth;
   if (row.password_hash.slice(-12) !== payload.pv) return emptyAuth;
 

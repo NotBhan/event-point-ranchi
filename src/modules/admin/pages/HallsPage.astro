@@ -1,14 +1,18 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
-import { formatMoney, imageUrl } from '../../../core/http';
+import AdminPager from '../../../components/admin/AdminPager.astro';
+import { formatMoney } from '../../../core/http';
+import { thumbnailUrl } from '../../../core/media';
 import type { listHallsAdmin } from '../service';
 
 interface Props {
-  halls: ReturnType<typeof listHallsAdmin>;
+  items: ReturnType<typeof listHallsAdmin>['items'];
+  pagination: ReturnType<typeof listHallsAdmin>['pagination'];
 }
 
-const { halls } = Astro.props;
+const { items: halls, pagination } = Astro.props;
 const csrf = Astro.locals.csrf;
+const pageHref = (page: number) => `/admin/halls?page=${page}`;
 ---
 
 <AdminLayout title="Banquet halls" description={`${halls.length} venues in the catalogue.`}>
@@ -43,7 +47,7 @@ const csrf = Astro.locals.csrf;
                   <td>
                     <div style="display:flex;align-items:center;gap:12px;">
                       {hall.image ? (
-                        <img class="admin-thumb" src={imageUrl(hall.image)} alt="" />
+                        <img class="admin-thumb" src={thumbnailUrl(hall.image, 96)} width="44" height="44" alt="" loading="lazy" decoding="async" />
                       ) : (
                         <span class="admin-thumb" style="display:flex;align-items:center;justify-content:center;color:var(--muted);">—</span>
                       )}
@@ -87,6 +91,15 @@ const csrf = Astro.locals.csrf;
             </tbody>
           </table>
         </div>
+        <AdminPager
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          totalCount={pagination.totalCount}
+          startItem={pagination.startItem}
+          endItem={pagination.endItem}
+          label="halls"
+          href={pageHref}
+        />
       )}
     </div>
   </div>

@@ -40,28 +40,68 @@ export type {
   ParsedVideoUrl,
 };
 
-// In-memory cache for fast SSR page renders
-const contentCache = new Map<string, { data: unknown; timestamp: number }>();
-const CACHE_TTL_MS = 60_000; // 60-second in-memory freshness for fast SSR; instant invalidation on mutation
+// In-memory cache for fast SSR page renders.
+// Stored on globalThis because the Astro server build can emit this module in
+// more than one chunk, which would otherwise create independent caches (double
+// D1 fetches and partial invalidation).
+interface ContentCacheEntry {
+  data: unknown;
+  timestamp: number;
+}
+
+interface ContentCacheState {
+  entries: Map<string, ContentCacheEntry>;
+  pending: Map<string, Promise<unknown>>;
+}
+
+interface ContentCacheGlobalScope {
+  __eventPointContentCache?: ContentCacheState;
+}
+
+const cacheScope = globalThis as typeof globalThis & ContentCacheGlobalScope;
+const contentState: ContentCacheState =
+  cacheScope.__eventPointContentCache ?? (cacheScope.__eventPointContentCache = { entries: new Map(), pending: new Map() });
+
+// Public content changes rarely and every write path calls
+// invalidateContentCache(), so a longer TTL removes repeated remote D1 round
+// trips from cold renders (each D1 call costs ~0.5-1s from this region).
+// Multi-instance staleness is bounded by this TTL and is documented.
+const CACHE_TTL_MS = 300_000; // 5 minutes; instant invalidation on mutation
+
+// Preview (admin) reads want near-fresh data but do not need a full bypass:
+// a short TTL keeps admin tabs fast while edits invalidate the cache instantly.
+const PREVIEW_CACHE_TTL_MS = 10_000;
 
 export function invalidateContentCache(key?: string): void {
   if (key) {
-    contentCache.delete(key);
+    contentState.entries.delete(key);
   } else {
-    contentCache.clear();
+    contentState.entries.clear();
   }
 }
 
-async function getCached<T>(key: string, fetcher: () => Promise<T>, skipCache = false): Promise<T> {
-  if (!skipCache) {
-    const cached = contentCache.get(key);
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-      return cached.data as T;
-    }
+async function getCached<T>(key: string, fetcher: () => Promise<T>, preview = false): Promise<T> {
+  const ttl = preview ? PREVIEW_CACHE_TTL_MS : CACHE_TTL_MS;
+
+  const cached = contentState.entries.get(key);
+  if (cached && Date.now() - cached.timestamp < ttl) {
+    return cached.data as T;
   }
-  const fresh = await fetcher();
-  contentCache.set(key, { data: fresh, timestamp: Date.now() });
-  return fresh;
+
+  const inflight = contentState.pending.get(key);
+  if (inflight) return inflight as Promise<T>;
+
+  const promise = fetcher()
+    .then((fresh) => {
+      contentState.entries.set(key, { data: fresh, timestamp: Date.now() });
+      return fresh;
+    })
+    .finally(() => {
+      contentState.pending.delete(key);
+    });
+
+  contentState.pending.set(key, promise);
+  return promise;
 }
 
 /**
@@ -341,12 +381,15 @@ export async function getMandaps(preview = false): Promise<MandapItem[]> {
     `mandaps:${preview}`,
     async () => {
       const d1 = getD1Client();
-      const mandapsRes = await d1.query<any>(
-        preview
-          ? 'SELECT * FROM mandaps ORDER BY sort_order ASC'
-          : 'SELECT * FROM mandaps WHERE is_visible = 1 ORDER BY sort_order ASC',
-      );
-      const galleryRes = await d1.query<any>('SELECT * FROM mandap_gallery ORDER BY sort_order ASC');
+      // One batched D1 round trip instead of two sequential HTTP calls.
+      const [mandapsRes, galleryRes] = await d1.batch<any>([
+        {
+          sql: preview
+            ? 'SELECT * FROM mandaps ORDER BY sort_order ASC'
+            : 'SELECT * FROM mandaps WHERE is_visible = 1 ORDER BY sort_order ASC',
+        },
+        { sql: 'SELECT * FROM mandap_gallery ORDER BY sort_order ASC' },
+      ]);
       const galleryByMandap = new Map<number, Array<{ id: number; image_url: string; caption: string; sort_order: number }>>();
 
       for (const g of galleryRes.results || []) {
@@ -410,12 +453,15 @@ export async function getStages(preview = false): Promise<StageItem[]> {
     `stages:${preview}`,
     async () => {
       const d1 = getD1Client();
-      const stagesRes = await d1.query<any>(
-        preview
-          ? 'SELECT * FROM stages ORDER BY sort_order ASC'
-          : 'SELECT * FROM stages WHERE is_visible = 1 ORDER BY sort_order ASC',
-      );
-      const galleryRes = await d1.query<any>('SELECT * FROM stage_gallery ORDER BY sort_order ASC');
+      // One batched D1 round trip instead of two sequential HTTP calls.
+      const [stagesRes, galleryRes] = await d1.batch<any>([
+        {
+          sql: preview
+            ? 'SELECT * FROM stages ORDER BY sort_order ASC'
+            : 'SELECT * FROM stages WHERE is_visible = 1 ORDER BY sort_order ASC',
+        },
+        { sql: 'SELECT * FROM stage_gallery ORDER BY sort_order ASC' },
+      ]);
       const galleryByStage = new Map<number, Array<{ id: number; image_url: string; caption: string; sort_order: number }>>();
 
       for (const g of galleryRes.results || []) {
@@ -731,6 +777,27 @@ export const defaultPageContent: Record<string, Omit<PageContent, 'id' | 'create
     published: true,
   },
 };
+
+/**
+ * Raw site_settings row for the admin Content Studio. Uses the shared content
+ * cache (invalidated by saveSiteSettings), so repeat tab loads cost no D1 trip.
+ */
+export async function getSiteSettingsRowCached(): Promise<Record<string, any> | null> {
+  return getCached<Record<string, any> | null>('admin:site_settings_row', async () => {
+    const d1 = getD1Client();
+    const res = await d1.query<any>('SELECT * FROM site_settings WHERE id = ? LIMIT 1', ['global']);
+    return res.results?.[0] ?? null;
+  });
+}
+
+/** Raw seo_settings rows for the admin Content Studio (cached; invalidated on writes). */
+export async function getSeoSettingsRowsCached(): Promise<Array<Record<string, any>>> {
+  return getCached<Array<Record<string, any>>>('admin:seo_settings_rows', async () => {
+    const d1 = getD1Client();
+    const res = await d1.query<any>('SELECT * FROM seo_settings ORDER BY page_key ASC');
+    return res.results || [];
+  });
+}
 
 export async function getPageContent(pageKey: string, preview = false): Promise<PageContent> {
   return getCached<PageContent>(

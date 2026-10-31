@@ -94,8 +94,21 @@
   height: 100%;
   object-fit: cover;
   display: block;
-  opacity: 0;
   transition: opacity 0.35s ease-in-out;
+}
+
+/* Hide-until-loaded only when the fade-in script is available, so images are
+   never stuck invisible without JavaScript. */
+html.has-js .media-with-skeleton img,
+html.has-js .media-with-skeleton picture,
+html.has-js .media-with-skeleton video {
+  opacity: 0;
+}
+
+html.has-js .media-with-skeleton.is-loaded img,
+html.has-js .media-with-skeleton.is-loaded picture,
+html.has-js .media-with-skeleton.is-loaded video {
+  opacity: 1;
 }
 
 /* Once image is loaded, hide skeleton shimmer and fade in image */

@@ -1,17 +1,20 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
+import AdminPager from '../../../components/admin/AdminPager.astro';
 import { formatDate, formatMoney } from '../../../core/http';
 import type { listCustomers } from '../service';
 
 interface Props {
-  customers: ReturnType<typeof listCustomers>;
+  items: ReturnType<typeof listCustomers>['items'];
+  pagination: ReturnType<typeof listCustomers>['pagination'];
   query: string;
 }
 
-const { customers, query } = Astro.props;
+const { items: customers, pagination, query } = Astro.props;
+const pageHref = (page: number) => `/admin/customers?q=${encodeURIComponent(query)}&page=${page}`;
 ---
 
-<AdminLayout title="Customers" description={`${customers.length} customer records.`}>
+<AdminLayout title="Customers" description={`${pagination.totalCount} customer records.`}>
   <div class="admin-panel">
     <div class="admin-panel-head">
       <form method="GET" action="/admin/customers" class="admin-toolbar">
@@ -57,6 +60,15 @@ const { customers, query } = Astro.props;
             </tbody>
           </table>
         </div>
+        <AdminPager
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          totalCount={pagination.totalCount}
+          startItem={pagination.startItem}
+          endItem={pagination.endItem}
+          label="customers"
+          href={pageHref}
+        />
       )}
     </div>
   </div>

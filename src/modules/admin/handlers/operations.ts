@@ -1,7 +1,7 @@
 import { requireAdmin } from '../../../core/auth';
 import { endSession, startSession } from '../../../core/auth';
 import { setSuccess } from '../../../core/flash';
-import { getInt, getString, redirect, safeNext } from '../../../core/http';
+import { getInt, getString, parsePageParams, redirect, safeNext } from '../../../core/http';
 import type { PageContext } from '../../../core/types';
 import { authenticate } from '../../accounts/service';
 import { loadBookingForViewer } from '../../bookings/service';
@@ -84,10 +84,11 @@ export function bookingsList(ctx: PageContext) {
 
   const status = ctx.url.searchParams.get('status') ?? 'all';
   const query = ctx.url.searchParams.get('q') ?? '';
+  const { page, perPage } = parsePageParams(ctx.url, { defaultPerPage: 25 });
 
   return {
     props: {
-      bookings: listBookings({ status, query }),
+      ...listBookings({ status, query }, { page, perPage }),
       status,
       query,
     },
@@ -132,7 +133,8 @@ export function customersList(ctx: PageContext) {
   if (denied) return denied;
 
   const query = ctx.url.searchParams.get('q') ?? '';
-  return { props: { customers: listCustomers(query), query } };
+  const { page, perPage } = parsePageParams(ctx.url, { defaultPerPage: 25 });
+  return { props: { ...listCustomers(query, { page, perPage }), query } };
 }
 
 export function customerDetail(ctx: PageContext) {
@@ -161,7 +163,8 @@ export function inquiriesList(ctx: PageContext) {
     );
   }
 
-  return { props: { inquiries: listInquiries(status), status } };
+  const { page, perPage } = parsePageParams(ctx.url, { defaultPerPage: 25 });
+  return { props: { ...listInquiries(status, { page, perPage }), status } };
 }
 
 export function eventEnquiriesList(ctx: PageContext) {
@@ -170,10 +173,11 @@ export function eventEnquiriesList(ctx: PageContext) {
 
   const status = ctx.url.searchParams.get('status') ?? 'all';
   const query = ctx.url.searchParams.get('q') ?? '';
+  const { page, perPage } = parsePageParams(ctx.url, { defaultPerPage: 25 });
 
   return {
     props: {
-      enquiries: listEventEnquiries({ status, query }),
+      ...listEventEnquiries({ status, query }, { page, perPage }),
       status,
       query,
     },
@@ -210,11 +214,14 @@ export async function paymentsList(ctx: PageContext) {
   const status = ctx.url.searchParams.get('status') || undefined;
   const provider = ctx.url.searchParams.get('provider') || undefined;
   const search = ctx.url.searchParams.get('q') || undefined;
+  const { page, perPage } = parsePageParams(ctx.url, { defaultPerPage: 50, maxPerPage: 100 });
 
   const data = await loadPaymentsAdmin({
     status: status === 'all' ? undefined : status,
     provider: provider === 'all' ? undefined : provider,
     search,
+    limit: perPage,
+    offset: (page - 1) * perPage,
   });
 
   return {
@@ -222,6 +229,8 @@ export async function paymentsList(ctx: PageContext) {
       metrics: data.metrics,
       payments: data.payments,
       total: data.total,
+      page,
+      perPage,
       status: status || 'all',
       provider: provider || 'all',
       search: search || '',

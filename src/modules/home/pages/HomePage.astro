@@ -5,6 +5,7 @@ import StageCard from '../../../components/StageCard.astro';
 import VideoPreviewCard from '../../../components/VideoPreviewCard.astro';
 import Icon from '../../../components/Icon.astro';
 import { imageUrl } from '../../../core/http';
+import { heroImage as buildHeroImage, responsiveImage } from '../../../core/media';
 import { site } from '../../../core/config';
 import type { HomeData } from '../service';
 import { getHomepageContent, getPageContent, getVideoPreviews } from '../../../core/content/service';
@@ -29,6 +30,7 @@ const hasMixedAspectRatios = primaryVideo && reelVideos.length > 0 && reelVideos
 const heroHeading = pageContent.title || homepageContent.heroHeading;
 const heroSubtitle = pageContent.subtitle || homepageContent.heroSubtitle;
 const heroImg = (pageContent.banner_enabled && pageContent.banner_image_url) ? pageContent.banner_image_url : homepageContent.heroImage;
+const heroImageData = buildHeroImage(heroImg);
 const heroBadge = pageContent.content_json?.badge || 'Ranchi · Wedding setup studio';
 const primaryCta = pageContent.content_json?.primaryCta || homepageContent.primaryCta;
 const secondaryCta = pageContent.content_json?.secondaryCta || homepageContent.secondaryCta;
@@ -40,8 +42,17 @@ const steps = homepageContent.steps.map((s) => [s.stepNumber, s.title, s.descrip
   title={pageContent.seo_title || "Event Point Ranchi | Wedding Mandaps, Stage Designs & Event Equipment"}
   description={pageContent.seo_description || "Wedding mandap, stage designs, furniture and event equipment planning in Ranchi. Build your requirements and request a quotation from Event Point Ranchi."}
 >
+  <link
+    slot="head"
+    rel="preload"
+    as="image"
+    href={heroImageData.src}
+    imagesrcset={heroImageData.srcset}
+    imagesizes={heroImageData.sizes}
+    fetchpriority="high"
+  />
   <section class="hero wedding-hero">
-    {heroImg && <img class="hero-media" src={imageUrl(heroImg)} alt="" />}
+    {heroImg && <img class="hero-media" src={heroImageData.src} srcset={heroImageData.srcset} sizes={heroImageData.sizes} width="1600" height="900" alt="" fetchpriority="high" decoding="async" />}
     <div class="container hero-inner">
       <span class="eyebrow" style="color:var(--gold-bright);">{heroBadge}</span>
       <h1>{heroHeading}</h1>
@@ -199,7 +210,12 @@ const steps = homepageContent.steps.map((s) => [s.stepNumber, s.title, s.descrip
         </div>
 
         <div class="gallery-grid home-gallery-grid">
-          {galleryItems.map((item, index) => (
+          {galleryItems.map((item, index) => {
+            const tileImage = responsiveImage(item.image, {
+              widths: [320, 480, 640],
+              sizes: '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 320px',
+            });
+            return (
             <button
               type="button"
               class="gallery-tile"
@@ -218,9 +234,13 @@ const steps = homepageContent.steps.map((s) => [s.stepNumber, s.title, s.descrip
                   aria-label={`Loading ${item.title}`}
                 ></div>
                 <img
-                  src={imageUrl(item.image)}
+                  src={tileImage.src}
+                  srcset={tileImage.srcset}
+                  sizes={tileImage.sizes}
+                  width="400"
+                  height="300"
                   alt={item.title}
-                  loading={index < 4 ? 'eager' : 'lazy'}
+                  loading={index < 2 ? 'eager' : 'lazy'}
                   decoding="async"
                 />
                 <div class="skeleton-error-fallback" role="alert">
@@ -233,7 +253,8 @@ const steps = homepageContent.steps.map((s) => [s.stepNumber, s.title, s.descrip
                 <small>{item.category}</small>
               </span>
             </button>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>

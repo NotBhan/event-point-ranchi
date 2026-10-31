@@ -5,8 +5,25 @@ import { sqliteSchemaSql as schemaSql } from './sqlite-schema';
 import { hashPassword, verifyPassword } from './password';
 import { seedDatabase } from './seed';
 import { initStorageSchema } from './storage/schema';
+import { recordDb } from './perf';
 
-let database: DatabaseSync | null = null;
+// Module state lives on globalThis: the Astro server build can emit modules in
+// several chunks, which would otherwise open multiple SQLite handles (and
+// multiple prepared-statement caches) per process.
+interface DbGlobalScope {
+  __eventPointDatabase?: DatabaseSync | null;
+  __eventPointStatementCache?: Map<string, ReturnType<DatabaseSync['prepare']>>;
+}
+
+const dbScope = globalThis as typeof globalThis & DbGlobalScope;
+const STATEMENT_CACHE_MAX = 200;
+
+function statementCache(): Map<string, ReturnType<DatabaseSync['prepare']>> {
+  if (!dbScope.__eventPointStatementCache) {
+    dbScope.__eventPointStatementCache = new Map();
+  }
+  return dbScope.__eventPointStatementCache;
+}
 
 export function isVercel(): boolean {
   return Boolean(
@@ -30,8 +47,11 @@ export function uploadsDir(): string {
   return dir;
 }
 
+// Bump when schema.sql / migrations change so the guard below re-runs them.
+const SQLITE_SCHEMA_VERSION = 3;
+
 export function getDb(): DatabaseSync {
-  if (database) return database;
+  if (dbScope.__eventPointDatabase) return dbScope.__eventPointDatabase;
 
   const targetDir = dataDir();
   mkdirSync(targetDir, { recursive: true });
@@ -56,11 +76,22 @@ export function getDb(): DatabaseSync {
   }
 
   const db = new DatabaseSync(dbPath);
-  db.exec(schemaSql);
-  migrateTrafficEvents(db);
-  migrateUsersRole(db);
-  migrateBookingsFinancials(db);
-  initStorageSchema(db);
+  db.exec('PRAGMA busy_timeout = 5000');
+
+  const currentVersion = Number(
+    (db.prepare('PRAGMA user_version').get() as { user_version?: number } | undefined)?.user_version ?? 0,
+  );
+
+  if (currentVersion < SQLITE_SCHEMA_VERSION) {
+    const startedAt = performance.now();
+    db.exec(schemaSql);
+    migrateTrafficEvents(db);
+    migrateUsersRole(db);
+    migrateBookingsFinancials(db);
+    initStorageSchema(db);
+    db.exec(`PRAGMA user_version = ${SQLITE_SCHEMA_VERSION}`);
+    console.log(`[db] schema initialised in ${(performance.now() - startedAt).toFixed(1)}ms (version ${currentVersion} -> ${SQLITE_SCHEMA_VERSION})`);
+  }
 
   const row = db.prepare('SELECT COUNT(*) AS count FROM users').get() as { count: number };
   if (!row || Number(row.count) === 0) {
@@ -70,7 +101,8 @@ export function getDb(): DatabaseSync {
   ensureAdminUser(db);
   ensureEditorUser(db);
 
-  database = db;
+  statementCache().clear();
+  dbScope.__eventPointDatabase = db;
   return db;
 }
 
@@ -204,20 +236,46 @@ export function cleanParams(params: unknown[]): unknown[] {
   return params.map((v) => (v === undefined ? null : v));
 }
 
+function prepared(sql: string): ReturnType<DatabaseSync['prepare']> {
+  const cache = statementCache();
+  const cached = cache.get(sql);
+  if (cached) return cached;
+
+  const stmt = getDb().prepare(sql);
+  if (cache.size >= STATEMENT_CACHE_MAX) cache.clear();
+  cache.set(sql, stmt);
+  return stmt;
+}
+
 export function all<T = Record<string, unknown>>(sql: string, params: unknown[] = []): T[] {
-  return getDb().prepare(sql).all(...(cleanParams(params) as never[])) as T[];
+  const startedAt = performance.now();
+  try {
+    return prepared(sql).all(...(cleanParams(params) as never[])) as T[];
+  } finally {
+    recordDb('sqlite', performance.now() - startedAt, sql);
+  }
 }
 
 export function one<T = Record<string, unknown>>(sql: string, params: unknown[] = []): T | undefined {
-  return getDb().prepare(sql).get(...(cleanParams(params) as never[])) as T | undefined;
+  const startedAt = performance.now();
+  try {
+    return prepared(sql).get(...(cleanParams(params) as never[])) as T | undefined;
+  } finally {
+    recordDb('sqlite', performance.now() - startedAt, sql);
+  }
 }
 
 export function run(sql: string, params: unknown[] = []): { changes: number; lastId: number } {
-  const result = getDb().prepare(sql).run(...(cleanParams(params) as never[]));
-  return {
-    changes: Number(result.changes),
-    lastId: Number(result.lastInsertRowid),
-  };
+  const startedAt = performance.now();
+  try {
+    const result = prepared(sql).run(...(cleanParams(params) as never[]));
+    return {
+      changes: Number(result.changes),
+      lastId: Number(result.lastInsertRowid),
+    };
+  } finally {
+    recordDb('sqlite', performance.now() - startedAt, sql);
+  }
 }
 
 export function tx<T>(fn: () => T): T {
@@ -234,6 +292,7 @@ export function tx<T>(fn: () => T): T {
 }
 
 export function closeDb(): void {
-  database?.close();
-  database = null;
+  dbScope.__eventPointDatabase?.close();
+  dbScope.__eventPointDatabase = null;
+  statementCache().clear();
 }

@@ -3,6 +3,7 @@ import { ClientRouter } from 'astro:transitions';
 import { getAdminNav } from '../core/registry';
 import Icon from '../components/Icon.astro';
 import { site } from '../core/config';
+import '../styles/fonts.css';
 import '../styles/tokens.css';
 import '../styles/base.css';
 import '../styles/components.css';
@@ -33,12 +34,8 @@ const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path
     <meta name="robots" content="noindex, nofollow" />
     <title>{title} · {site.name} Admin</title>
     <link rel="icon" type="image/svg+xml" href={site.logo} />
-    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap"
-      rel="stylesheet"
-    />
+    <link rel="preload" href="/fonts/inter-normal-400.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/playfair-display-normal-400.woff2" as="font" type="font/woff2" crossorigin />
     <ClientRouter fallback="swap" />
   </head>
   <body class="admin-body">

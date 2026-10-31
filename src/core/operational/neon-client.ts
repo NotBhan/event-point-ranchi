@@ -2,6 +2,7 @@ import { Pool } from '@neondatabase/serverless';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { recordDb } from '../perf';
 
 export interface OperationalQueryResult<T = Record<string, unknown>> {
   rows: T[];
@@ -318,10 +319,15 @@ export class NeonOperationalClient {
     sql: string,
     params: unknown[] = [],
   ): Promise<OperationalQueryResult<T>> {
-    if (this.isRemote) {
-      return this.queryRemote<T>(sql, params);
+    const startedAt = performance.now();
+    try {
+      if (this.isRemote) {
+        return await this.queryRemote<T>(sql, params);
+      }
+      return this.queryLocal<T>(sql, params);
+    } finally {
+      recordDb('neon', performance.now() - startedAt, sql);
     }
-    return this.queryLocal<T>(sql, params);
   }
 
   private getPool(): Pool {
@@ -417,16 +423,23 @@ export class NeonOperationalClient {
   }
 }
 
-let neonInstance: NeonOperationalClient | null = null;
+// The Astro server build may emit this module in multiple chunks, so the
+// singleton lives on globalThis to guarantee one pool (and one local DB
+// handle) per server process.
+interface NeonGlobalScope {
+  __eventPointNeonClient?: NeonOperationalClient | null;
+}
+
+const neonScope = globalThis as typeof globalThis & NeonGlobalScope;
 
 export function getNeonClient(): NeonOperationalClient {
-  if (!neonInstance) {
-    neonInstance = new NeonOperationalClient();
+  if (!neonScope.__eventPointNeonClient) {
+    neonScope.__eventPointNeonClient = new NeonOperationalClient();
   }
-  return neonInstance;
+  return neonScope.__eventPointNeonClient;
 }
 
 export async function resetNeonClient(): Promise<void> {
-  await neonInstance?.close();
-  neonInstance = null;
+  await neonScope.__eventPointNeonClient?.close();
+  neonScope.__eventPointNeonClient = null;
 }

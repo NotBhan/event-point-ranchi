@@ -431,11 +431,14 @@ const platformBadgeClass =
     const cards = document.querySelectorAll<HTMLElement>('[data-video-card]');
 
     cards.forEach((card) => {
+      if (card.dataset.videoBound === 'true') return;
+
       const playBtn = card.querySelector<HTMLButtonElement>('[data-play-trigger]');
       const embedContainer = card.querySelector<HTMLElement>('[data-embed-container]');
       const embedUrl = card.dataset.embedUrl;
 
       if (!playBtn || !embedContainer || !embedUrl) return;
+      card.dataset.videoBound = 'true';
 
       const activatePlayer = () => {
         if (embedContainer.querySelector('iframe')) return;
@@ -458,7 +461,7 @@ const platformBadgeClass =
         playBtn.style.display = 'none';
       };
 
-      playBtn.addEventListener('click', activatePlayer);
+      playBtn.addEventListener('click', activatePlayer, { once: true });
     });
   }
 

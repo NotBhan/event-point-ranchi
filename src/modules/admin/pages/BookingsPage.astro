@@ -1,16 +1,20 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
+import AdminPager from '../../../components/admin/AdminPager.astro';
 import { formatDate, formatMoney } from '../../../core/http';
 import type { listBookings } from '../service';
 
 interface Props {
-  bookings: ReturnType<typeof listBookings>;
+  items: ReturnType<typeof listBookings>['items'];
+  pagination: ReturnType<typeof listBookings>['pagination'];
   status: string;
   query: string;
 }
 
-const { bookings, status, query } = Astro.props;
+const { items: bookings, pagination, status, query } = Astro.props;
 const csrf = Astro.locals.csrf;
+const pageHref = (page: number) =>
+  `/admin/bookings?status=${encodeURIComponent(status)}&q=${encodeURIComponent(query)}&page=${page}`;
 
 const statusClass: Record<string, string> = {
   draft: 'badge-muted',
@@ -96,6 +100,15 @@ const tabs = [
             </tbody>
           </table>
         </div>
+        <AdminPager
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          totalCount={pagination.totalCount}
+          startItem={pagination.startItem}
+          endItem={pagination.endItem}
+          label="bookings"
+          href={pageHref}
+        />
       )}
     </div>
   </div>

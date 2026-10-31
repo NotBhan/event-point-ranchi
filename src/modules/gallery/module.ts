@@ -11,7 +11,15 @@ export default defineModule({
     {
       path: '/gallery',
       component: GalleryPage,
-      handle: () => ({ props: { data: loadGalleryPage() } }),
+      handle: ({ url }) => ({
+        props: {
+          data: loadGalleryPage({
+            category: url.searchParams.get('category') ?? '',
+            page: Number(url.searchParams.get('page') ?? '1'),
+            perPage: Number(url.searchParams.get('per') ?? ''),
+          }),
+        },
+      }),
     },
   ],
 });

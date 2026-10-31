@@ -345,11 +345,30 @@ document.addEventListener('input', (event) => {
 
 document.addEventListener('submit', async (event) => {
   const form = (event.target as HTMLElement | null)?.closest?.('form[data-ajax]') as HTMLFormElement | null;
-  if (!form) return;
+  if (!form) {
+    // Classic (non-AJAX) admin forms: lock the submit button just after the
+    // browser has assembled the payload so uploads cannot be double-submitted.
+    const classicForm = event.target as HTMLFormElement | null;
+    if (classicForm) {
+      window.setTimeout(() => {
+        classicForm.querySelectorAll<HTMLButtonElement>('button[type="submit"], input[type="submit"]').forEach((button) => {
+          button.disabled = true;
+        });
+      }, 0);
+    }
+    return;
+  }
   event.preventDefault();
 
   const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]');
-  if (submit) submit.disabled = true;
+  const originalLabel = submit?.textContent ?? '';
+  if (submit) {
+    submit.disabled = true;
+    if (!form.dataset.savingLabel) {
+      form.dataset.savingLabel = 'true';
+      submit.textContent = 'Saving…';
+    }
+  }
 
   try {
     const response = await fetch(form.getAttribute('action') ?? window.location.href, {
@@ -380,11 +399,16 @@ document.addEventListener('submit', async (event) => {
       form.classList.add('is-saved');
       window.setTimeout(() => form.classList.remove('is-saved'), 1600);
     }
-  } catch {
+  } catch (error) {
+    // Re-render so the UI always reflects the persisted state.
+    if (error instanceof Error) console.warn('[admin] save failed:', error.message);
     window.location.reload();
     return;
   } finally {
-    if (submit) submit.disabled = false;
+    if (submit) {
+      submit.disabled = false;
+      if (submit.textContent === 'Saving…') submit.textContent = originalLabel;
+    }
   }
 });
 

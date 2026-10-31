@@ -40,8 +40,7 @@ export interface EquipmentPageData {
 export async function loadEquipmentPage(options: { category?: string } = {}): Promise<EquipmentPageData> {
   const category = (options.category ?? '').trim();
 
-  const rawCategories = await getFurnitureCategories();
-  const rawItems = await getFurnitureItems();
+  const [rawCategories, rawItems] = await Promise.all([getFurnitureCategories(), getFurnitureItems()]);
 
   const categories: EquipmentCategoryRow[] = rawCategories.map((c) => ({
     id: c.id,

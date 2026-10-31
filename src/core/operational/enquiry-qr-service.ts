@@ -1,5 +1,4 @@
 import { createHash, randomBytes } from 'node:crypto';
-import QRCode from 'qrcode';
 import {
   createEnquiryQrTokenRecord,
   getEnquiryQrTokenByHash,
@@ -8,6 +7,18 @@ import {
   type EventEnquiryRow,
 } from './service';
 import { getNeonClient } from './neon-client';
+
+// qrcode is only needed when a QR is actually generated.
+type QrCodeLib = typeof import('qrcode');
+let qrCodePromise: Promise<QrCodeLib> | null = null;
+function loadQrCode(): Promise<QrCodeLib> {
+  if (!qrCodePromise) {
+    qrCodePromise = import('qrcode').then(
+      (module) => ((module as { default?: QrCodeLib }).default ?? module) as QrCodeLib,
+    );
+  }
+  return qrCodePromise;
+}
 
 export interface EnquiryLookupResult {
   found: boolean;
@@ -86,6 +97,7 @@ export class EnquiryQrService {
     }
 
     const scanUrl = `${host.replace(/\/+$/, '')}/admin/enquiries/scan?token=${record.token}`;
+    const QRCode = await loadQrCode();
     const qrDataUrl = await QRCode.toDataURL(scanUrl, {
       errorCorrectionLevel: 'M',
       margin: 1,

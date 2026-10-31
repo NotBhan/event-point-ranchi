@@ -185,7 +185,10 @@ export interface StorageObjectRow {
 export async function findUserByLogin(login: string): Promise<UserRow | undefined> {
   const neon = getNeonClient();
   const res = await neon.query<UserRow>(
-    'SELECT * FROM users WHERE (LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($2)) AND is_active = true LIMIT 1',
+    `SELECT * FROM users WHERE LOWER(username) = LOWER($1) AND is_active = true
+     UNION ALL
+     SELECT * FROM users WHERE LOWER(email) = LOWER($2) AND is_active = true
+     LIMIT 1`,
     [login, login],
   );
   return res.rows[0];
@@ -198,6 +201,53 @@ export async function findUserById(id: number): Promise<UserRow | undefined> {
     [id],
   );
   return res.rows[0];
+}
+
+// Short-lived per-process cache for session user lookups. Without it, every
+// request carrying a session cookie (including every image request) pays a
+// remote database round trip. Bounded FIFO eviction; invalidated on password
+// and role changes.
+interface CachedUserRow {
+  row: UserRow | null;
+  expiresAt: number;
+}
+
+interface AuthCacheScope {
+  __eventPointUserCache?: Map<number, CachedUserRow>;
+}
+
+const authCacheScope = globalThis as typeof globalThis & AuthCacheScope;
+const userCache: Map<number, CachedUserRow> = (authCacheScope.__eventPointUserCache ??= new Map());
+
+const AUTH_CACHE_TTL_MS = (() => {
+  const configured = Number(process.env.AUTH_CACHE_TTL_MS);
+  return Number.isFinite(configured) && configured >= 0 ? configured : 30_000;
+})();
+const AUTH_CACHE_MAX = 500;
+
+export function invalidateAuthUser(id?: number): void {
+  if (id === undefined) {
+    userCache.clear();
+  } else {
+    userCache.delete(id);
+  }
+}
+
+export async function findUserByIdCached(id: number): Promise<UserRow | undefined> {
+  const now = Date.now();
+  const cached = userCache.get(id);
+  if (cached && cached.expiresAt > now) {
+    return cached.row ?? undefined;
+  }
+
+  const row = await findUserById(id);
+
+  if (userCache.size >= AUTH_CACHE_MAX) {
+    const oldest = userCache.keys().next().value;
+    if (oldest !== undefined) userCache.delete(oldest);
+  }
+  userCache.set(id, { row: row ?? null, expiresAt: now + AUTH_CACHE_TTL_MS });
+  return row;
 }
 
 export async function authenticate(login: string, password: string): Promise<UserRow | null> {
@@ -233,6 +283,7 @@ export async function updateUserPassword(userId: number, passwordHash: string): 
     'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
     [passwordHash, userId],
   );
+  if (res.rowCount > 0) invalidateAuthUser(userId);
   return res.rowCount > 0;
 }
 
@@ -242,6 +293,7 @@ export async function updateUserRole(userId: number, role: Role): Promise<boolea
     'UPDATE users SET role = $1, updated_at = NOW() WHERE id = $2',
     [role, userId],
   );
+  if (res.rowCount > 0) invalidateAuthUser(userId);
   return res.rowCount > 0;
 }
 
@@ -894,66 +946,54 @@ export interface PaymentMetrics {
   };
 }
 
+/**
+ * Single aggregate statement replacing three unbounded SELECTs + JS loops.
+ * Portable between Postgres and the SQLite fallback (CASE WHEN, scalar subqueries).
+ */
+export const PAYMENT_METRICS_SQL = `
+  SELECT
+    (SELECT COALESCE(SUM(amount_paise), 0) FROM payments WHERE status = 'captured') AS collected,
+    (SELECT COUNT(*) FROM payments WHERE status = 'captured') AS successful_count,
+    (SELECT COUNT(*) FROM payments WHERE status IN ('pending', 'created', 'authorized')) AS pending_count,
+    (SELECT COUNT(*) FROM payments WHERE status = 'failed') AS failed_count,
+    (SELECT COUNT(*) FROM payments WHERE status IN ('refunded', 'partially_refunded')) AS refunded_count,
+    (SELECT COALESCE(SUM(amount_paise), 0) FROM payments WHERE status = 'captured' AND provider = 'phonepe') AS phonepe_total,
+    (SELECT COUNT(*) FROM payments WHERE status = 'captured' AND provider = 'phonepe') AS phonepe_count,
+    (SELECT COALESCE(SUM(amount_paise), 0) FROM refunds WHERE status = 'processed') AS refunded_total,
+    (SELECT COALESCE(SUM(outstanding_balance), 0) FROM bookings) AS outstanding_total
+`;
+
 export async function getPaymentMetrics(): Promise<PaymentMetrics> {
   const neon = getNeonClient();
-  const paymentsRes = await neon.query<{ status: string; provider: string; amount_paise: string }>(
-    'SELECT status, provider, amount_paise FROM payments'
-  );
-  const bookingsRes = await neon.query<{ outstanding_balance: string }>(
-    'SELECT outstanding_balance FROM bookings'
-  );
-  const refundsRes = await neon.query<{ status: string; amount_paise: string }>(
-    'SELECT status, amount_paise FROM refunds'
-  );
+  // Single aggregate statement: previously three unbounded SELECTs transferred
+  // every payment/refund/booking row and aggregated them in JavaScript.
+  const res = await neon.query<{
+    collected: string | number;
+    successful_count: string | number;
+    pending_count: string | number;
+    failed_count: string | number;
+    refunded_count: string | number;
+    phonepe_total: string | number;
+    phonepe_count: string | number;
+    refunded_total: string | number;
+    outstanding_total: string | number;
+  }>(PAYMENT_METRICS_SQL);
 
-  let totalCollectedPaise = 0;
-  let successfulCount = 0;
-  let pendingCount = 0;
-  let failedCount = 0;
-  let refundedCount = 0;
-  const providerStats = {
-    phonepe: { count: 0, totalPaise: 0 },
-  };
-
-  for (const p of paymentsRes.rows) {
-    const amount = Number(p.amount_paise) || 0;
-    if (p.status === 'captured') {
-      totalCollectedPaise += amount;
-      successfulCount++;
-      if (p.provider === 'phonepe') {
-        providerStats.phonepe.count++;
-        providerStats.phonepe.totalPaise += amount;
-      }
-    } else if (p.status === 'pending' || p.status === 'created' || p.status === 'authorized') {
-      pendingCount++;
-    } else if (p.status === 'failed') {
-      failedCount++;
-    } else if (p.status === 'refunded' || p.status === 'partially_refunded') {
-      refundedCount++;
-    }
-  }
-
-  let totalRefundedPaise = 0;
-  for (const r of refundsRes.rows) {
-    if (r.status === 'processed') {
-      totalRefundedPaise += Number(r.amount_paise) || 0;
-    }
-  }
-
-  let outstandingBalancePaise = 0;
-  for (const b of bookingsRes.rows) {
-    outstandingBalancePaise += Number(b.outstanding_balance) || 0;
-  }
-
+  const row = res.rows[0];
   return {
-    totalCollectedPaise,
-    successfulCount,
-    pendingCount,
-    failedCount,
-    refundedCount,
-    totalRefundedPaise,
-    outstandingBalancePaise,
-    providerStats,
+    totalCollectedPaise: Number(row?.collected || 0),
+    successfulCount: Number(row?.successful_count || 0),
+    pendingCount: Number(row?.pending_count || 0),
+    failedCount: Number(row?.failed_count || 0),
+    refundedCount: Number(row?.refunded_count || 0),
+    totalRefundedPaise: Number(row?.refunded_total || 0),
+    outstandingBalancePaise: Number(row?.outstanding_total || 0),
+    providerStats: {
+      phonepe: {
+        count: Number(row?.phonepe_count || 0),
+        totalPaise: Number(row?.phonepe_total || 0),
+      },
+    },
   };
 }
 
@@ -999,8 +1039,6 @@ export async function listPayments(filters?: {
     LEFT JOIN customers c ON c.id = p.customer_id
     ${whereClause}
   `;
-  const countRes = await neon.query<{ cnt: string }>(countQuery, params);
-  const total = Number(countRes.rows[0]?.cnt || 0);
 
   const listQuery = `
     SELECT p.*, c.name as customer_name, c.phone as customer_phone, b.event_type
@@ -1012,11 +1050,16 @@ export async function listPayments(filters?: {
     LIMIT $${params.length + 1} OFFSET $${params.length + 2}
   `;
   const listParams = [...params, limit, offset];
-  const listRes = await neon.query<PaymentRow & { customer_name?: string; customer_phone?: string; event_type?: string }>(
-    listQuery,
-    listParams
-  );
 
+  const [countRes, listRes] = await Promise.all([
+    neon.query<{ cnt: string }>(countQuery, params),
+    neon.query<PaymentRow & { customer_name?: string; customer_phone?: string; event_type?: string }>(
+      listQuery,
+      listParams
+    ),
+  ]);
+
+  const total = Number(countRes.rows[0]?.cnt || 0);
   return { payments: listRes.rows, total };
 }
 

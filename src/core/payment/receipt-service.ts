@@ -1,6 +1,4 @@
 import { createHash, randomBytes } from 'node:crypto';
-import QRCode from 'qrcode';
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import {
   getPaymentById,
   getBookingById,
@@ -103,6 +101,27 @@ export async function generateUniqueReceiptNumber(): Promise<string> {
   return `EPR-RCPT-${yearMonth}-${randomBytes(3).toString('hex').toUpperCase()}`;
 }
 
+// pdf-lib and qrcode are heavy and only needed when a receipt PDF/QR is
+// actually requested, so they are imported on demand instead of on every
+// server boot / cold start.
+type PdfLib = typeof import('pdf-lib');
+let pdfLibPromise: Promise<PdfLib> | null = null;
+function loadPdfLib(): Promise<PdfLib> {
+  if (!pdfLibPromise) pdfLibPromise = import('pdf-lib');
+  return pdfLibPromise;
+}
+
+type QrCodeLib = typeof import('qrcode');
+let qrCodePromise: Promise<QrCodeLib> | null = null;
+function loadQrCode(): Promise<QrCodeLib> {
+  if (!qrCodePromise) {
+    qrCodePromise = import('qrcode').then(
+      (module) => ((module as { default?: QrCodeLib }).default ?? module) as QrCodeLib,
+    );
+  }
+  return qrCodePromise;
+}
+
 export class ReceiptService {
   private defaultBaseUrl: string;
 
@@ -168,6 +187,7 @@ export class ReceiptService {
     }
 
     const verificationUrl = `${host.replace(/\/+$/, '')}/receipt/verify/${receipt.verification_token}`;
+    const QRCode = await loadQrCode();
     const qrDataUrl = await QRCode.toDataURL(verificationUrl, {
       errorCorrectionLevel: 'M',
       margin: 1,
@@ -244,6 +264,9 @@ export class ReceiptService {
    */
   public async generatePdfBuffer(receiptPayload: ReceiptDetailPayload): Promise<Uint8Array> {
     const { receipt, payment, booking, customer, businessInfo, verificationUrl, isRefunded } = receiptPayload;
+
+    const { PDFDocument, rgb, StandardFonts } = await loadPdfLib();
+    const QRCode = await loadQrCode();
 
     // Create PDF document
     const pdfDoc = await PDFDocument.create();

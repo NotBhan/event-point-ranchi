@@ -1,5 +1,6 @@
 ---
-import { formatMoney, imageUrl } from '../core/http';
+import { formatMoney } from '../core/http';
+import { responsiveImage } from '../core/media';
 
 interface Props {
   hall: {
@@ -21,12 +22,16 @@ interface Props {
 }
 
 const { hall, availability = null, showAvailability = false } = Astro.props;
+const image = responsiveImage(hall.image, {
+  widths: [320, 480, 640],
+  sizes: '(max-width: 900px) 100vw, 420px',
+});
 ---
 
 <article class="hall-card">
   <div class="hall-card-media">
     {hall.image ? (
-      <img src={imageUrl(hall.image)} alt={hall.name} loading="lazy" />
+      <img src={image.src} srcset={image.srcset} sizes={image.sizes} width="640" height="400" alt={hall.name} loading="lazy" decoding="async" />
     ) : (
       <div class="media-fallback">
         <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16"/><path d="M15 9h4a1 1 0 0 1 1 1v11"/><path d="M2 21h20"/></svg>

@@ -181,7 +181,8 @@ handle: async (ctx) => {
 - Furniture and room inventory is never exposed as a public catalogue. Accommodation is captured as a
   yes/no requirement, a requested room count and notes, then handled by the operations team.
 - Uploaded images go to `data/uploads/<folder>/` and are served by the `media` module; the DB stores
-  `/uploads/...` paths. Seed images live in `public/images/archive/`.
+  `/uploads/...` paths. Seed images live in `data/archive/` (kept out of the
+  built `public/` directory so deploys stay small).
 
 ## Security model (what the port enforces)
 

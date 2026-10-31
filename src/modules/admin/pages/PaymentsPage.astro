@@ -1,18 +1,24 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
-import { formatDateTime, formatMoney } from '../../../core/http';
+import AdminPager from '../../../components/admin/AdminPager.astro';
+import { buildPagination, formatDateTime, formatMoney } from '../../../core/http';
 import type { PaymentRow, PaymentMetrics } from '../../../core/operational/service';
 
 interface Props {
   metrics: PaymentMetrics;
   payments: PaymentRow[];
   total: number;
+  page: number;
+  perPage: number;
   status: string;
   provider: string;
   search: string;
 }
 
-const { metrics, payments, total, status, provider, search } = Astro.props;
+const { metrics, payments, total, page, perPage, status, provider, search } = Astro.props;
+const pagination = buildPagination(page, perPage, total, payments.length);
+const pageHref = (target: number) =>
+  `/admin/payments?status=${encodeURIComponent(status)}&provider=${encodeURIComponent(provider)}&q=${encodeURIComponent(search)}&page=${target}`;
 
 const statusClass: Record<string, string> = {
   captured: 'badge-success',
@@ -178,6 +184,15 @@ const providerTabs = [
             </tbody>
           </table>
         </div>
+        <AdminPager
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          totalCount={pagination.totalCount}
+          startItem={pagination.startItem}
+          endItem={pagination.endItem}
+          label="payments"
+          href={pageHref}
+        />
       )}
     </div>
   </div>

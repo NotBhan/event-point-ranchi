@@ -1,5 +1,5 @@
 import { all, one, run } from '../../core/db';
-import { getBoolean, getInt, getString, parseMoneyToPaise, uniqueSlug } from '../../core/http';
+import { buildPagination, getBoolean, getInt, getString, parseMoneyToPaise, uniqueSlug } from '../../core/http';
 import { formatBytes } from '../../core/storage/config';
 import type { StorageDriver } from '../../core/storage/filebase';
 import type { QuotaUsage, QuotaWarningLevel, StorageCategory } from '../../core/storage/quota';
@@ -14,8 +14,10 @@ import { getStorageUsage, saveUploadedImage, UploadError } from '../../core/uplo
 import { getD1Client } from '../../core/content/d1-client';
 import {
   invalidateContentCache,
-  listAllPageContent,
+  getPageContent,
   getMandaps,
+  getSiteSettingsRowCached,
+  getSeoSettingsRowsCached,
   savePageContent,
   saveMandapLocation,
   validateCoordinates,
@@ -117,7 +119,10 @@ export function loadDashboard() {
 
 /* ============================ Bookings ============================ */
 
-export function listBookings(filters: { status?: string; query?: string } = {}) {
+export function listBookings(
+  filters: { status?: string; query?: string } = {},
+  paging: { page?: number; perPage?: number } = {},
+) {
   const clauses: string[] = [];
   const params: unknown[] = [];
 
@@ -132,7 +137,17 @@ export function listBookings(filters: { status?: string; query?: string } = {}) 
   }
 
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
-  return all<{
+  const perPage = Math.max(1, Math.min(100, paging.perPage ?? 25));
+  const requestedPage = Math.max(1, paging.page ?? 1);
+
+  const totalRow = one<{ count: number }>(
+    `SELECT COUNT(*) AS count FROM bookings b JOIN customers c ON c.id = b.customer_id ${where}`,
+    params,
+  );
+  const totalCount = Number(totalRow?.count ?? 0);
+  const offset = buildPagination(requestedPage, perPage, totalCount, 0).offset;
+
+  const items = all<{
     id: number;
     customer: string;
     phone: string;
@@ -147,9 +162,11 @@ export function listBookings(filters: { status?: string; query?: string } = {}) 
             b.total_guest, b.total_amount, b.status, b.created_at
      FROM bookings b JOIN customers c ON c.id = b.customer_id
      ${where}
-     ORDER BY b.id DESC LIMIT 200`,
-    params,
+     ORDER BY b.id DESC LIMIT ? OFFSET ?`,
+    [...params, perPage, offset],
   );
+
+  return { items, pagination: buildPagination(requestedPage, perPage, totalCount, items.length) };
 }
 
 export function updateBookingStatus(id: number, status: string): void {
@@ -163,8 +180,15 @@ export function deleteBooking(id: number): void {
 
 /* ============================ Halls ============================ */
 
-export function listHallsAdmin() {
-  return all<{
+export function listHallsAdmin(paging: { page?: number; perPage?: number } = {}) {
+  const perPage = Math.max(1, Math.min(100, paging.perPage ?? 25));
+  const requestedPage = Math.max(1, paging.page ?? 1);
+
+  const totalRow = one<{ count: number }>('SELECT COUNT(*) AS count FROM halls');
+  const totalCount = Number(totalRow?.count ?? 0);
+  const offset = buildPagination(requestedPage, perPage, totalCount, 0).offset;
+
+  const items = all<{
     id: number;
     name: string;
     slug: string;
@@ -177,9 +201,17 @@ export function listHallsAdmin() {
     booking_count: number;
   }>(
     `SELECT h.id, h.name, h.slug, h.image, h.price_paise, h.capacity, h.location, h.is_active, h.is_featured,
-            (SELECT COUNT(*) FROM booking_halls bh WHERE bh.hall_id = h.id) AS booking_count
-     FROM halls h ORDER BY h.is_active DESC, h.id`,
+            COALESCE(bh.booking_count, 0) AS booking_count
+     FROM halls h
+     LEFT JOIN (
+       SELECT hall_id, COUNT(*) AS booking_count FROM booking_halls GROUP BY hall_id
+     ) bh ON bh.hall_id = h.id
+     ORDER BY h.is_active DESC, h.id
+     LIMIT ? OFFSET ?`,
+    [perPage, offset],
   );
+
+  return { items, pagination: buildPagination(requestedPage, perPage, totalCount, items.length) };
 }
 
 export function loadHallAdmin(id: number) {
@@ -262,8 +294,15 @@ export function toggleHall(id: number): void {
 
 /* ============================ Catering ============================ */
 
-export function listCateringAdmin() {
-  return all<{
+export function listCateringAdmin(paging: { page?: number; perPage?: number } = {}) {
+  const perPage = Math.max(1, Math.min(100, paging.perPage ?? 25));
+  const requestedPage = Math.max(1, paging.page ?? 1);
+
+  const totalRow = one<{ count: number }>('SELECT COUNT(*) AS count FROM catering_packages');
+  const totalCount = Number(totalRow?.count ?? 0);
+  const offset = buildPagination(requestedPage, perPage, totalCount, 0).offset;
+
+  const items = all<{
     id: number;
     name: string;
     slug: string;
@@ -276,13 +315,25 @@ export function listCateringAdmin() {
     item_count: number;
   }>(
     `SELECT cp.id, cp.name, cp.slug, cp.image, cp.price_paise, cp.badge, cp.is_active, cp.show_on_home,
-            (SELECT COUNT(*) FROM menu_sections ms WHERE ms.package_id = cp.id) AS section_count,
-            (SELECT COUNT(*) FROM menu_items mi
-              JOIN menu_categories mc ON mc.id = mi.category_id
-              JOIN menu_sections ms ON ms.id = mc.section_id
-              WHERE ms.package_id = cp.id) AS item_count
-     FROM catering_packages cp ORDER BY cp.is_active DESC, cp.id`,
+            COALESCE(ms.section_count, 0) AS section_count,
+            COALESCE(mi.item_count, 0) AS item_count
+     FROM catering_packages cp
+     LEFT JOIN (
+       SELECT package_id, COUNT(*) AS section_count FROM menu_sections GROUP BY package_id
+     ) ms ON ms.package_id = cp.id
+     LEFT JOIN (
+       SELECT ms.package_id, COUNT(mi.id) AS item_count
+       FROM menu_sections ms
+       JOIN menu_categories mc ON mc.section_id = ms.id
+       JOIN menu_items mi ON mi.category_id = mc.id
+       GROUP BY ms.package_id
+     ) mi ON mi.package_id = cp.id
+     ORDER BY cp.is_active DESC, cp.id
+     LIMIT ? OFFSET ?`,
+    [perPage, offset],
   );
+
+  return { items, pagination: buildPagination(requestedPage, perPage, totalCount, items.length) };
 }
 
 export function loadCateringAdmin(id: number) {
@@ -757,23 +808,31 @@ export interface StorageDashboardData {
   isConfigured: boolean;
 }
 
-function storageCategoryCounts(category: StorageCategory): {
-  active: number;
-  pendingDeletion: number;
-} {
-  const row = one<{ active: number | null; pending_deletion: number | null }>(
-    `SELECT
-       COALESCE(SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END), 0) AS active,
-       COALESCE(SUM(CASE WHEN status = 'pending_deletion' THEN 1 ELSE 0 END), 0) AS pending_deletion
+/** One grouped query for both storage categories instead of one per card. */
+function storageCountsByCategory(): Record<StorageCategory, { active: number; pendingDeletion: number }> {
+  const counts: Record<StorageCategory, { active: number; pendingDeletion: number }> = {
+    gallery: { active: 0, pendingDeletion: 0 },
+    asset: { active: 0, pendingDeletion: 0 },
+  };
+
+  const rows = all<{ storage_category: StorageCategory; active: number | null; pending_deletion: number | null }>(
+    `SELECT storage_category,
+            COALESCE(SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END), 0) AS active,
+            COALESCE(SUM(CASE WHEN status = 'pending_deletion' THEN 1 ELSE 0 END), 0) AS pending_deletion
      FROM storage_objects
-     WHERE storage_category = ?`,
-    [category],
+     GROUP BY storage_category`,
   );
 
-  return {
-    active: Number(row?.active ?? 0),
-    pendingDeletion: Number(row?.pending_deletion ?? 0),
-  };
+  for (const row of rows) {
+    if (row.storage_category === 'gallery' || row.storage_category === 'asset') {
+      counts[row.storage_category] = {
+        active: Number(row.active ?? 0),
+        pendingDeletion: Number(row.pending_deletion ?? 0),
+      };
+    }
+  }
+
+  return counts;
 }
 
 function storageCategoryCard(
@@ -781,9 +840,8 @@ function storageCategoryCard(
   label: string,
   description: string,
   usage: QuotaUsage,
+  counts: { active: number; pendingDeletion: number },
 ): StorageCategoryCard {
-  const counts = storageCategoryCounts(category);
-
   return {
     category,
     label,
@@ -802,6 +860,7 @@ function storageCategoryCard(
 
 export function loadStorageDashboard(): StorageDashboardData {
   const usage = imageStorage.getStorageUsage();
+  const counts = storageCountsByCategory();
 
   return {
     gallery: storageCategoryCard(
@@ -809,12 +868,14 @@ export function loadStorageDashboard(): StorageDashboardData {
       'Gallery',
       'Photos published to the public gallery.',
       usage.gallery,
+      counts.gallery,
     ),
     asset: storageCategoryCard(
       'asset',
       'Other Assets',
       'Mandaps, stages, equipment and site branding.',
       usage.asset,
+      counts.asset,
     ),
     usage,
     pendingDeletionCount: usage.pendingDeletionCount,
@@ -833,11 +894,19 @@ export async function retryCleanupAdmin(limit?: number): Promise<RetryPendingDel
 
 /* ============================ Customers ============================ */
 
-export function listCustomers(query?: string) {
+export function listCustomers(query?: string, paging: { page?: number; perPage?: number } = {}) {
   const like = `%${query ?? ''}%`;
   const where = query ? 'WHERE c.name LIKE ? OR c.phone LIKE ? OR c.email LIKE ?' : '';
   const params = query ? [like, like, like] : [];
-  return all<{
+
+  const perPage = Math.max(1, Math.min(100, paging.perPage ?? 25));
+  const requestedPage = Math.max(1, paging.page ?? 1);
+
+  const totalRow = one<{ count: number }>(`SELECT COUNT(*) AS count FROM customers c ${where}`, params);
+  const totalCount = Number(totalRow?.count ?? 0);
+  const offset = buildPagination(requestedPage, perPage, totalCount, 0).offset;
+
+  const items = all<{
     id: number;
     name: string;
     phone: string;
@@ -847,11 +916,21 @@ export function listCustomers(query?: string) {
     total_spend: number;
   }>(
     `SELECT c.id, c.name, c.phone, c.email, c.created_at,
-            (SELECT COUNT(*) FROM bookings b WHERE b.customer_id = c.id) AS booking_count,
-            (SELECT COALESCE(SUM(b.total_amount), 0) FROM bookings b WHERE b.customer_id = c.id AND b.status IN ('pending','confirmed')) AS total_spend
-     FROM customers c ${where} ORDER BY c.id DESC LIMIT 200`,
-    params,
+            COALESCE(b.booking_count, 0) AS booking_count,
+            COALESCE(b.total_spend, 0) AS total_spend
+     FROM customers c
+     LEFT JOIN (
+       SELECT customer_id,
+              COUNT(*) AS booking_count,
+              COALESCE(SUM(CASE WHEN status IN ('pending','confirmed') THEN total_amount ELSE 0 END), 0) AS total_spend
+       FROM bookings
+       GROUP BY customer_id
+     ) b ON b.customer_id = c.id
+     ${where} ORDER BY c.id DESC LIMIT ? OFFSET ?`,
+    [...params, perPage, offset],
   );
+
+  return { items, pagination: buildPagination(requestedPage, perPage, totalCount, items.length) };
 }
 
 export function loadCustomerAdmin(id: number) {
@@ -886,10 +965,17 @@ export function loadCustomerAdmin(id: number) {
 
 /* ============================ Inquiries ============================ */
 
-export function listInquiries(status?: string) {
+export function listInquiries(status?: string, paging: { page?: number; perPage?: number } = {}) {
   const where = status && status !== 'all' ? 'WHERE status = ?' : '';
   const params = where ? [status] : [];
-  return all<{
+  const perPage = Math.max(1, Math.min(100, paging.perPage ?? 25));
+  const requestedPage = Math.max(1, paging.page ?? 1);
+
+  const totalRow = one<{ count: number }>(`SELECT COUNT(*) AS count FROM contact_inquiries ${where}`, params);
+  const totalCount = Number(totalRow?.count ?? 0);
+  const offset = buildPagination(requestedPage, perPage, totalCount, 0).offset;
+
+  const items = all<{
     id: number;
     name: string;
     phone: string;
@@ -900,7 +986,9 @@ export function listInquiries(status?: string) {
     message: string;
     status: string;
     created_at: string;
-  }>(`SELECT * FROM contact_inquiries ${where} ORDER BY id DESC LIMIT 200`, params);
+  }>(`SELECT * FROM contact_inquiries ${where} ORDER BY id DESC LIMIT ? OFFSET ?`, [...params, perPage, offset]);
+
+  return { items, pagination: buildPagination(requestedPage, perPage, totalCount, items.length) };
 }
 
 export function updateInquiryStatus(id: number, status: string): void {
@@ -914,41 +1002,73 @@ export function deleteInquiry(id: number): void {
 
 /* ============================ Content ============================ */
 
-export async function loadContentAdmin() {
-  const d1 = getD1Client();
-  let siteSettings: any = null;
-  let seoSettings: any[] = [];
-  try {
-    const sRes = await d1.query('SELECT * FROM site_settings WHERE id = ? LIMIT 1', ['global']);
-    siteSettings = sRes.results?.[0] || null;
-    const seoRes = await d1.query('SELECT * FROM seo_settings ORDER BY page_key ASC');
-    seoSettings = seoRes.results || [];
-  } catch (err) {
-    console.warn('[D1] loadContentAdmin query error:', (err as Error).message);
+export const CONTENT_STUDIO_TABS = [
+  'brand',
+  'locations',
+  'videos',
+  'seo',
+  'features',
+  'page-home',
+  'page-mandaps',
+  'page-gallery',
+  'page-catering',
+  'page-stages',
+  'page-equipment',
+] as const;
+
+export type ContentStudioTab = (typeof CONTENT_STUDIO_TABS)[number];
+
+export function parseContentStudioTab(raw: string | null | undefined): ContentStudioTab {
+  const value = (raw ?? '').trim();
+  return (CONTENT_STUDIO_TABS as readonly string[]).includes(value) ? (value as ContentStudioTab) : 'brand';
+}
+
+/**
+ * Loads data for a single Content Studio tab. Each tab previously fetched
+ * everything (~11 sequential D1 round trips) and rendered every panel; the
+ * active tab is now the only thing fetched and rendered server-side.
+ */
+export async function loadContentAdmin(tab: ContentStudioTab = 'brand') {
+  if (tab === 'brand') {
+    let siteSettings: any = null;
+    try {
+      siteSettings = await getSiteSettingsRowCached();
+    } catch (err) {
+      console.warn('[D1] loadContentAdmin query error:', (err as Error).message);
+    }
+    return { tab, siteSettings };
   }
 
-  // Load the 6 pages from D1
-  const pagesContent = await listAllPageContent(true);
+  if (tab === 'locations') {
+    const mandaps = await getMandaps(true);
+    return { tab, mandaps };
+  }
 
-  // Load mandaps from D1 with location fields
-  const mandaps = await getMandaps(true);
+  if (tab === 'videos') {
+    const videoPreviews = await getVideoPreviews({ onlyPublished: false });
+    return { tab, videoPreviews };
+  }
 
-  // Load all video previews (published and draft) from D1
-  const videoPreviews = await getVideoPreviews({ onlyPublished: false });
+  if (tab === 'seo') {
+    let seoSettings: any[] = [];
+    try {
+      seoSettings = await getSeoSettingsRowsCached();
+    } catch (err) {
+      console.warn('[D1] loadContentAdmin SEO query error:', (err as Error).message);
+    }
+    return { tab, seoSettings };
+  }
 
-  const homepage = one<{ hero_title: string; hero_description: string; hero_image: string | null }>(
-    'SELECT hero_title, hero_description, hero_image FROM homepage WHERE id = 1',
-  );
-  const features = all<{ id: number; icon: string; title: string; description: string }>(
-    'SELECT id, icon, title, description FROM homepage_features ORDER BY sort, id',
-  );
-  const pages = all<{ key: string; hero_title: string; hero_subtitle: string; hero_badge: string; hero_image: string | null }>(
-    'SELECT key, hero_title, hero_subtitle, hero_badge, hero_image FROM page_settings ORDER BY key',
-  );
-  const contact = one<{ address: string; phone: string; email: string }>(
-    'SELECT address, phone, email FROM contact_info WHERE id = 1',
-  );
-  return { homepage, features, pages, contact, siteSettings, seoSettings, pagesContent, mandaps, videoPreviews };
+  if (tab === 'features') {
+    const features = all<{ id: number; icon: string; title: string; description: string }>(
+      'SELECT id, icon, title, description FROM homepage_features ORDER BY sort, id',
+    );
+    return { tab, features };
+  }
+
+  const pageKey = tab.slice('page-'.length);
+  const pageContent = await getPageContent(pageKey, true);
+  return { tab, pagesContent: [pageContent] };
 }
 
 export async function saveSiteSettings(form: FormData | null): Promise<void> {
@@ -1293,7 +1413,10 @@ export interface EnquiryLineItemRow {
   notes: string;
 }
 
-export function listEventEnquiries(filters: { status?: string; query?: string } = {}) {
+export function listEventEnquiries(
+  filters: { status?: string; query?: string } = {},
+  paging: { page?: number; perPage?: number } = {},
+) {
   const clauses: string[] = [];
   const params: unknown[] = [];
 
@@ -1311,17 +1434,25 @@ export function listEventEnquiries(filters: { status?: string; query?: string } 
   }
 
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+  const perPage = Math.max(1, Math.min(100, paging.perPage ?? 25));
+  const requestedPage = Math.max(1, paging.page ?? 1);
 
-  return all<EventEnquiryRow>(
+  const totalRow = one<{ count: number }>(`SELECT COUNT(*) AS count FROM event_enquiries ${where}`, params);
+  const totalCount = Number(totalRow?.count ?? 0);
+  const offset = buildPagination(requestedPage, perPage, totalCount, 0).offset;
+
+  const items = all<EventEnquiryRow>(
     `SELECT id, reference_code, customer_name, customer_phone, customer_email, event_type,
             event_date, end_date, event_time, venue_location, guest_count, budget_range,
             requires_rooms, room_count, accommodation_notes, decoration_notes, preferred_contact,
             status, created_at
      FROM event_enquiries
      ${where}
-     ORDER BY id DESC LIMIT 200`,
-    params,
+     ORDER BY id DESC LIMIT ? OFFSET ?`,
+    [...params, perPage, offset],
   );
+
+  return { items, pagination: buildPagination(requestedPage, perPage, totalCount, items.length) };
 }
 
 export function loadEventEnquiry(id: number): { enquiry: EventEnquiryRow; lines: EnquiryLineItemRow[] } | null {
@@ -1352,8 +1483,7 @@ export async function loadPaymentsAdmin(filters?: {
   limit?: number;
   offset?: number;
 }) {
-  const metrics = await getPaymentMetrics();
-  const listResult = await listPayments(filters);
+  const [metrics, listResult] = await Promise.all([getPaymentMetrics(), listPayments(filters)]);
   return { metrics, payments: listResult.payments, total: listResult.total };
 }
 
@@ -1361,22 +1491,22 @@ export async function loadPaymentDetailAdmin(paymentId: number) {
   const payment = await getPaymentById(paymentId);
   if (!payment) return null;
 
-  const booking = await getBookingById(payment.booking_id);
-  const refunds = await getRefundsByPaymentId(payment.id);
-  const invoice = await getInvoiceByPaymentId(payment.id);
-
   const neon = getNeonClient();
-  const custRes = payment.customer_id
-    ? await neon.query<CustomerRow>('SELECT * FROM customers WHERE id = $1 LIMIT 1', [payment.customer_id])
-    : { rows: [] };
+  const [booking, refunds, invoice, custRes, webhooksRes] = await Promise.all([
+    getBookingById(payment.booking_id),
+    getRefundsByPaymentId(payment.id),
+    getInvoiceByPaymentId(payment.id),
+    payment.customer_id
+      ? neon.query<CustomerRow>('SELECT * FROM customers WHERE id = $1 LIMIT 1', [payment.customer_id])
+      : Promise.resolve({ rows: [] as CustomerRow[], rowCount: 0 }),
+    neon.query<PaymentWebhookEventRow>(
+      `SELECT * FROM payment_webhook_events 
+       WHERE provider_event_id = $1 OR raw_payload LIKE $2
+       ORDER BY id DESC LIMIT 10`,
+      [payment.provider_payment_id || '', `%${payment.internal_transaction_reference}%`]
+    ),
+  ]);
   const customer = custRes.rows[0] || null;
-
-  const webhooksRes = await neon.query<PaymentWebhookEventRow>(
-    `SELECT * FROM payment_webhook_events 
-     WHERE provider_event_id = $1 OR raw_payload LIKE $2
-     ORDER BY id DESC LIMIT 10`,
-    [payment.provider_payment_id || '', `%${payment.internal_transaction_reference}%`]
-  );
 
   return {
     payment,

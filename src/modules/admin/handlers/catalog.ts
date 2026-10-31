@@ -1,5 +1,5 @@
 import { requireAdmin, requireEditor } from '../../../core/auth';
-import { getInt, getString, redirect } from '../../../core/http';
+import { getInt, getString, parsePageParams, redirect } from '../../../core/http';
 import type { PageContext } from '../../../core/types';
 import {
   saveSiteSettings,
@@ -25,6 +25,7 @@ import {
   listHallsAdmin,
   loadCateringAdmin,
   loadContentAdmin,
+  parseContentStudioTab,
   loadHallAdmin,
   replaceGalleryItemAdmin,
   saveCatering,
@@ -55,7 +56,8 @@ import { runFormAction } from './shared';
 export function hallsList(ctx: PageContext) {
   const denied = requireAdmin(ctx);
   if (denied) return denied;
-  return { props: { halls: listHallsAdmin() } };
+  const { page, perPage } = parsePageParams(ctx.url, { defaultPerPage: 25 });
+  return { props: { ...listHallsAdmin({ page, perPage }) } };
 }
 
 export async function hallForm(ctx: PageContext) {
@@ -106,7 +108,8 @@ export function hallDelete(ctx: PageContext) {
 export function cateringList(ctx: PageContext) {
   const denied = requireAdmin(ctx);
   if (denied) return denied;
-  return { props: { packages: listCateringAdmin() } };
+  const { page, perPage } = parsePageParams(ctx.url, { defaultPerPage: 25 });
+  return { props: { ...listCateringAdmin({ page, perPage }) } };
 }
 
 export async function cateringForm(ctx: PageContext) {
@@ -216,6 +219,26 @@ export function galleryAdmin(ctx: PageContext) {
 
 /* ---------------- Content ---------------- */
 
+function contentTabFromRequest(ctx: PageContext) {
+  const explicit = ctx.url.searchParams.get('tab');
+  if (explicit) return parseContentStudioTab(explicit);
+
+  // Forms post without a tab param; keep the editor on the tab they submitted
+  // from by reading it back from the referer.
+  const referer = ctx.request.headers.get('referer');
+  if (referer) {
+    try {
+      const refUrl = new URL(referer);
+      if (refUrl.pathname === '/admin/content') {
+        return parseContentStudioTab(refUrl.searchParams.get('tab'));
+      }
+    } catch {
+      /* ignore malformed referer */
+    }
+  }
+  return parseContentStudioTab(null);
+}
+
 export async function contentAdmin(ctx: PageContext) {
   const denied = requireEditor(ctx);
   if (denied) return denied;
@@ -237,10 +260,11 @@ export async function contentAdmin(ctx: PageContext) {
         delete_video_preview: () => deleteVideoPreviewAdmin(ctx.form),
         toggle_video_preview: () => toggleVideoPreviewAdmin(ctx.form),
       },
-      { redirectTo: '/admin/content' },
+      { redirectTo: `/admin/content?tab=${contentTabFromRequest(ctx)}` },
     );
   }
 
-  const content = await loadContentAdmin();
+  const tab = parseContentStudioTab(ctx.url.searchParams.get('tab'));
+  const content = await loadContentAdmin(tab);
   return { props: content };
 }

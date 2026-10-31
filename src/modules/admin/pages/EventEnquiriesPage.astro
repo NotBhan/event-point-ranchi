@@ -1,15 +1,19 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
+import AdminPager from '../../../components/admin/AdminPager.astro';
 import { formatDate, formatDateTime } from '../../../core/http';
 import type { listEventEnquiries } from '../service';
 
 interface Props {
-  enquiries: ReturnType<typeof listEventEnquiries>;
+  items: ReturnType<typeof listEventEnquiries>['items'];
+  pagination: ReturnType<typeof listEventEnquiries>['pagination'];
   status: string;
   query: string;
 }
 
-const { enquiries, status, query } = Astro.props;
+const { items: enquiries, pagination, status, query } = Astro.props;
+const pageHref = (page: number) =>
+  `/admin/enquiries?status=${encodeURIComponent(status)}&q=${encodeURIComponent(query)}&page=${page}`;
 
 const statusClass: Record<string, string> = {
   new: 'badge-warning',
@@ -114,6 +118,15 @@ const tabs = [
             </tbody>
           </table>
         </div>
+        <AdminPager
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          totalCount={pagination.totalCount}
+          startItem={pagination.startItem}
+          endItem={pagination.endItem}
+          label="enquiries"
+          href={pageHref}
+        />
       )}
     </div>
   </div>

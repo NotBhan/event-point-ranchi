@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { d1SchemaSql } from './d1-schema';
+import { recordDb } from '../perf';
 
 export interface D1QueryResult<T = Record<string, unknown>> {
   results: T[];
@@ -116,10 +117,15 @@ export class D1Client {
     sql: string,
     params: unknown[] = [],
   ): Promise<D1QueryResult<T>> {
-    if (this.isRemote) {
-      return this.queryRemote<T>(sql, params);
+    const startedAt = performance.now();
+    try {
+      if (this.isRemote) {
+        return await this.queryRemote<T>(sql, params);
+      }
+      return this.queryLocal<T>(sql, params);
+    } finally {
+      recordDb('d1', performance.now() - startedAt, sql);
     }
-    return this.queryLocal<T>(sql, params);
   }
 
   /**
@@ -128,14 +134,19 @@ export class D1Client {
   public async batch<T = Record<string, unknown>>(
     statements: Array<{ sql: string; params?: unknown[] }>,
   ): Promise<Array<D1QueryResult<T>>> {
-    if (this.isRemote) {
-      return this.batchRemote<T>(statements);
+    const startedAt = performance.now();
+    try {
+      if (this.isRemote) {
+        return await this.batchRemote<T>(statements);
+      }
+      const results: Array<D1QueryResult<T>> = [];
+      for (const stmt of statements) {
+        results.push(this.queryLocal<T>(stmt.sql, stmt.params || []));
+      }
+      return results;
+    } finally {
+      recordDb('d1', performance.now() - startedAt, statements.map((s) => s.sql).join(' | '));
     }
-    const results: Array<D1QueryResult<T>> = [];
-    for (const stmt of statements) {
-      results.push(this.queryLocal<T>(stmt.sql, stmt.params || []));
-    }
-    return results;
   }
 
   private async queryRemote<T>(sql: string, params: unknown[]): Promise<D1QueryResult<T>> {
@@ -210,7 +221,7 @@ export class D1Client {
         Authorization: `Bearer ${this.apiToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(cleaned),
+      body: JSON.stringify({ batch: cleaned }),
       signal: AbortSignal.timeout(8000),
     });
 
@@ -265,16 +276,23 @@ export class D1Client {
   }
 }
 
-let d1Instance: D1Client | null = null;
+// The Astro server build may emit this module in multiple chunks, so the
+// singleton lives on globalThis to guarantee one client (and one local DB
+// handle) per server process.
+interface D1GlobalScope {
+  __eventPointD1Client?: D1Client | null;
+}
+
+const d1Scope = globalThis as typeof globalThis & D1GlobalScope;
 
 export function getD1Client(): D1Client {
-  if (!d1Instance) {
-    d1Instance = new D1Client();
+  if (!d1Scope.__eventPointD1Client) {
+    d1Scope.__eventPointD1Client = new D1Client();
   }
-  return d1Instance;
+  return d1Scope.__eventPointD1Client;
 }
 
 export function resetD1Client(): void {
-  d1Instance?.close();
-  d1Instance = null;
+  d1Scope.__eventPointD1Client?.close();
+  d1Scope.__eventPointD1Client = null;
 }

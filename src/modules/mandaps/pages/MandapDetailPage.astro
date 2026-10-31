@@ -2,6 +2,7 @@
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import Icon from '../../../components/Icon.astro';
 import { imageUrl } from '../../../core/http';
+import { responsiveImage, thumbnailUrl } from '../../../core/media';
 import type { MandapRow } from '../service';
 import { getSiteSettings } from '../../../core/content/service';
 
@@ -12,6 +13,10 @@ interface Props {
 
 const { data, notFound = false } = Astro.props;
 const mandap = data;
+const mandapImage = responsiveImage(mandap?.image, {
+  widths: [480, 800, 1200],
+  sizes: '(max-width: 900px) 100vw, 560px',
+});
 const settings = await getSiteSettings();
 const whatsappNumber = settings.whatsapp ? settings.whatsapp.replace(/\D/g, '') : '919431107577';
 const mapsUrl = mandap?.google_maps_url || (mandap?.latitude && mandap?.longitude ? `https://maps.google.com/?q=${mandap.latitude},${mandap.longitude}` : '');
@@ -51,7 +56,16 @@ const dimensions = mandap ? `${mandap.length_ft} × ${mandap.width_ft} × ${mand
       <section class="detail-hero">
         <div class="container detail-hero-grid">
           <div class="detail-media">
-            <img src={imageUrl(mandap.image)} alt={mandap.name} />
+            <img
+              src={mandapImage.src}
+              srcset={mandapImage.srcset}
+              sizes="(max-width: 900px) 100vw, 560px"
+              width="1200"
+              height="900"
+              alt={mandap.name}
+              fetchpriority="high"
+              decoding="async"
+            />
             <span class="catalogue-badge">{mandap.category}</span>
           </div>
           <div class="detail-intro">
@@ -156,7 +170,7 @@ const dimensions = mandap ? `${mandap.length_ft} × ${mandap.width_ft} × ${mand
                       data-caption={`${mandap.name} — view ${index + 1}`}
                       aria-label={`View ${mandap.name} image ${index + 1}`}
                     >
-                      <img src={imageUrl(image)} alt={`${mandap.name} detail ${index + 1}`} loading="lazy" />
+                      <img src={thumbnailUrl(image, 480)} width="400" height="400" alt={`${mandap.name} detail ${index + 1}`} loading="lazy" decoding="async" />
                     </button>
                   ))}
                 </div>

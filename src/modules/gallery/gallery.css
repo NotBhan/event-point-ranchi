@@ -386,6 +386,17 @@
   pointer-events: none;
 }
 
+.pagination-btn.is-disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+a.pagination-btn,
+a.page-num-btn {
+  text-decoration: none;
+}
+
 .pagination-pages {
   display: flex;
   align-items: center;

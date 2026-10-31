@@ -1,14 +1,18 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
-import { formatMoney, imageUrl } from '../../../core/http';
+import AdminPager from '../../../components/admin/AdminPager.astro';
+import { formatMoney } from '../../../core/http';
+import { thumbnailUrl } from '../../../core/media';
 import type { listCateringAdmin } from '../service';
 
 interface Props {
-  packages: ReturnType<typeof listCateringAdmin>;
+  items: ReturnType<typeof listCateringAdmin>['items'];
+  pagination: ReturnType<typeof listCateringAdmin>['pagination'];
 }
 
-const { packages } = Astro.props;
+const { items: packages, pagination } = Astro.props;
 const csrf = Astro.locals.csrf;
+const pageHref = (page: number) => `/admin/catering?page=${page}`;
 ---
 
 <AdminLayout title="Catering packages" description={`${packages.length} menus with pricing tiers and item lists.`}>
@@ -42,7 +46,7 @@ const csrf = Astro.locals.csrf;
                   <td>
                     <div style="display:flex;align-items:center;gap:12px;">
                       {pkg.image ? (
-                        <img class="admin-thumb" src={imageUrl(pkg.image)} alt="" />
+                        <img class="admin-thumb" src={thumbnailUrl(pkg.image, 96)} width="44" height="44" alt="" loading="lazy" decoding="async" />
                       ) : (
                         <span class="admin-thumb" style="display:flex;align-items:center;justify-content:center;color:var(--muted);">—</span>
                       )}
@@ -90,6 +94,15 @@ const csrf = Astro.locals.csrf;
             </tbody>
           </table>
         </div>
+        <AdminPager
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          totalCount={pagination.totalCount}
+          startItem={pagination.startItem}
+          endItem={pagination.endItem}
+          label="packages"
+          href={pageHref}
+        />
       )}
     </div>
   </div>

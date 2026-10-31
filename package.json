@@ -15,6 +15,7 @@
     "start": "node ./dist/server/entry.mjs",
     "check": "astro check",
     "test": "node --import tsx --test 'tests/**/*.test.ts'",
+    "perf:baseline": "node --import tsx scripts/perf-baseline.ts",
     "db:reset": "node scripts/reset-db.mjs",
     "db:audit": "node --import tsx scripts/db-audit.ts"
   },
@@ -27,16 +28,12 @@
     "jsqr": "^1.4.0",
     "pdf-lib": "^1.17.1",
     "qrcode": "^1.5.4",
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1",
     "sharp": "^0.35.5"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.12",
     "@types/node": "^26.6.5",
     "@types/qrcode": "^1.5.6",
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3"
   }

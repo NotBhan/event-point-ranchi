@@ -2,6 +2,7 @@
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import Icon from '../../../components/Icon.astro';
 import { imageUrl } from '../../../core/http';
+import { responsiveImage, thumbnailUrl } from '../../../core/media';
 import type { StageRow } from '../service';
 
 interface Props {
@@ -11,6 +12,10 @@ interface Props {
 
 const { data, notFound = false } = Astro.props;
 const stage = data;
+const stageImage = responsiveImage(stage?.image, {
+  widths: [480, 800, 1200],
+  sizes: '(max-width: 900px) 100vw, 560px',
+});
 const decorationItems = stage?.decoration_notes
   .split('·')
   .map((item) => item.trim())
@@ -45,7 +50,16 @@ const dimensions = stage ? `${stage.length_ft} × ${stage.width_ft} × ${stage.h
       <section class="detail-hero">
         <div class="container detail-hero-grid">
           <div class="detail-media">
-            <img src={imageUrl(stage.image)} alt={stage.name} />
+            <img
+              src={stageImage.src}
+              srcset={stageImage.srcset}
+              sizes="(max-width: 900px) 100vw, 560px"
+              width="1200"
+              height="900"
+              alt={stage.name}
+              fetchpriority="high"
+              decoding="async"
+            />
             <span class="catalogue-badge">{stage.style_category}</span>
           </div>
           <div class="detail-intro">
@@ -99,7 +113,7 @@ const dimensions = stage ? `${stage.length_ft} × ${stage.width_ft} × ${stage.h
                       data-caption={`${stage.name} — view ${index + 1}`}
                       aria-label={`View ${stage.name} image ${index + 1}`}
                     >
-                      <img src={imageUrl(image)} alt={`${stage.name} detail ${index + 1}`} loading="lazy" />
+                      <img src={thumbnailUrl(image, 480)} width="400" height="400" alt={`${stage.name} detail ${index + 1}`} loading="lazy" decoding="async" />
                     </button>
                   ))}
                 </div>

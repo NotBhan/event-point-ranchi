@@ -3,6 +3,7 @@ import BaseLayout from '../../../layouts/BaseLayout.astro';
 import Icon from '../../../components/Icon.astro';
 import VideoPreviewCard from '../../../components/VideoPreviewCard.astro';
 import { imageUrl } from '../../../core/http';
+import { heroImage, responsiveImage } from '../../../core/media';
 import type { GalleryPageData } from '../service';
 import { getPageContent, getVideoPreviews } from '../../../core/content/service';
 import '../gallery.css';
@@ -12,7 +13,7 @@ interface Props {
 }
 
 const { data } = Astro.props;
-const { settings, categories, items } = data;
+const { settings, categories, items, category, perPage, pagination } = data;
 const [pageContent, videoPreviews] = await Promise.all([
   getPageContent('gallery'),
   getVideoPreviews({ onlyPublished: true }),
@@ -22,10 +23,32 @@ const heroTitle = pageContent.title || settings.hero_title;
 const heroSubtitle = pageContent.subtitle || settings.hero_subtitle;
 const heroBadge = pageContent.content_json?.badge || settings.hero_badge;
 const heroBanner = pageContent.banner_image_url || settings.hero_image;
+const heroBannerImage = heroImage(heroBanner);
 const showBanner = pageContent.banner_enabled !== false && Boolean(heroBanner);
 
-const DEFAULT_PAGE_SIZE = 8;
-const totalInitialPages = Math.ceil(items.length / DEFAULT_PAGE_SIZE);
+const totalAll = categories.reduce((sum, entry) => sum + entry.count, 0);
+
+// Server-side filters + pagination: every gallery link is a plain URL so the
+// page ships only the current slice of items.
+const galleryHref = (options: { category?: string; page?: number; per?: number } = {}) => {
+  const params = new URLSearchParams();
+  const nextCategory = options.category ?? category;
+  if (nextCategory) params.set('category', nextCategory);
+  const nextPer = options.per ?? perPage;
+  if (nextPer) params.set('per', String(nextPer));
+  const nextPage = options.page ?? 1;
+  if (nextPage > 1) params.set('page', String(nextPage));
+  const query = params.toString();
+  return `/gallery${query ? `?${query}` : ''}#gallerySection`;
+};
+
+const paginationWindow = (() => {
+  const total = pagination.totalPages;
+  const current = pagination.page;
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages = new Set([1, total, current - 1, current, current + 1]);
+  return [...pages].filter((p) => p >= 1 && p <= total).sort((a, b) => a - b);
+})();
 ---
 
 <BaseLayout
@@ -33,7 +56,7 @@ const totalInitialPages = Math.ceil(items.length / DEFAULT_PAGE_SIZE);
   description={pageContent.seo_description || heroSubtitle}
 >
   <section class:list={['page-hero', { 'with-image': showBanner }]}>
-    {showBanner && <img class="page-hero-media" src={imageUrl(heroBanner)} alt="" />}
+    {showBanner && <img class="page-hero-media" src={heroBannerImage.src} srcset={heroBannerImage.srcset} sizes={heroBannerImage.sizes} width="1600" height="900" alt="" fetchpriority="high" decoding="async" />}
     <div class="container">
       {heroBadge && <span class="eyebrow">{heroBadge}</span>}
       <h1>{heroTitle}</h1>
@@ -44,30 +67,37 @@ const totalInitialPages = Math.ceil(items.length / DEFAULT_PAGE_SIZE);
   <section class="section" id="gallerySection">
     <div class="container">
       <div class="filter-bar" data-gallery-filters>
-        <button type="button" class="filter-btn active" data-gallery-filter="all">
+        <a
+          class:list={['filter-btn', { active: !category }]}
+          href={galleryHref({ category: '', page: 1 })}
+          aria-current={!category ? 'page' : undefined}
+        >
           <span>All</span>
-          <span class="filter-count">{items.length}</span>
-        </button>
-        {categories.map((category) => (
-          <button type="button" class="filter-btn" data-gallery-filter={String(category.id)} data-category-slug={category.slug}>
-            <span>{category.name}</span>
-            <span class="filter-count">{category.count}</span>
-          </button>
+          <span class="filter-count">{totalAll}</span>
+        </a>
+        {categories.map((entry) => (
+          <a
+            class:list={['filter-btn', { active: category === entry.slug }]}
+            href={galleryHref({ category: entry.slug, page: 1 })}
+            aria-current={category === entry.slug ? 'page' : undefined}
+          >
+            <span>{entry.name}</span>
+            <span class="filter-count">{entry.count}</span>
+          </a>
         ))}
       </div>
 
       <div class="gallery-toolbar" data-gallery-toolbar>
         <div class="gallery-count-badge">
-          Showing <strong data-range-start>{items.length > 0 ? 1 : 0}</strong>–<strong data-range-end>{Math.min(items.length, DEFAULT_PAGE_SIZE)}</strong> of <strong data-total-count>{items.length}</strong> designs
+          Showing <strong>{pagination.startItem}</strong>–<strong>{pagination.endItem}</strong> of <strong>{pagination.totalCount}</strong> designs
         </div>
         <div class="gallery-view-options">
           <label class="page-size-label">
             <span>Per page:</span>
             <select class="page-size-select" data-page-size-select aria-label="Designs per page">
-              <option value="8" selected>8</option>
-              <option value="12">12</option>
-              <option value="16">16</option>
-              <option value="all">All</option>
+              <option value="12" selected={perPage === 12}>12</option>
+              <option value="24" selected={perPage === 24}>24</option>
+              <option value="48" selected={perPage === 48}>48</option>
             </select>
           </label>
         </div>
@@ -81,17 +111,13 @@ const totalInitialPages = Math.ceil(items.length / DEFAULT_PAGE_SIZE);
         </div>
       ) : (
         <>
-          <div class="gallery-empty-state" data-gallery-empty style="display: none;">
-            <div class="empty-icon"><Icon name="image" size={28} /></div>
-            <h3>No designs in this category</h3>
-            <p>Try selecting another category or view all designs in our collection.</p>
-            <button type="button" class="filter-btn active" data-reset-filter>
-              <span>View all designs</span>
-            </button>
-          </div>
-
           <div class="pinterest-masonry" data-gallery-masonry>
-            {items.map((item, index) => (
+            {items.map((item, index) => {
+              const tileImage = responsiveImage(item.image, {
+                widths: [320, 480, 640],
+                sizes: '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 320px',
+              });
+              return (
               <article
                 class="pinterest-pin"
                 data-gallery-item
@@ -108,9 +134,14 @@ const totalInitialPages = Math.ceil(items.length / DEFAULT_PAGE_SIZE);
                 <div class="pin-media-wrapper media-with-skeleton">
                   <div class="skeleton-placeholder skeleton-shimmer" role="status" aria-busy="true" aria-label="Loading image..."></div>
                   <img
-                    src={imageUrl(item.image)}
+                    src={tileImage.src}
+                    srcset={tileImage.srcset}
+                    sizes={tileImage.sizes}
+                    width="400"
+                    height="300"
                     alt={item.title || 'Event Point Ranchi celebration design'}
-                    loading={index < 4 ? 'eager' : 'lazy'}
+                    loading={pagination.page === 1 && index < 4 ? 'eager' : 'lazy'}
+                    decoding="async"
                   />
                   <div class="skeleton-error-fallback" role="alert">
                     <Icon name="image" size={24} />
@@ -141,39 +172,49 @@ const totalInitialPages = Math.ceil(items.length / DEFAULT_PAGE_SIZE);
                   </div>
                 </div>
               </article>
-            ))}
+              );
+            })}
           </div>
 
-          <nav class="gallery-pagination" data-gallery-pagination aria-label="Gallery pagination">
-            <button type="button" class="pagination-btn pagination-prev" data-page-prev disabled aria-label="Previous page">
-              <Icon name="arrow-left" size={15} />
-              <span>Previous</span>
-            </button>
+          <nav class="gallery-pagination" aria-label="Gallery pagination">
+            {pagination.page > 1 ? (
+              <a class="pagination-btn pagination-prev" href={galleryHref({ page: pagination.page - 1 })} aria-label="Previous page">
+                <Icon name="arrow-left" size={15} />
+                <span>Previous</span>
+              </a>
+            ) : (
+              <span class="pagination-btn pagination-prev is-disabled" aria-disabled="true">
+                <Icon name="arrow-left" size={15} />
+                <span>Previous</span>
+              </span>
+            )}
 
-            <div class="pagination-pages" data-page-numbers>
-              {Array.from({ length: totalInitialPages }, (_, i) => i + 1).map((pageNum) => (
-                <button
-                  type="button"
-                  class:list={['page-num-btn', { active: pageNum === 1 }]}
-                  data-page={pageNum}
-                  aria-label={`Page ${pageNum}`}
-                  aria-current={pageNum === 1 ? 'page' : undefined}
-                >
-                  {pageNum}
-                </button>
-              ))}
-            </div>
+            {pagination.totalPages > 1 && (
+              <div class="pagination-pages">
+                {paginationWindow.map((pageNum) => (
+                  <a
+                    class:list={['page-num-btn', { active: pageNum === pagination.page }]}
+                    href={galleryHref({ page: pageNum })}
+                    aria-label={`Page ${pageNum}`}
+                    aria-current={pageNum === pagination.page ? 'page' : undefined}
+                  >
+                    {pageNum}
+                  </a>
+                ))}
+              </div>
+            )}
 
-            <button
-              type="button"
-              class="pagination-btn pagination-next"
-              data-page-next
-              disabled={totalInitialPages <= 1}
-              aria-label="Next page"
-            >
-              <span>Next</span>
-              <Icon name="arrow-right" size={15} />
-            </button>
+            {pagination.page < pagination.totalPages ? (
+              <a class="pagination-btn pagination-next" href={galleryHref({ page: pagination.page + 1 })} aria-label="Next page">
+                <span>Next</span>
+                <Icon name="arrow-right" size={15} />
+              </a>
+            ) : (
+              <span class="pagination-btn pagination-next is-disabled" aria-disabled="true">
+                <span>Next</span>
+                <Icon name="arrow-right" size={15} />
+              </span>
+            )}
           </nav>
         </>
       )}
@@ -235,13 +276,32 @@ const totalInitialPages = Math.ceil(items.length / DEFAULT_PAGE_SIZE);
   )}
 
   <script>
-    import '../../../client/gallery';
+    // Gallery filtering + pagination are server-rendered links now; this script
+    // only wires the per-page selector and the video platform pills. Listeners
+    // are marked on the elements themselves so view-transition re-runs are safe.
+    function setupGalleryControls() {
+      const pageSizeSelect = document.querySelector<HTMLSelectElement>('[data-page-size-select]');
+      if (pageSizeSelect && pageSizeSelect.dataset.bound !== 'true') {
+        pageSizeSelect.dataset.bound = 'true';
+        pageSizeSelect.addEventListener('change', () => {
+          const url = new URL(window.location.href);
+          if (pageSizeSelect.value) {
+            url.searchParams.set('per', pageSizeSelect.value);
+          } else {
+            url.searchParams.delete('per');
+          }
+          url.searchParams.delete('page');
+          url.hash = 'gallerySection';
+          window.location.assign(url.toString());
+        });
+      }
 
-    function setupVideoFilters() {
-      const filterBtns = document.querySelectorAll<HTMLButtonElement>('[data-video-filter]');
+      const filterBtns = document.querySelectorAll<HTMLElement>('[data-video-filter]');
       const videoItems = document.querySelectorAll<HTMLElement>('[data-video-item]');
 
       filterBtns.forEach((btn) => {
+        if (btn.dataset.bound === 'true') return;
+        btn.dataset.bound = 'true';
         btn.addEventListener('click', () => {
           const selected = btn.dataset.videoFilter;
           filterBtns.forEach((b) => b.classList.toggle('active', b === btn));
@@ -255,10 +315,10 @@ const totalInitialPages = Math.ceil(items.length / DEFAULT_PAGE_SIZE);
     }
 
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', setupVideoFilters);
+      document.addEventListener('DOMContentLoaded', setupGalleryControls, { once: true });
     } else {
-      setupVideoFilters();
+      setupGalleryControls();
     }
-    document.addEventListener('astro:page-load', setupVideoFilters);
+    document.addEventListener('astro:page-load', setupGalleryControls);
   </script>
 </BaseLayout>

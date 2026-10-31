@@ -2,7 +2,7 @@
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import EquipmentCard from '../../../components/EquipmentCard.astro';
 import Icon from '../../../components/Icon.astro';
-import { imageUrl } from '../../../core/http';
+import { heroImage } from '../../../core/media';
 import type { EquipmentPageData } from '../service';
 import { getPageContent } from '../../../core/content/service';
 
@@ -18,6 +18,7 @@ const heroTitle = pageContent.title || 'Furniture & event equipment, listed clea
 const heroSubtitle = pageContent.subtitle || 'Build a practical equipment list with quantities, finishes and specifications. Add items to your requirements, then send the complete brief to our Ranchi planning team.';
 const heroBadge = pageContent.content_json?.badge || 'Equipment catalogue';
 const heroBanner = pageContent.banner_image_url || '/storage/assets/banners/equipment/banner-hero.webp';
+const heroBannerImage = heroImage(heroBanner);
 const showBanner = pageContent.banner_enabled !== false && Boolean(heroBanner);
 
 function categoryHref(slug: string): string {
@@ -30,7 +31,7 @@ function categoryHref(slug: string): string {
   description={pageContent.seo_description || "Browse chairs, tables, lounge seating, decorative furniture, lighting and event essentials with quantities and specifications from Event Point Ranchi."}
 >
   <section class:list={['page-hero', { 'with-image': showBanner }]}>
-    {showBanner && <img class="page-hero-media" src={imageUrl(heroBanner)} alt="" />}
+    {showBanner && <img class="page-hero-media" src={heroBannerImage.src} srcset={heroBannerImage.srcset} sizes={heroBannerImage.sizes} width="1600" height="900" alt="" fetchpriority="high" decoding="async" />}
     <div class="container">
       <span class="eyebrow" style="color:var(--gold-bright);">{heroBadge}</span>
       <h1>{heroTitle}</h1>

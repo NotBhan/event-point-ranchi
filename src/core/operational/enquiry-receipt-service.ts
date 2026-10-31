@@ -1,8 +1,25 @@
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
-import QRCode from 'qrcode';
 import { getEnquiryQrService, type EnquiryLookupResult } from './enquiry-qr-service';
 import { getSiteSettings } from '../content/service';
 import { one, all } from '../db';
+
+// pdf-lib and qrcode are heavy and only needed when a receipt is generated.
+type PdfLib = typeof import('pdf-lib');
+let pdfLibPromise: Promise<PdfLib> | null = null;
+function loadPdfLib(): Promise<PdfLib> {
+  if (!pdfLibPromise) pdfLibPromise = import('pdf-lib');
+  return pdfLibPromise;
+}
+
+type QrCodeLib = typeof import('qrcode');
+let qrCodePromise: Promise<QrCodeLib> | null = null;
+function loadQrCode(): Promise<QrCodeLib> {
+  if (!qrCodePromise) {
+    qrCodePromise = import('qrcode').then(
+      (module) => ((module as { default?: QrCodeLib }).default ?? module) as QrCodeLib,
+    );
+  }
+  return qrCodePromise;
+}
 
 export interface EnquiryReceiptItem {
   itemType: string;
@@ -167,6 +184,7 @@ export class EnquiryReceiptService {
     const verificationUrl = `${host.replace(/\/+$/, '')}/receipts/enquiry/${enq.referenceCode}?token=${token}`;
 
     // Generate fresh QR pointing directly to the public receipt with verification token
+    const QRCode = await loadQrCode();
     const qrDataUrl = await QRCode.toDataURL(verificationUrl, {
       errorCorrectionLevel: 'M',
       margin: 1,
@@ -203,6 +221,7 @@ export class EnquiryReceiptService {
    * Generate an official, print-optimised A4 PDF enquiry acknowledgement receipt.
    */
   public async generateEnquiryReceiptPdf(data: EnquiryReceiptData): Promise<Uint8Array> {
+    const { PDFDocument, rgb, StandardFonts } = await loadPdfLib();
     const pdfDoc = await PDFDocument.create();
     // A4 Portrait: 595.28 x 841.89 points
     const page = pdfDoc.addPage([595.28, 841.89]);

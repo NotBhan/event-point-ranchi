@@ -52,7 +52,7 @@
   --info-line: #bfdbfe;
 
   /* Typography */
-  --font-serif: 'Playfair Display', 'Cormorant Garamond', Georgia, serif;
+  --font-serif: 'Playfair Display', Georgia, serif;
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'Inter', 'Segoe UI', system-ui, sans-serif;
 

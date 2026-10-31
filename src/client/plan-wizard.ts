@@ -203,11 +203,45 @@ function readDraft(): PlanDraft {
   }
 }
 
+// Draft persistence and rendering are debounced/batched: draft saves were
+// previously a JSON.stringify + localStorage write on every keystroke, and the
+// summary/review were rebuilt synchronously per input event.
+const DRAFT_FLUSH_DELAY_MS = 250;
+let draftSaveTimer: number | null = null;
+let planRenderQueued = false;
+
+function flushDraft(): void {
+  if (!state) return;
+  if (draftSaveTimer !== null) {
+    window.clearTimeout(draftSaveTimer);
+    draftSaveTimer = null;
+  }
+  localStorage.setItem(DRAFT_KEY, JSON.stringify(state.draft));
+}
+
+function scheduleDraftFlush(): void {
+  if (draftSaveTimer !== null) return;
+  draftSaveTimer = window.setTimeout(() => {
+    draftSaveTimer = null;
+    if (state) localStorage.setItem(DRAFT_KEY, JSON.stringify(state.draft));
+  }, DRAFT_FLUSH_DELAY_MS);
+}
+
 function saveDraft(): void {
   if (!form || !state) return;
   state.draft = collectDraft();
   state.draft.step = state.currentStep;
-  localStorage.setItem(DRAFT_KEY, JSON.stringify(state.draft));
+  scheduleDraftFlush();
+}
+
+function schedulePlanRender(): void {
+  if (planRenderQueued) return;
+  planRenderQueued = true;
+  requestAnimationFrame(() => {
+    planRenderQueued = false;
+    renderLiveSummary();
+    if (state?.currentStep === 4) renderReview();
+  });
 }
 
 function field<T extends HTMLElement = HTMLInputElement>(name: string): T | null {
@@ -801,8 +835,30 @@ function updateEquipmentQuantity(id: string, nextQty: number): void {
     }
   }
 
-  renderEquipmentGrid();
-  renderLiveSummary();
+  updateEquipmentCard(id, nextQty <= 0 ? 0 : Math.max(item.min_quantity, nextQty));
+  schedulePlanRender();
+}
+
+/** Updates only the affected equipment card instead of rebuilding the grid. */
+function updateEquipmentCard(id: string, quantity: number): void {
+  const card = document.querySelector<HTMLElement>(`.equipment-mini-card[data-equipment-id="${CSS.escape(id)}"]`);
+  if (card) {
+    const input = card.querySelector<HTMLInputElement>('[data-plan-qty-input]');
+    if (input && Number(input.value) !== quantity) {
+      input.value = String(quantity);
+    }
+    card.classList.toggle('is-selected', quantity > 0);
+  }
+
+  const status = document.querySelector<HTMLElement>('[data-plan-equipment-status]');
+  if (status) {
+    const equipment = readRequirements().equipment;
+    const totalUnits = equipment.reduce((sum, entry) => sum + entry.quantity, 0);
+    status.textContent =
+      equipment.length === 0
+        ? '0 items selected'
+        : `${equipment.length} line items · ${totalUnits} units`;
+  }
 }
 
 // Live Blueprint Sidebar
@@ -1134,20 +1190,24 @@ if (state && form) {
   form.addEventListener('input', (event) => {
     if (event.target instanceof HTMLElement) clearFieldError(event.target);
     saveDraft();
-    renderLiveSummary();
-    if (state.currentStep === 4) renderReview();
+    schedulePlanRender();
   });
 
   form.addEventListener('change', (event) => {
     if (event.target instanceof HTMLElement) clearFieldError(event.target);
     saveDraft();
-    renderLiveSummary();
-    if (state.currentStep === 4) renderReview();
+    schedulePlanRender();
   });
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();
+    flushDraft();
     void submitEnquiry();
+  });
+
+  window.addEventListener('pagehide', flushDraft);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) flushDraft();
   });
 
   document.addEventListener('click', (event) => {
@@ -1271,7 +1331,7 @@ if (state && form) {
     if (target.matches('[name="requiresRooms"], [name="acRoomCount"], [name="nonAcRoomCount"]')) {
       syncRoomField();
       saveDraft();
-      renderLiveSummary();
+      schedulePlanRender();
       return;
     }
 
@@ -1283,7 +1343,7 @@ if (state && form) {
         if (endDate.value && eventDate && endDate.value < eventDate) endDate.value = '';
       }
       saveDraft();
-      renderLiveSummary();
+      schedulePlanRender();
     }
   });
 
@@ -1291,8 +1351,7 @@ if (state && form) {
     syncMandapCardSelection();
     syncStageCardSelection();
     renderEquipmentGrid();
-    renderLiveSummary();
-    if (state.currentStep === 4) renderReview();
+    schedulePlanRender();
   });
 
   window.addEventListener('storage', (event) => {
@@ -1300,8 +1359,7 @@ if (state && form) {
     syncMandapCardSelection();
     syncStageCardSelection();
     renderEquipmentGrid();
-    renderLiveSummary();
-    if (state.currentStep === 4) renderReview();
+    schedulePlanRender();
   });
 
   saveDraft();

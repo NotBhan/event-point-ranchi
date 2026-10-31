@@ -125,28 +125,82 @@ const { initialToken = '' } = Astro.props;
   </style>
 
   <script>
-    import jsQR from 'jsqr';
+    // Camera decoding is throttled to ~5 frames/second, works on a downscaled
+    // frame, and jsQR is imported on demand so the route stays light and the
+    // main thread stays responsive.
+    type QrDecoder = (
+      data: Uint8ClampedArray,
+      width: number,
+      height: number,
+      options?: { inversionAttempts?: 'attemptBoth' | 'dontInvert' | 'onlyInvert' | 'invertFirst' },
+    ) => { data: string } | null;
 
-    const video = document.getElementById('scannerVideo') as HTMLVideoElement;
-    const canvas = document.getElementById('scannerCanvas') as HTMLCanvasElement;
-    const placeholder = document.getElementById('scannerPlaceholder') as HTMLElement;
-    const reticle = document.getElementById('scannerReticle') as HTMLElement;
-    const camBadge = document.getElementById('cameraStatusBadge') as HTMLElement;
-    const camAlert = document.getElementById('camAlert') as HTMLElement;
-    const startBtn = document.getElementById('startCamBtn') as HTMLButtonElement;
-    const stopBtn = document.getElementById('stopCamBtn') as HTMLButtonElement;
-    const flipBtn = document.getElementById('flipCamBtn') as HTMLButtonElement;
-    const fileInput = document.getElementById('qrFileInput') as HTMLInputElement;
-    const manualInput = document.getElementById('manualInput') as HTMLInputElement;
-    const manualBtn = document.getElementById('manualSearchBtn') as HTMLButtonElement;
-    const resultBody = document.getElementById('resultBody') as HTMLElement;
-    const resultBadge = document.getElementById('resultStatusBadge') as HTMLElement;
+    let jsQrPromise: Promise<QrDecoder> | null = null;
+    function loadQrDecoder(): Promise<QrDecoder> {
+      if (!jsQrPromise) {
+        jsQrPromise = import('jsqr').then((module) => module.default as unknown as QrDecoder);
+      }
+      return jsQrPromise;
+    }
+
+    // Elements are re-resolved on every init so the scanner keeps working after
+    // Astro client-side navigations replace the DOM.
+    let video: HTMLVideoElement | null = null;
+    let canvas: HTMLCanvasElement | null = null;
+    let placeholder: HTMLElement | null = null;
+    let reticle: HTMLElement | null = null;
+    let camBadge: HTMLElement | null = null;
+    let camAlert: HTMLElement | null = null;
+    let startBtn: HTMLButtonElement | null = null;
+    let stopBtn: HTMLButtonElement | null = null;
+    let flipBtn: HTMLButtonElement | null = null;
+    let fileInput: HTMLInputElement | null = null;
+    let manualInput: HTMLInputElement | null = null;
+    let manualBtn: HTMLButtonElement | null = null;
+    let resultBody: HTMLElement | null = null;
+    let resultBadge: HTMLElement | null = null;
+
+    function bindElements() {
+      video = document.getElementById('scannerVideo') as HTMLVideoElement | null;
+      canvas = document.getElementById('scannerCanvas') as HTMLCanvasElement | null;
+      placeholder = document.getElementById('scannerPlaceholder');
+      reticle = document.getElementById('scannerReticle');
+      camBadge = document.getElementById('cameraStatusBadge');
+      camAlert = document.getElementById('camAlert');
+      startBtn = document.getElementById('startCamBtn') as HTMLButtonElement | null;
+      stopBtn = document.getElementById('stopCamBtn') as HTMLButtonElement | null;
+      flipBtn = document.getElementById('flipCamBtn') as HTMLButtonElement | null;
+      fileInput = document.getElementById('qrFileInput') as HTMLInputElement | null;
+      manualInput = document.getElementById('manualInput') as HTMLInputElement | null;
+      manualBtn = document.getElementById('manualSearchBtn') as HTMLButtonElement | null;
+      resultBody = document.getElementById('resultBody');
+      resultBadge = document.getElementById('resultStatusBadge');
+    }
 
     let mediaStream: MediaStream | null = null;
-    let animFrameId: number | null = null;
+    let scanTimer: number | null = null;
     let usingFrontCamera = false;
     let isScanning = false;
+    let decodeBusy = false;
+    let scanCtx: CanvasRenderingContext2D | null = null;
     let audioCtx: AudioContext | null = null;
+
+    const DECODE_INTERVAL_MS = 200;
+    const MAX_DECODE_EDGE = 480;
+
+    function esc(value: unknown): string {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    const barcodeDetector =
+      typeof (window as any).BarcodeDetector === 'function'
+        ? new (window as any).BarcodeDetector({ formats: ['qr_code'] })
+        : null;
 
     function playBeep() {
       try {
@@ -176,6 +230,9 @@ const { initialToken = '' } = Astro.props;
     }
 
     async function startCamera() {
+      bindElements();
+      if (!video || !placeholder || !reticle || !camBadge || !camAlert || !startBtn || !stopBtn || !flipBtn) return;
+
       camAlert.style.display = 'none';
       try {
         const constraints: MediaStreamConstraints = {
@@ -188,6 +245,7 @@ const { initialToken = '' } = Astro.props;
 
         if (mediaStream) {
           stopCamera();
+          bindElements();
         }
 
         mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -205,7 +263,7 @@ const { initialToken = '' } = Astro.props;
         flipBtn.disabled = false;
         isScanning = true;
 
-        tickScan();
+        scheduleScan();
       } catch (err: any) {
         camBadge.textContent = 'Camera Error';
         camBadge.className = 'badge badge-danger';
@@ -216,70 +274,124 @@ const { initialToken = '' } = Astro.props;
 
     function stopCamera() {
       isScanning = false;
-      if (animFrameId) {
-        cancelAnimationFrame(animFrameId);
-        animFrameId = null;
+      if (scanTimer !== null) {
+        window.clearTimeout(scanTimer);
+        scanTimer = null;
       }
       if (mediaStream) {
         mediaStream.getTracks().forEach((track) => track.stop());
         mediaStream = null;
       }
-      video.pause();
-      video.srcObject = null;
-      video.style.display = 'none';
-      placeholder.style.display = 'block';
-      reticle.style.display = 'none';
-      camBadge.textContent = 'Camera Paused';
-      camBadge.className = 'badge badge-muted';
-      startBtn.disabled = false;
-      stopBtn.disabled = true;
-      flipBtn.disabled = true;
+      if (video) {
+        video.pause();
+        video.srcObject = null;
+        video.style.display = 'none';
+      }
+      if (placeholder) placeholder.style.display = 'block';
+      if (reticle) reticle.style.display = 'none';
+      if (camBadge) {
+        camBadge.textContent = 'Camera Paused';
+        camBadge.className = 'badge badge-muted';
+      }
+      if (startBtn) startBtn.disabled = false;
+      if (stopBtn) stopBtn.disabled = true;
+      if (flipBtn) flipBtn.disabled = true;
     }
 
-    function tickScan() {
-      if (!isScanning) return;
+    function scheduleScan() {
+      if (!isScanning || scanTimer !== null) return;
+      scanTimer = window.setTimeout(scanFrame, DECODE_INTERVAL_MS);
+    }
 
-      if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        if (ctx) {
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const code = jsQR(imageData.data, imageData.width, imageData.height, {
-            inversionAttempts: 'dontInvert',
-          });
-
-          if (code && code.data) {
-            playBeep();
-            stopCamera();
-            fetchEnquiry(code.data);
-            return;
-          }
-        }
+    async function scanFrame() {
+      scanTimer = null;
+      if (!isScanning || decodeBusy) {
+        scheduleScan();
+        return;
+      }
+      if (!video || !canvas || video.readyState < video.HAVE_ENOUGH_DATA) {
+        scheduleScan();
+        return;
       }
 
-      animFrameId = requestAnimationFrame(tickScan);
+      decodeBusy = true;
+      try {
+        const sourceWidth = video.videoWidth;
+        const sourceHeight = video.videoHeight;
+        if (!sourceWidth || !sourceHeight) return;
+
+        const scale = Math.min(1, MAX_DECODE_EDGE / Math.max(sourceWidth, sourceHeight));
+        const width = Math.max(1, Math.round(sourceWidth * scale));
+        const height = Math.max(1, Math.round(sourceHeight * scale));
+
+        if (canvas.width !== width || canvas.height !== height) {
+          canvas.width = width;
+          canvas.height = height;
+          scanCtx = null;
+        }
+        if (!scanCtx) {
+          scanCtx = canvas.getContext('2d', { willReadFrequently: true });
+        }
+        if (!scanCtx) return;
+
+        scanCtx.drawImage(video, 0, 0, width, height);
+        let payload: string | null = null;
+
+        if (barcodeDetector) {
+          try {
+            const codes = await barcodeDetector.detect(canvas);
+            payload = codes?.[0]?.rawValue ?? null;
+          } catch {
+            payload = null;
+          }
+        }
+
+        if (!payload) {
+          const decode = await loadQrDecoder();
+          const imageData = scanCtx.getImageData(0, 0, width, height);
+          const code = decode(imageData.data, width, height, { inversionAttempts: 'dontInvert' });
+          payload = code?.data ?? null;
+        }
+
+        if (payload) {
+          playBeep();
+          const captured = payload;
+          stopCamera();
+          fetchEnquiry(captured);
+          return;
+        }
+      } finally {
+        decodeBusy = false;
+      }
+
+      scheduleScan();
     }
 
     async function scanUploadedImage(file: File) {
+      const decode = await loadQrDecoder();
+      bindElements();
+      const target = canvas;
+      if (!target) return;
+
       const reader = new FileReader();
       reader.onload = () => {
         const img = new Image();
         img.onload = () => {
-          canvas.width = img.width;
-          canvas.height = img.height;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0);
-            const imgData = ctx.getImageData(0, 0, img.width, img.height);
-            const code = jsQR(imgData.data, imgData.width, imgData.height);
-            if (code && code.data) {
-              playBeep();
-              fetchEnquiry(code.data);
-            } else {
-              alert('No QR code could be detected in this image. Please ensure the QR is clear and well-lit.');
-            }
+          // Downscale large uploads before decoding so a 12MP photo cannot
+          // block the main thread for seconds.
+          const scale = Math.min(1, 1400 / Math.max(img.width, img.height));
+          target.width = Math.max(1, Math.round(img.width * scale));
+          target.height = Math.max(1, Math.round(img.height * scale));
+          const ctx = target.getContext('2d');
+          if (!ctx) return;
+          ctx.drawImage(img, 0, 0, target.width, target.height);
+          const imgData = ctx.getImageData(0, 0, target.width, target.height);
+          const code = decode(imgData.data, imgData.width, imgData.height);
+          if (code && code.data) {
+            playBeep();
+            fetchEnquiry(code.data);
+          } else {
+            alert('No QR code could be detected in this image. Please ensure the QR is clear and well-lit.');
           }
         };
         img.src = reader.result as string;
@@ -288,6 +400,9 @@ const { initialToken = '' } = Astro.props;
     }
 
     async function fetchEnquiry(rawInput: string) {
+      bindElements();
+      if (!resultBody || !resultBadge) return;
+
       resultBadge.textContent = 'Fetching…';
       resultBadge.className = 'badge badge-info';
       resultBody.innerHTML = `
@@ -315,9 +430,9 @@ const { initialToken = '' } = Astro.props;
               </div>
               <h3 style="margin:0 0 8px;font-size:1.15rem;">Enquiry Not Found</h3>
               <p style="color:var(--muted);font-size:13px;max-width:340px;margin:0 auto 16px;">
-                ${data.error || 'No matching customer enquiry was located in the Neon database.'}
+                ${esc(data.error || 'No matching customer enquiry was located in the Neon database.')}
               </p>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('startCamBtn').click()">
+              <button type="button" class="btn btn-secondary btn-sm" data-scan-again>
                 Scan Again
               </button>
             </div>
@@ -329,7 +444,7 @@ const { initialToken = '' } = Astro.props;
         resultBadge.textContent = enq.status.toUpperCase();
         resultBadge.className = enq.status === 'confirmed' ? 'badge badge-success' : 'badge badge-gold';
 
-        const cleanPhone = enq.customerPhone ? enq.customerPhone.replace(/\D/g, '') : '';
+        const cleanPhone = enq.customerPhone ? String(enq.customerPhone).replace(/\D/g, '') : '';
         const whatsappMsg = encodeURIComponent(`Namaste ${enq.customerName}, regarding your Event Point Ranchi enquiry (${enq.referenceCode}) for ${enq.eventType} on ${enq.eventDate}:`);
 
         resultBody.innerHTML = `
@@ -339,19 +454,19 @@ const { initialToken = '' } = Astro.props;
             <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid var(--line);padding-bottom:14px;">
               <div>
                 <span style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);font-weight:600;">Reference Code</span>
-                <h3 style="margin:2px 0 0;font-size:1.25rem;font-family:var(--font-mono);color:var(--gold-ink);">${enq.referenceCode}</h3>
+                <h3 style="margin:2px 0 0;font-size:1.25rem;font-family:var(--font-mono);color:var(--gold-ink);">${esc(enq.referenceCode)}</h3>
               </div>
-              <span class="badge ${enq.status === 'confirmed' ? 'badge-success' : 'badge-warning'}">${enq.status.toUpperCase()}</span>
+              <span class="badge ${enq.status === 'confirmed' ? 'badge-success' : 'badge-warning'}">${esc(enq.status.toUpperCase())}</span>
             </div>
 
             <!-- Customer Snapshot -->
             <div style="background:var(--canvas-warm);border:1px solid var(--line);border-radius:var(--r-md);padding:14px 16px;">
               <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Customer Information</div>
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-size:13px;">
-                <div><strong>Name:</strong> ${enq.customerName}</div>
-                <div><strong>Phone:</strong> <a href="tel:${cleanPhone}" class="text-link">${enq.customerPhone}</a></div>
-                <div><strong>Email:</strong> ${enq.customerEmail || '—'}</div>
-                <div><strong>Preferred Contact:</strong> ${enq.preferredContact || 'Phone'}</div>
+                <div><strong>Name:</strong> ${esc(enq.customerName)}</div>
+                <div><strong>Phone:</strong> <a href="tel:${esc(cleanPhone)}" class="text-link">${esc(enq.customerPhone)}</a></div>
+                <div><strong>Email:</strong> ${esc(enq.customerEmail || '—')}</div>
+                <div><strong>Preferred Contact:</strong> ${esc(enq.preferredContact || 'Phone')}</div>
               </div>
             </div>
 
@@ -359,28 +474,28 @@ const { initialToken = '' } = Astro.props;
             <div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:14px 16px;">
               <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Event Requirements</div>
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-size:13px;">
-                <div><strong>Event Type:</strong> ${enq.eventType}</div>
-                <div><strong>Event Date:</strong> ${enq.eventDate} ${enq.endDate ? 'to ' + enq.endDate : ''}</div>
-                <div><strong>Venue:</strong> ${enq.venueLocation}</div>
-                <div><strong>Expected Guests:</strong> ${enq.guestCount}</div>
-                <div><strong>Budget Range:</strong> ${enq.budgetRange}</div>
-                <div><strong>Rooms Required:</strong> ${enq.requiresRooms ? 'Yes (' + enq.roomCount + ' rooms)' : 'No'}</div>
+                <div><strong>Event Type:</strong> ${esc(enq.eventType)}</div>
+                <div><strong>Event Date:</strong> ${esc(enq.eventDate)} ${enq.endDate ? 'to ' + esc(enq.endDate) : ''}</div>
+                <div><strong>Venue:</strong> ${esc(enq.venueLocation)}</div>
+                <div><strong>Expected Guests:</strong> ${esc(enq.guestCount)}</div>
+                <div><strong>Budget Range:</strong> ${esc(enq.budgetRange)}</div>
+                <div><strong>Rooms Required:</strong> ${enq.requiresRooms ? 'Yes (' + esc(enq.roomCount) + ' rooms)' : 'No'}</div>
               </div>
-              ${enq.accommodationNotes ? `<div style="margin-top:8px;font-size:12px;color:var(--muted);"><strong>Accommodation:</strong> ${enq.accommodationNotes}</div>` : ''}
-              ${enq.decorationNotes ? `<div style="margin-top:8px;font-size:12px;color:var(--muted);white-space:pre-line;"><strong>Notes:</strong> ${enq.decorationNotes}</div>` : ''}
+              ${enq.accommodationNotes ? `<div style="margin-top:8px;font-size:12px;color:var(--muted);"><strong>Accommodation:</strong> ${esc(enq.accommodationNotes)}</div>` : ''}
+              ${enq.decorationNotes ? `<div style="margin-top:8px;font-size:12px;color:var(--muted);white-space:pre-line;"><strong>Notes:</strong> ${esc(enq.decorationNotes)}</div>` : ''}
             </div>
 
             <!-- Selected Line Items -->
             ${enq.items && enq.items.length > 0 ? `
               <div style="border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden;">
                 <div style="background:var(--canvas-warm);padding:8px 14px;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;">
-                  Selected Items (${enq.items.length})
+                  Selected Items (${Number(enq.items.length) || 0})
                 </div>
                 <div style="max-height:160px;overflow-y:auto;padding:8px 14px;font-size:12.5px;">
                   ${enq.items.map((item: any) => `
                     <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed var(--line);">
-                      <span><strong>${item.name}</strong> <small style="color:var(--muted);">(${item.itemType})</small></span>
-                      <span>Qty: <strong>${item.quantity}</strong></span>
+                      <span><strong>${esc(item.name)}</strong> <small style="color:var(--muted);">(${esc(item.itemType)})</small></span>
+                      <span>Qty: <strong>${esc(item.quantity)}</strong></span>
                     </div>
                   `).join('')}
                 </div>
@@ -390,17 +505,17 @@ const { initialToken = '' } = Astro.props;
             <!-- Linked Booking Info (if converted) -->
             ${enq.linkedBooking ? `
               <div style="background:rgba(46,125,50,0.08);border:1px solid rgba(46,125,50,0.25);border-radius:var(--r-md);padding:12px 16px;font-size:13px;">
-                <strong style="color:#2e7d32;display:block;margin-bottom:4px;">Linked Active Booking #${enq.linkedBooking.id}</strong>
+                <strong style="color:#2e7d32;display:block;margin-bottom:4px;">Linked Active Booking #${esc(enq.linkedBooking.id)}</strong>
                 <div style="display:flex;justify-content:space-between;font-size:12.5px;">
-                  <span>Payment Status: <strong style="text-transform:uppercase;">${enq.linkedBooking.paymentStatus}</strong></span>
-                  <span>Balance: <strong>₹${(enq.linkedBooking.outstandingBalance / 100).toLocaleString('en-IN')}</strong></span>
+                  <span>Payment Status: <strong style="text-transform:uppercase;">${esc(enq.linkedBooking.paymentStatus)}</strong></span>
+                  <span>Balance: <strong>₹${(Number(enq.linkedBooking.outstandingBalance) / 100).toLocaleString('en-IN')}</strong></span>
                 </div>
               </div>
             ` : ''}
 
             <!-- Quick Action Dispatch Buttons -->
             <div style="display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;">
-              <a href="/admin/enquiries/${enq.id}" class="btn btn-primary btn-sm">
+              <a href="/admin/enquiries/${esc(enq.id)}" class="btn btn-primary btn-sm">
                 View Full Enquiry &rarr;
               </a>
               ${cleanPhone ? `
@@ -411,7 +526,7 @@ const { initialToken = '' } = Astro.props;
                   Call Customer
                 </a>
               ` : ''}
-              <button type="button" class="btn btn-ghost btn-sm" onclick="window.print()">
+              <button type="button" class="btn btn-ghost btn-sm" data-print-slip>
                 Print Slip
               </button>
             </div>
@@ -420,49 +535,76 @@ const { initialToken = '' } = Astro.props;
       } catch (err: any) {
         resultBadge.textContent = 'Error';
         resultBadge.className = 'badge badge-danger';
-        resultBody.innerHTML = `<div class="alert alert-danger">Error querying enquiry: ${err.message}</div>`;
+        resultBody.innerHTML = `<div class="alert alert-danger">Error querying enquiry: ${esc(err.message)}</div>`;
       }
     }
 
-    startBtn?.addEventListener('click', startCamera);
-    stopBtn?.addEventListener('click', stopCamera);
-    flipBtn?.addEventListener('click', () => {
-      usingFrontCamera = !usingFrontCamera;
-      startCamera();
-    });
+    let globalsBound = false;
 
-    fileInput?.addEventListener('change', (e) => {
-      const files = (e.target as HTMLInputElement).files;
-      if (files && files[0]) {
-        scanUploadedImage(files[0]);
-      }
-    });
+    function initScanner() {
+      bindElements();
+      if (!video) return; // not on the scanner page
+      if (video.dataset.scannerBound === 'true') return;
+      video.dataset.scannerBound = 'true';
 
-    manualBtn?.addEventListener('click', () => {
-      if (manualInput.value.trim()) {
-        fetchEnquiry(manualInput.value.trim());
-      }
-    });
+      startBtn?.addEventListener('click', startCamera);
+      stopBtn?.addEventListener('click', stopCamera);
+      flipBtn?.addEventListener('click', () => {
+        usingFrontCamera = !usingFrontCamera;
+        startCamera();
+      });
 
-    manualInput?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        if (manualInput.value.trim()) {
-          fetchEnquiry(manualInput.value.trim());
+      fileInput?.addEventListener('change', (e) => {
+        const files = (e.target as HTMLInputElement).files;
+        if (files && files[0]) {
+          scanUploadedImage(files[0]);
         }
-      }
-    });
+      });
 
-    // Auto-lookup if initial token was supplied
-    if (manualInput?.value.trim()) {
-      fetchEnquiry(manualInput.value.trim());
+      manualBtn?.addEventListener('click', () => {
+        const value = manualInput?.value.trim();
+        if (value) fetchEnquiry(value);
+      });
+
+      manualInput?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const value = manualInput?.value.trim();
+          if (value) fetchEnquiry(value);
+        }
+      });
+
+      // Auto-lookup if an initial token was supplied
+      const initialValue = manualInput?.value.trim();
+      if (initialValue) fetchEnquiry(initialValue);
     }
 
-    // Stop camera when leaving page
-    window.addEventListener('beforeunload', () => {
-      if (mediaStream) {
-        mediaStream.getTracks().forEach((track) => track.stop());
-      }
-    });
+    if (!globalsBound) {
+      globalsBound = true;
+
+      // Delegated handlers keep working after the page markup is swapped.
+      document.addEventListener('click', (event) => {
+        const target = event.target as HTMLElement | null;
+        if (target?.closest('[data-scan-again]')) {
+          startCamera();
+          return;
+        }
+        if (target?.closest('[data-print-slip]')) {
+          window.print();
+        }
+      });
+
+      // Release the camera, timers and audio on real unload AND on Astro
+      // client-side navigation, where beforeunload never fires.
+      const teardown = () => stopCamera();
+      document.addEventListener('astro:before-swap', teardown);
+      window.addEventListener('beforeunload', teardown);
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) teardown();
+      });
+    }
+
+    initScanner();
+    document.addEventListener('astro:page-load', initScanner);
   </script>
 </AdminLayout>

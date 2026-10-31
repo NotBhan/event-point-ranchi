@@ -71,10 +71,19 @@ export interface ConnectionStatus {
   error?: string;
 }
 
+export interface GetObjectStreamResult {
+  notModified: boolean;
+  etag: string;
+  stream?: ReadableStream<Uint8Array>;
+  contentType?: string;
+  size?: number;
+}
+
 export interface FilebaseClient {
   readonly driver: StorageDriver;
   putObject(input: PutObjectInput): Promise<PutObjectResult>;
   getObject(key: string): Promise<GetObjectResult | null>;
+  getObjectStream(key: string, options?: { ifNoneMatch?: string }): Promise<GetObjectStreamResult | null>;
   headObject(key: string): Promise<StoredObject | null>;
   deleteObject(key: string): Promise<void>;
   listObjects(options?: ListObjectsOptions): Promise<ListObjectsResult>;
@@ -272,6 +281,31 @@ export class MockFilebaseClient implements FilebaseClient {
     };
   }
 
+  async getObjectStream(
+    key: string,
+    options: { ifNoneMatch?: string } = {},
+  ): Promise<GetObjectStreamResult | null> {
+    this.assertHealthy('getObject');
+
+    const object = this.objects.get(key);
+    if (!object) return null;
+
+    const etag = `"${object.etag}"`;
+    if (options.ifNoneMatch && options.ifNoneMatch === etag) {
+      return { notModified: true, etag };
+    }
+
+    const bytes = object.bytes;
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(bytes);
+        controller.close();
+      },
+    });
+
+    return { notModified: false, etag, stream, contentType: object.contentType, size: bytes.byteLength };
+  }
+
   async headObject(key: string): Promise<StoredObject | null> {
     this.assertHealthy('headObject');
 
@@ -415,6 +449,44 @@ class S3FilebaseClient implements FilebaseClient {
         size: body.length,
       };
     } catch (error) {
+      if (isNotFoundError(error)) return null;
+      throw error;
+    }
+  }
+
+  /**
+   * Streams an object without buffering it, and honours If-None-Match so
+   * revalidation returns 304 without downloading the body.
+   */
+  async getObjectStream(
+    key: string,
+    options: { ifNoneMatch?: string } = {},
+  ): Promise<GetObjectStreamResult | null> {
+    try {
+      const response = await retryWithBackoff(() =>
+        this.client.send(
+          new GetObjectCommand({
+            Bucket: this.bucket,
+            Key: key,
+            IfNoneMatch: options.ifNoneMatch,
+          }),
+        ),
+      );
+
+      if (!response.Body) return null;
+
+      return {
+        notModified: false,
+        etag: normalizeEtag(response.ETag),
+        stream: response.Body.transformToWebStream() as ReadableStream<Uint8Array>,
+        contentType: response.ContentType,
+        size: response.ContentLength ?? undefined,
+      };
+    } catch (error) {
+      const status = (error as { $metadata?: { httpStatusCode?: number } })?.$metadata?.httpStatusCode;
+      if (status === 304) {
+        return { notModified: true, etag: options.ifNoneMatch ?? '' };
+      }
       if (isNotFoundError(error)) return null;
       throw error;
     }
