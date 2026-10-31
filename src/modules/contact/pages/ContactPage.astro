@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import Icon from '../../../components/Icon.astro';
+import { getSiteSettings } from '../../../core/content/service';
 import type { ContactInfo } from '../service';
 import '../contact.css';
 
@@ -14,6 +15,13 @@ const csrf = Astro.locals.csrf;
 
 const eventOptions = ['Wedding', 'Reception', 'Engagement', 'Birthday', 'Corporate event', 'Conference', 'Other'];
 const today = new Date().toISOString().slice(0, 10);
+
+const settings = await getSiteSettings();
+const telHref = `tel:${info.phone.replace(/[^\d+]/g, '')}`;
+const mailtoHref = `mailto:${info.email}`;
+const mapsHref =
+  settings.googleMapsUrl ||
+  `https://maps.google.com/?q=${encodeURIComponent(info.address)}`;
 ---
 
 <BaseLayout title="Contact us | Event Point Ranchi" description="Talk to Event Point Ranchi about wedding mandaps, stage designs, furniture and event equipment in Ranchi.">
@@ -27,47 +35,64 @@ const today = new Date().toISOString().slice(0, 10);
 
   <section class="section">
     <div class="container contact-layout">
-      <div class="contact-cards">
-        <div class="contact-card">
-          <span class="contact-card-icon"><Icon name="pin" size={18} /></span>
-          <div>
-            <h3>Office address</h3>
-            <p>{info.address}</p>
+      <aside class="contact-aside" aria-label="Studio contact details">
+        <div class="contact-visit-card">
+          <div class="contact-visit-head">
+            <span class="eyebrow contact-visit-eyebrow">Visit the studio</span>
+            <h2>Where to find us</h2>
+            <p class="contact-visit-address">{info.address}</p>
+            <a class="contact-visit-map" href={mapsHref} target="_blank" rel="noopener">
+              <Icon name="pin" size={14} />
+              <span>Open in Google Maps</span>
+              <Icon name="external" size={12} />
+            </a>
+          </div>
+
+          <div class="contact-visit-rows">
+            <a class="contact-visit-row" href={telHref}>
+              <span class="contact-visit-icon"><Icon name="phone" size={17} /></span>
+              <span class="contact-visit-copy">
+                <span class="contact-visit-label">Call us</span>
+                <strong>{info.phone}</strong>
+                <small>Call or WhatsApp</small>
+              </span>
+              <span class="contact-visit-chevron"><Icon name="arrow-right" size={15} /></span>
+            </a>
+
+            <a class="contact-visit-row" href={mailtoHref}>
+              <span class="contact-visit-icon"><Icon name="mail" size={17} /></span>
+              <span class="contact-visit-copy">
+                <span class="contact-visit-label">Email</span>
+                <strong>{info.email}</strong>
+                <small>Replies within one working day</small>
+              </span>
+              <span class="contact-visit-chevron"><Icon name="arrow-right" size={15} /></span>
+            </a>
+          </div>
+
+          <dl class="contact-visit-facts">
+            <div>
+              <dt><Icon name="clock" size={14} /> Studio hours</dt>
+              <dd>Daily 9:00 – 21:00</dd>
+            </div>
+            <div>
+              <dt><Icon name="calendar" size={14} /> Site visits</dt>
+              <dd>Daily 10:00 – 19:00</dd>
+            </div>
+          </dl>
+
+          <div class="contact-visit-foot">
+            <div>
+              <span class="contact-visit-label">Grievance Officer</span>
+              <strong>Mr. Rahul Sharma</strong>
+            </div>
+            <a href="/grievance" class="contact-visit-foot-link">
+              <span>View procedure</span>
+              <Icon name="arrow-right" size={13} />
+            </a>
           </div>
         </div>
-        <div class="contact-card">
-          <span class="contact-card-icon"><Icon name="phone" size={18} /></span>
-          <div>
-            <h3>Call us</h3>
-            <p>{info.phone}</p>
-            <small>Open daily, 9:00 – 21:00</small>
-          </div>
-        </div>
-        <div class="contact-card">
-          <span class="contact-card-icon"><Icon name="mail" size={18} /></span>
-          <div>
-            <h3>Email</h3>
-            <p>{info.email}</p>
-            <small>Replies within one working day</small>
-          </div>
-        </div>
-        <div class="contact-card">
-          <span class="contact-card-icon"><Icon name="calendar" size={18} /></span>
-          <div>
-            <h3>Site visits</h3>
-            <p>Daily 10:00 – 19:00</p>
-            <small>Walk the venue before you decide</small>
-          </div>
-        </div>
-        <div class="contact-card" style="border-left:3px solid var(--gold-bright);">
-          <span class="contact-card-icon"><Icon name="info" size={18} /></span>
-          <div>
-            <h3>Grievance Officer</h3>
-            <p>Mr. Rahul Sharma</p>
-            <small><a href="/grievance" class="text-link">View grievance procedure &rarr;</a></small>
-          </div>
-        </div>
-      </div>
+      </aside>
 
       <div class="panel">
         <div class="panel-head">

@@ -1,8 +1,8 @@
 ---
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import Icon from '../../../components/Icon.astro';
-import { formatMoney, imageUrl } from '../../../core/http';
-import { heroImage } from '../../../core/media';
+import { formatMoney } from '../../../core/http';
+import { heroImage, responsiveImage } from '../../../core/media';
 import type { loadCateringPage } from '../service';
 import { getPageContent } from '../../../core/content/service';
 import '../catering.css';
@@ -51,46 +51,75 @@ const showBanner = pageContent.banner_enabled !== false && Boolean(heroBanner);
         </div>
       ) : (
         <div class="package-rows">
-          {packages.map((pkg, index) => (
-            <article class:list={['package-row', index % 2 === 1 ? 'image-right' : '']}>
-              <div class="package-row-media">
-                {pkg.image ? (
-                  <div class="media-with-skeleton" style="width: 100%; height: 100%;">
-                    <div class="skeleton-placeholder skeleton-shimmer" role="status" aria-busy="true" aria-label="Loading image..."></div>
-                    <img src={imageUrl(pkg.image)} alt={pkg.name} loading="lazy" />
-                    <div class="skeleton-error-fallback" role="alert">
-                      <Icon name="image" size={24} />
-                      <span>Image preview unavailable</span>
+          {packages.map((pkg, index) => {
+            const media = responsiveImage(pkg.image, {
+              widths: [480, 800, 1200],
+              sizes: '(max-width: 900px) 100vw, 520px',
+            });
+            const features = [...new Set([...pkg.features, ...pkg.bannerFeatures])];
+            const order = String(index + 1).padStart(2, '0');
+            return (
+              <article class:list={['package-row', index % 2 === 1 ? 'image-right' : '']}>
+                <div class="package-row-media">
+                  {pkg.image ? (
+                    <div class="media-with-skeleton" style="width: 100%; height: 100%;">
+                      <div class="skeleton-placeholder skeleton-shimmer" role="status" aria-busy="true" aria-label="Loading image..."></div>
+                      <img
+                        src={media.src}
+                        srcset={media.srcset}
+                        sizes={media.sizes}
+                        width="1200"
+                        height="800"
+                        alt={pkg.name}
+                        loading="lazy"
+                        decoding="async"
+                      />
+                      <div class="skeleton-error-fallback" role="alert">
+                        <Icon name="image" size={24} />
+                        <span>Image preview unavailable</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div class="room-row-fallback"><Icon name="utensils" size={32} /></div>
+                  )}
+                  <span class="package-row-scrim" aria-hidden="true"></span>
+                  {pkg.badge && <span class="badge badge-gold package-row-badge">{pkg.badge}</span>}
+                  <span class="package-row-number" aria-hidden="true">{order}</span>
+                </div>
+
+                <div class="package-row-body">
+                  <div class="package-row-head">
+                    <div class="package-row-title">
+                      <h3>{pkg.name}</h3>
+                      {pkg.description && <p class="room-description">{pkg.description}</p>}
+                    </div>
+                    <div class="package-row-price">
+                      <span class="price price-lg">{formatMoney(pkg.price_paise)}</span>
+                      <span class="price-unit">per plate</span>
                     </div>
                   </div>
-                ) : (
-                  <div class="room-row-fallback"><Icon name="utensils" size={32} /></div>
-                )}
-                {pkg.badge && <span class="badge badge-gold">{pkg.badge}</span>}
-              </div>
 
-              <div class="package-row-body">
-                <span class="room-index">{String(index + 1).padStart(2, '0')}</span>
-                <h3>{pkg.name}</h3>
-                <div class="price price-lg">
-                  {formatMoney(pkg.price_paise)} <span class="price-unit">/ plate</span>
+                  {features.length > 0 && (
+                    <div class="package-row-includes">
+                      <span class="package-row-includes-label">Includes</span>
+                      <ul class="feature-list">
+                        {features.map((feature) => (
+                          <li><Icon name="check" size={14} /> {feature}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  <div class="package-row-foot">
+                    <a href={`/catering/${pkg.slug}`} class="btn btn-primary">
+                      Build this menu <Icon name="arrow-right" size={15} />
+                    </a>
+                    <span class="package-row-note">Per-plate pricing</span>
+                  </div>
                 </div>
-                {pkg.description && <p class="room-description">{pkg.description}</p>}
-
-                <ul class="feature-list">
-                  {[...pkg.features, ...pkg.bannerFeatures].map((feature) => (
-                    <li><Icon name="check" size={14} /> {feature}</li>
-                  ))}
-                </ul>
-
-                <div class="package-row-foot">
-                  <a href={`/catering/${pkg.slug}`} class="btn btn-primary">
-                    Build this menu <Icon name="arrow-right" size={15} />
-                  </a>
-                </div>
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </div>
       )}
     </div>

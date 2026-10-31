@@ -11,6 +11,7 @@ interface Props {
 const { settings } = Astro.props;
 const brandName = settings?.name || site.name;
 const legalName = settings?.legalName || site.legalName;
+const tagline = settings?.tagline || site.tagline;
 const logoUrl = settings?.logo || site.logo;
 const phone = settings?.phone || site.phone;
 const email = settings?.email || site.email;
@@ -18,6 +19,7 @@ const address = settings?.address || site.address;
 const whatsapp = settings?.whatsapp || site.whatsapp;
 const businessHours = settings?.businessHours || 'Daily, 10:00 – 19:00';
 const socialLinks: ReadonlyArray<{ label: string; href: string }> = settings?.social || site.social;
+const mapsUrl = settings?.googleMapsUrl;
 
 const nav = getNav();
 const planLinks = [
@@ -27,6 +29,13 @@ const planLinks = [
   ['Furniture & equipment', '/equipment'],
   ['Photography gallery', '/gallery'],
 ];
+const socialIcons: Record<string, string> = {
+  facebook: 'facebook',
+  instagram: 'instagram',
+  youtube: 'youtube',
+  pinterest: 'pinterest',
+};
+
 const year = new Date().getFullYear();
 const phoneHref = `tel:${phone.replace(/\s/g, '')}`;
 ---
@@ -35,72 +44,98 @@ const phoneHref = `tel:${phone.replace(/\s/g, '')}`;
   <div class="container">
     <div class="footer-grid">
       <div class="footer-brand">
-        <img src={logoUrl} alt={brandName} width="48" height="48" />
-        <h3>{brandName}</h3>
-        <p>
+        <a class="footer-brand-lockup" href="/" aria-label={`${brandName} home`}>
+          <span class="footer-brand-mark">
+            <img src={logoUrl} alt="" width="44" height="44" loading="lazy" decoding="async" />
+          </span>
+          <span class="footer-brand-text">
+            <strong>{brandName}</strong>
+            <small>{tagline}</small>
+          </span>
+        </a>
+        <p class="footer-brand-copy">
           Wedding mandap, stage design, furniture and event equipment planning in Ranchi. Share your
           dates and vision — we respond with a considered quotation.
         </p>
-        <div class="footer-social">
-          {socialLinks.map((social) => (
-            <a href={social.href} aria-label={social.label}>{social.label.slice(0, 2).toUpperCase()}</a>
-          ))}
+        <div class="footer-social" aria-label="Follow us">
+          {socialLinks.map((social) => {
+            const iconName = socialIcons[social.label.toLowerCase()];
+            const isExternal = social.href.startsWith('http');
+            return (
+              <a
+                class="footer-social-link"
+                href={social.href}
+                aria-label={social.label}
+                title={social.label}
+                target={isExternal ? '_blank' : undefined}
+                rel={isExternal ? 'noopener noreferrer' : undefined}
+              >
+                {iconName ? (
+                  <Icon name={iconName} size={17} />
+                ) : (
+                  <span class="footer-social-initials">{social.label.slice(0, 2).toUpperCase()}</span>
+                )}
+              </a>
+            );
+          })}
         </div>
       </div>
 
-      <div class="footer-col">
+      <nav class="footer-col" aria-label="Explore">
         <h4>Explore</h4>
         <div class="footer-links">
           {nav.map((item) => <a href={item.href}>{item.label}</a>)}
         </div>
-      </div>
+      </nav>
 
-      <div class="footer-col">
+      <nav class="footer-col" aria-label="Plan">
         <h4>Plan</h4>
         <div class="footer-links">
           {planLinks.map(([label, href]) => <a href={href}>{label}</a>)}
         </div>
-      </div>
+      </nav>
 
-      <div class="footer-col">
+      <div class="footer-col footer-reach">
         <h4>Reach us</h4>
-        <div class="footer-contact">
-          <div>
-            <Icon name="pin" size={15} />
-            {settings?.googleMapsUrl ? (
-              <a href={settings.googleMapsUrl} target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;text-underline-offset:2px;">
-                {address}
-              </a>
-            ) : (
-              <span>{address}</span>
-            )}
-          </div>
-          <div>
-            <Icon name="phone" size={15} />
-            <a href={phoneHref}>{phone}</a>
-          </div>
-          <div>
-            <Icon name="mail" size={15} />
-            <a href={`mailto:${email}`}>{email}</a>
-          </div>
-          <div>
-            <Icon name="clock" size={15} />
-            <span>Studio visits: {businessHours}</span>
-          </div>
-          {settings?.googleMapsUrl && (
-            <div style="margin-top:4px;">
-              <Icon name="external" size={13} />
-              <a href={settings.googleMapsUrl} target="_blank" rel="noopener noreferrer" style="font-size:12px;color:var(--gold-bright);">
-                View on Google Maps &rarr;
-              </a>
-            </div>
-          )}
-        </div>
+        <ul class="footer-contact">
+          <li>
+            <span class="footer-contact-icon"><Icon name="pin" size={15} /></span>
+            <span class="footer-contact-copy">
+              <span class="footer-contact-label">Studio</span>
+              {mapsUrl ? (
+                <a href={mapsUrl} target="_blank" rel="noopener noreferrer">{address}</a>
+              ) : (
+                <span>{address}</span>
+              )}
+            </span>
+          </li>
+          <li>
+            <span class="footer-contact-icon"><Icon name="phone" size={15} /></span>
+            <span class="footer-contact-copy">
+              <span class="footer-contact-label">Call</span>
+              <a href={phoneHref}>{phone}</a>
+            </span>
+          </li>
+          <li>
+            <span class="footer-contact-icon"><Icon name="mail" size={15} /></span>
+            <span class="footer-contact-copy">
+              <span class="footer-contact-label">Email</span>
+              <a href={`mailto:${email}`}>{email}</a>
+            </span>
+          </li>
+          <li>
+            <span class="footer-contact-icon"><Icon name="clock" size={15} /></span>
+            <span class="footer-contact-copy">
+              <span class="footer-contact-label">Studio visits</span>
+              <span>{businessHours}</span>
+            </span>
+          </li>
+        </ul>
         {settings?.contactButtonsEnabled !== false && (
           <a
             class="footer-whatsapp"
             href={`https://wa.me/${whatsapp}?text=${encodeURIComponent(`Hello ${brandName}, I would like to plan a wedding setup in Ranchi.`)}`}
-            rel="noopener"
+            rel="noopener noreferrer"
             target="_blank"
           >
             <Icon name="phone" size={14} /> Chat on WhatsApp
@@ -110,15 +145,18 @@ const phoneHref = `tel:${phone.replace(/\s/g, '')}`;
     </div>
 
     <div class="footer-bottom">
-      <span>{settings?.footerText || `© ${year} ${legalName}. All rights reserved.`}</span>
-      <span class="footer-policy-links">
+      <span class="footer-copy">{settings?.footerText || `© ${year} ${legalName}. All rights reserved.`}</span>
+      <nav class="footer-policy-links" aria-label="Legal">
         <a href="/terms">Terms</a>
         <a href="/privacy">Privacy</a>
-        <a href="/cancellation-refund">Refund & Cancellation</a>
+        <a href="/cancellation-refund">Refund &amp; Cancellation</a>
         <a href="/payment-policy">Payment Policy</a>
         <a href="/grievance">Grievance Officer</a>
-      </span>
-      <span>Main Road, Ranchi · Jharkhand 834001</span>
+      </nav>
+      <a class="footer-back-top" href="#top">
+        <span>Back to top</span>
+        <Icon name="arrow-right" size={13} />
+      </a>
     </div>
   </div>
 </footer>

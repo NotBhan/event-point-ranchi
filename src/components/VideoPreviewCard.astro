@@ -7,9 +7,11 @@ interface Props {
   video: VideoPreviewItem;
   class?: string;
   eagerThumbnail?: boolean;
+  /** "cinema" overlays the caption on the media (used by the homepage studio band). */
+  variant?: 'default' | 'cinema';
 }
 
-const { video, class: className = '', eagerThumbnail = false } = Astro.props;
+const { video, class: className = '', eagerThumbnail = false, variant = 'default' } = Astro.props;
 
 const parsed = parseVideoUrl(video.video_url);
 const isVertical = video.aspect_ratio === '9:16' || parsed.aspectRatio === '9:16';
@@ -33,6 +35,7 @@ const platformBadgeClass =
   class:list={[
     'video-preview-card',
     isVertical ? 'video-card-vertical' : 'video-card-horizontal',
+    variant === 'cinema' ? 'video-card-cinema' : '',
     className,
   ]}
   data-video-card
@@ -423,6 +426,71 @@ const platformBadgeClass =
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+
+  /* Cinema variant: caption overlaid on the media, no separate card body. */
+  .video-card-cinema {
+    position: relative;
+    border-color: rgba(212, 175, 55, 0.35);
+    background: #140407;
+  }
+
+  .video-card-cinema .video-details {
+    position: absolute;
+    inset: auto 0 0 0;
+    z-index: 5;
+    padding: 3.6rem 1.35rem 1.2rem;
+    background: linear-gradient(
+      180deg,
+      rgba(8, 2, 3, 0) 0%,
+      rgba(8, 2, 3, 0.38) 34%,
+      rgba(8, 2, 3, 0.84) 66%,
+      rgba(8, 2, 3, 0.97) 100%
+    );
+    pointer-events: none;
+  }
+
+  .video-card-cinema .video-title {
+    color: #ffffff;
+    font-family: var(--font-serif, 'Playfair Display', Georgia, serif);
+    font-size: clamp(1.08rem, 1.9vw, 1.45rem);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    text-shadow: 0 1px 14px rgba(0, 0, 0, 0.65);
+  }
+
+  .video-card-cinema .video-description {
+    color: rgba(247, 240, 220, 0.88);
+    -webkit-line-clamp: 1;
+    text-shadow: 0 1px 10px rgba(0, 0, 0, 0.7);
+  }
+
+  .video-card-cinema .video-external-link {
+    pointer-events: auto;
+    color: var(--gold-bright, #d4af37);
+    background: rgba(8, 2, 3, 0.45);
+  }
+
+  .video-card-cinema .video-external-link:hover {
+    color: #ffffff;
+    background: rgba(212, 175, 55, 0.28);
+  }
+
+  .video-card-cinema.video-card-vertical .video-details {
+    padding: 1.9rem 0.9rem 0.85rem;
+  }
+
+  .video-card-cinema.video-card-vertical .video-title {
+    font-size: 0.92rem;
+    line-height: 1.3;
+    -webkit-line-clamp: 2;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .video-card-cinema.video-card-vertical .video-description {
+    display: none;
   }
 </style>
 

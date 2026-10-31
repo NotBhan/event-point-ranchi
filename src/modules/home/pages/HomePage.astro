@@ -149,15 +149,17 @@ const steps = homepageContent.steps.map((s) => [s.stepNumber, s.title, s.descrip
             <article class="equipment-preview-card">
               <div class="equipment-preview-head">
                 <span class="equipment-group-icon"><Icon name={category.icon} size={19} /></span>
-                <div>
-                  <h3>{category.name}</h3>
-                  <p>{category.itemCount} items in catalogue</p>
-                </div>
+                <h3>
+                  <a href={`/equipment?category=${category.slug}`}>{category.name}</a>
+                </h3>
+                <span class="equipment-preview-count">{category.itemCount} {category.itemCount === 1 ? 'item' : 'items'}</span>
               </div>
+
               <ul class="equipment-preview-list">
                 {category.items.map((item) => (
                   <li>
-                    <div>
+                    <span class="equipment-preview-dot" aria-hidden="true"></span>
+                    <div class="equipment-preview-copy">
                       <strong>{item.name}</strong>
                       <small>{item.description}</small>
                     </div>
@@ -182,7 +184,13 @@ const steps = homepageContent.steps.map((s) => [s.stepNumber, s.title, s.descrip
                   </li>
                 ))}
               </ul>
-              <a href={`/equipment?category=${category.slug}`} class="text-link">Browse {category.name.toLowerCase()}</a>
+
+              <div class="equipment-preview-foot">
+                <a href={`/equipment?category=${category.slug}`} class="equipment-preview-more">
+                  <span>View all {category.itemCount} {category.name.toLowerCase()}</span>
+                  <Icon name="arrow-right" size={14} />
+                </a>
+              </div>
             </article>
           ))}
         </div>
@@ -282,22 +290,11 @@ const steps = homepageContent.steps.map((s) => [s.stepNumber, s.title, s.descrip
 
         {hasMixedAspectRatios ? (
           <div class="cinema-studio-layout">
-            <!-- Primary Widescreen Walkthrough -->
-            <div class="cinema-spotlight-col">
-              <div class="cinema-spotlight-card">
-                <div class="spotlight-badge-bar">
-                  <span class="spotlight-pill">
-                    <Icon name="video" size={13} />
-                    <span>Featured Walkthrough</span>
-                  </span>
-                  <span class="spotlight-hd">1080p HD</span>
-                </div>
-                <VideoPreviewCard video={primaryVideo} eagerThumbnail={true} />
-              </div>
+            <div class="cinema-featured">
+              <VideoPreviewCard video={primaryVideo} variant="cinema" eagerThumbnail={true} />
             </div>
 
-            <!-- Vertical Shorts & Reels Showcase -->
-            <div class="cinema-reels-col">
+            <div class="cinema-reel-strip">
               <div class="reels-header">
                 <div class="reels-title-wrap">
                   <Icon name="film" size={15} />
@@ -305,17 +302,27 @@ const steps = homepageContent.steps.map((s) => [s.stepNumber, s.title, s.descrip
                 </div>
                 <span class="reels-badge">{reelVideos.length} Moments</span>
               </div>
-              <div class="cinema-reels-grid">
+              <div class="cinema-reel-row">
                 {reelVideos.map((video) => (
-                  <VideoPreviewCard video={video} />
+                  <div class="cinema-reel-item">
+                    <VideoPreviewCard video={video} variant="cinema" />
+                  </div>
                 ))}
+                <a class="cinema-all-tile" href="/gallery#videosSection">
+                  <span class="cinema-all-eyebrow">Full collection</span>
+                  <strong>Explore every walkthrough, short and reel.</strong>
+                  <span class="cinema-all-cta">
+                    <span>View gallery</span>
+                    <Icon name="arrow-right" size={16} />
+                  </span>
+                </a>
               </div>
             </div>
           </div>
         ) : (
           <div class="cinema-grid-balanced">
             {featuredVideos.map((video, idx) => (
-              <VideoPreviewCard video={video} eagerThumbnail={idx === 0} />
+              <VideoPreviewCard video={video} eagerThumbnail={idx === 0} variant="cinema" />
             ))}
           </div>
         )}
@@ -333,14 +340,17 @@ const steps = homepageContent.steps.map((s) => [s.stepNumber, s.title, s.descrip
           team reviews every detail before responding.
         </p>
       </div>
-      <div class="process-grid process-grid-5">
-        {steps.map(([index, title, description]) => (
-          <div class="process-card">
-            <span class="step-index">Step {index}</span>
-            <h3>{title}</h3>
-            <p>{description}</p>
-          </div>
-        ))}
+      <div class="process-grid process-grid-5 process-timeline">
+        {steps.map(([index, title, description], position) => {
+          const stepNumber = String(index || position + 1).padStart(2, '0');
+          return (
+            <div class="process-step">
+              <span class="process-step-num" aria-hidden="true">{stepNumber}</span>
+              <h3>{title}</h3>
+              <p>{description}</p>
+            </div>
+          );
+        })}
       </div>
       <div class="process-notice">
         <Icon name="info" size={17} />

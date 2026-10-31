@@ -1,33 +1,270 @@
 .contact-layout {
   display: grid;
-  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
   gap: 32px;
   align-items: start;
 }
-.contact-cards { display: flex; flex-direction: column; gap: 14px; }
-.contact-card {
-  display: flex;
-  gap: 14px;
-  padding: 20px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  background: var(--surface);
+
+/* ------------------------------------------------------------------ *
+ * Visit-the-studio card (contact details)
+ * ------------------------------------------------------------------ */
+.contact-aside {
+  position: sticky;
+  top: 96px;
 }
-.contact-card-icon {
+
+.contact-visit-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding: 32px 28px 26px;
+  border-radius: var(--r-xl);
+  border: 1px solid rgba(200, 162, 81, 0.28);
+  background:
+    radial-gradient(120% 95% at 100% 0%, rgba(200, 162, 81, 0.2), transparent 56%),
+    linear-gradient(165deg, var(--dark-2) 0%, var(--dark) 64%);
+  color: var(--on-dark);
+  box-shadow: var(--shadow-lg);
+}
+
+.contact-visit-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--gold-bright), rgba(200, 162, 81, 0) 72%);
+  opacity: 0.85;
+}
+
+.contact-visit-eyebrow {
+  color: var(--gold-bright);
+}
+.contact-visit-eyebrow::before {
+  background: var(--gold-bright);
+}
+
+.contact-visit-head h2 {
+  margin: 14px 0 10px;
+  color: #fff;
+  font-size: clamp(1.5rem, 2.2vw, 1.9rem);
+  letter-spacing: -0.015em;
+}
+
+.contact-visit-address {
+  max-width: 34ch;
+  color: var(--on-dark-soft);
+  font-size: 14.5px;
+  line-height: 1.65;
+}
+
+.contact-visit-map {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 14px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid rgba(200, 162, 81, 0.4);
+  color: var(--gold-bright);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  transition: color 0.18s var(--ease), border-color 0.18s var(--ease);
+}
+.contact-visit-map:hover {
+  color: #fff;
+  border-bottom-color: rgba(255, 255, 255, 0.5);
+}
+
+/* Tappable contact rows */
+.contact-visit-rows {
+  display: grid;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.contact-visit-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: var(--r-lg);
+  background: rgba(255, 255, 255, 0.035);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.2s var(--ease), background 0.2s var(--ease), transform 0.2s var(--ease);
+}
+.contact-visit-row:hover {
+  border-color: rgba(200, 162, 81, 0.45);
+  background: rgba(255, 255, 255, 0.06);
+  transform: translateY(-1px);
+}
+
+.contact-visit-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
   width: 40px;
   height: 40px;
   border-radius: var(--r-md);
-  background: var(--gold-soft);
-  color: var(--gold-ink);
+  border: 1px solid rgba(200, 162, 81, 0.22);
+  background: rgba(200, 162, 81, 0.16);
+  color: var(--gold-bright);
+}
+
+.contact-visit-copy {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 2px;
+  min-width: 0;
+}
+
+.contact-visit-label {
+  color: rgba(255, 255, 255, 0.64);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.contact-visit-copy strong {
+  color: #fff;
+  font-size: 14.5px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.contact-visit-copy small {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 12px;
+}
+
+.contact-visit-chevron {
+  flex-shrink: 0;
+  margin-left: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  transition: transform 0.2s var(--ease), color 0.2s var(--ease);
+}
+.contact-visit-row:hover .contact-visit-chevron {
+  color: var(--gold-bright);
+  transform: translateX(3px);
+}
+
+/* Hours + site visits */
+.contact-visit-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0 0;
+}
+.contact-visit-facts div {
+  padding: 13px 14px;
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: var(--r-lg);
+}
+.contact-visit-facts dt {
   display: flex;
   align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+  gap: 6px;
+  color: rgba(255, 255, 255, 0.64);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
-.contact-card h3 { font-size: 14px; margin-bottom: 4px; }
-.contact-card p { font-size: 13.5px; color: var(--body); line-height: 1.55; }
-.contact-card small { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
+.contact-visit-facts dt svg {
+  color: var(--gold-bright);
+}
+.contact-visit-facts dd {
+  margin: 6px 0 0;
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+/* Grievance footer */
+.contact-visit-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.contact-visit-foot strong {
+  display: block;
+  margin-top: 3px;
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.contact-visit-foot-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--gold-bright);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.18s var(--ease), gap 0.18s var(--ease);
+}
+.contact-visit-foot-link:hover {
+  color: #fff;
+  gap: 9px;
+}
+
+.contact-visit-map:focus-visible,
+.contact-visit-row:focus-visible,
+.contact-visit-foot-link:focus-visible {
+  outline: 2px solid var(--gold-bright);
+  outline-offset: 3px;
+  border-radius: var(--r-sm);
+}
+
+@media (max-width: 1000px) {
+  .contact-aside {
+    position: static;
+  }
+}
 
 @media (max-width: 900px) {
-  .contact-layout { grid-template-columns: 1fr; }
+  .contact-layout {
+    grid-template-columns: 1fr;
+  }
+  .contact-visit-card {
+    padding: 26px 22px 22px;
+  }
+}
+
+@media (max-width: 460px) {
+  .contact-visit-facts {
+    grid-template-columns: 1fr;
+  }
+  .contact-visit-foot {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 560px) {
+  .contact-visit-row {
+    padding: 12px;
+    gap: 11px;
+  }
+  .contact-visit-icon {
+    width: 36px;
+    height: 36px;
+  }
+  .contact-visit-copy strong {
+    font-size: 13.5px;
+  }
+  .contact-visit-copy small {
+    font-size: 11.5px;
+  }
+  .contact-visit-chevron {
+    margin-left: 8px;
+  }
 }
