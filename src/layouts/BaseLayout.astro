@@ -39,7 +39,7 @@ const {
     <meta name="description" content={description} />
     <meta name="theme-color" content={siteSettings.theme.primaryColor} />
     <link rel="icon" type="image/svg+xml" href={siteSettings.favicon} />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
@@ -53,10 +53,11 @@ const {
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImage} />
-    <ClientRouter />
+    <ClientRouter fallback="swap" />
     <slot name="head" />
   </head>
   <body class={bodyClass}>
+    <div id="pageProgressBar" class="page-progress-bar" aria-hidden="true"></div>
     <a class="skip-link" href="#main">Skip to content</a>
     <Header settings={siteSettings} />
     <Toast flash={Astro.locals.flash} />
@@ -77,6 +78,22 @@ const {
       import '../client/requirements-ui';
       import '../client/lightbox';
       import '../client/image-loader';
+
+      // Navigation loading progress bar
+      document.addEventListener('astro:before-preparation', () => {
+        const bar = document.getElementById('pageProgressBar');
+        if (bar) {
+          bar.classList.remove('is-finished');
+          bar.classList.add('is-loading');
+        }
+      });
+      document.addEventListener('astro:page-load', () => {
+        const bar = document.getElementById('pageProgressBar');
+        if (bar) {
+          bar.classList.add('is-finished');
+          bar.classList.remove('is-loading');
+        }
+      });
     </script>
   </body>
 </html>

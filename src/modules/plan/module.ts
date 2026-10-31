@@ -24,17 +24,31 @@ async function createEnquiryApi(ctx: PageContext): Promise<Response> {
     const result = createEnquiry(payload);
     let qrDataUrl = '';
     let scanUrl = '';
+    let token = '';
+    let receiptUrl = `/receipts/enquiry/${result.reference}`;
+    let pdfUrl = `/api/enquiries/receipt/${result.reference}/pdf`;
     try {
       const { getEnquiryQrService } = await import('../../core/operational/enquiry-qr-service');
       const qrService = getEnquiryQrService(ctx.url.origin);
       const qr = await qrService.getOrCreateEnquiryQr(result.id, result.reference, ctx.url.origin);
       qrDataUrl = qr.qrDataUrl;
       scanUrl = qr.scanUrl;
+      token = qr.token;
+      receiptUrl = `/receipts/enquiry/${result.reference}?token=${qr.token}`;
+      pdfUrl = `/api/enquiries/receipt/${result.reference}/pdf?token=${qr.token}`;
     } catch (e: any) {
       console.warn('[Plan Enquiry QR generation warning]:', e?.message);
     }
 
-    return json({ status: 'success', reference: result.reference, qrDataUrl, scanUrl }, 201);
+    return json({
+      status: 'success',
+      reference: result.reference,
+      token,
+      qrDataUrl,
+      scanUrl,
+      receiptUrl,
+      pdfUrl,
+    }, 201);
   } catch (error) {
     if (error instanceof EnquiryError) return badRequest(error.message);
     throw error;

@@ -1,0 +1,50 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+interface Props {
+  error?: string;
+}
+
+const { error = '' } = Astro.props;
+
+if (Astro.response) {
+  Astro.response.status = 500;
+}
+---
+
+<BaseLayout title="Server Error | Event Point Ranchi" noCart>
+  <main class="section py-16" style="background: radial-gradient(circle at 50% 20%, rgba(114, 18, 36, 0.06) 0%, transparent 70%);">
+    <div class="container">
+      <div style="max-width: 760px; margin: 30px auto 48px; text-align: center;">
+        <div class="error-badge mb-4">
+          <span class="badge font-mono" style="background: rgba(114, 18, 36, 0.1); color: var(--brand-maroon, #721224); border: 1px solid rgba(114, 18, 36, 0.2); font-size: 0.85rem; letter-spacing: 0.12em; text-transform: uppercase;">
+            Status 500 · Temporary Stage Interruption
+          </span>
+        </div>
+
+        <h1 class="display-lg mb-4" style="font-family: var(--font-heading); color: var(--ink); line-height: 1.15;">
+          We Experienced an Unexpected Glitch
+        </h1>
+
+        <p class="lead text-muted mb-8" style="max-width: 580px; margin-left: auto; margin-right: auto; line-height: 1.6;">
+          Our technical team has been notified. We are working to restore this part of the stage immediately. In the meantime, you can reach out directly to our concierge or return home.
+        </p>
+
+        {error && (
+          <div class="muted-box mb-8" style="font-family: var(--font-mono); font-size: 0.82rem; max-width: 540px; margin: 0 auto 32px; word-break: break-all; opacity: 0.85;">
+            Reference: {error}
+          </div>
+        )}
+
+        <div class="flex-center gap-3 mb-12 wrap">
+          <a href="/" class="btn btn-primary" style="padding: 12px 24px;">
+            Return to Homepage
+          </a>
+          <a href="/contact" class="btn btn-secondary" style="padding: 12px 24px;">
+            Contact Support & Concierge
+          </a>
+        </div>
+      </div>
+    </div>
+  </main>
+</BaseLayout>

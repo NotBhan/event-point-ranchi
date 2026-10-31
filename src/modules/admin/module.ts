@@ -53,7 +53,7 @@ export default defineModule({
     { label: 'Bookings', href: '/admin/bookings', icon: 'ticket', order: 20 },
     { label: 'Payments', href: '/admin/payments', icon: 'credit-card', order: 22 },
     { label: 'Event Enquiries', href: '/admin/enquiries', icon: 'calendar', order: 25 },
-    { label: 'Scan Enquiry QR', href: '/admin/enquiries/scan', icon: 'camera', order: 26 },
+    { label: 'Enquiry QR Scanner', href: '/admin/enquiries/scan', icon: 'camera', order: 26 },
     { label: 'Halls', href: '/admin/halls', icon: 'building', order: 30 },
     { label: 'Catering', href: '/admin/catering', icon: 'utensils', order: 50 },
     { label: 'Gallery', href: '/admin/gallery', icon: 'image', order: 60 },
@@ -74,6 +74,7 @@ export default defineModule({
 
     { path: '/admin/enquiries', component: EventEnquiriesPage, handle: eventEnquiriesList },
     { path: '/admin/enquiries/scan', component: ScanEnquiryPage, handle: scanEnquiry },
+    { path: '/admin/scanner', component: ScanEnquiryPage, handle: scanEnquiry },
     { path: '/admin/enquiries/:id', component: EventEnquiryDetailPage, handle: eventEnquiryDetail },
 
     { path: '/admin/halls', component: HallsPage, handle: hallsList },

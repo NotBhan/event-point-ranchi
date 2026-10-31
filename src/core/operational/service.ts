@@ -492,6 +492,110 @@ export async function updateBookingFinancials(
   return res.rowCount > 0;
 }
 
+export type DepositType = 'full' | 'percentage' | 'fixed' | 'custom';
+
+export function calculateAdvanceRequired(
+  totalAmountPaise: number,
+  depositType: DepositType,
+  depositValue?: number
+): number {
+  const total = Math.max(0, Math.round(Number(totalAmountPaise) || 0));
+  if (depositType === 'full') {
+    return total;
+  }
+  if (depositType === 'percentage') {
+    const pct = Math.max(1, Math.min(100, Number(depositValue) || 25));
+    return Math.round((total * pct) / 100);
+  }
+  if (depositType === 'fixed' || depositType === 'custom') {
+    // depositValue is in INR rupees, convert to paise
+    const valPaise = Math.round((Number(depositValue) || 0) * 100);
+    return Math.min(total, Math.max(0, valPaise));
+  }
+  return Math.round((total * 25) / 100);
+}
+
+export async function updateBookingDepositConfig(params: {
+  bookingId: number;
+  depositType: DepositType;
+  depositValue?: number;
+  adminUserId?: number;
+}): Promise<{ advanceAmount: number; totalAmount: number }> {
+  let total = 0;
+  let previousAdvance = 0;
+
+  // Try Neon PostgreSQL first
+  try {
+    const neon = getNeonClient();
+    const bRes = await neon.query<BookingRow>('SELECT * FROM bookings WHERE id = $1 LIMIT 1', [params.bookingId]);
+    if (bRes.rows[0]) {
+      total = Number(bRes.rows[0].total_amount);
+      previousAdvance = Number(bRes.rows[0].advance_amount);
+    }
+  } catch (err) {
+    console.warn('[Neon query warning in updateBookingDepositConfig]:', err);
+  }
+
+  // Fallback to SQLite if not found in Neon or offline
+  if (total <= 0) {
+    try {
+      const { one } = await import('../db');
+      const bRow = one<{ total_amount: number; advance_amount: number }>(
+        'SELECT total_amount, advance_amount FROM bookings WHERE id = ?',
+        [params.bookingId]
+      );
+      if (bRow) {
+        total = Number(bRow.total_amount);
+        previousAdvance = Number(bRow.advance_amount);
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  if (total <= 0) {
+    throw new Error(`Booking #${params.bookingId} not found or total amount is zero.`);
+  }
+
+  const newAdvance = calculateAdvanceRequired(total, params.depositType, params.depositValue);
+
+  // Update in Neon
+  try {
+    const neon = getNeonClient();
+    await neon.query('UPDATE bookings SET advance_amount = $1 WHERE id = $2', [newAdvance, params.bookingId]);
+  } catch (err) {
+    console.warn('[Neon advance update warning]:', err);
+  }
+
+  // Update in SQLite
+  try {
+    const { run } = await import('../db');
+    run('UPDATE bookings SET advance_amount = ? WHERE id = ?', [newAdvance, params.bookingId]);
+  } catch (err) {
+    console.warn('[SQLite advance update warning]:', err);
+  }
+
+  try {
+    await logAuditEvent(
+      'BOOKING_DEPOSIT_CONFIGURED',
+      'booking',
+      String(params.bookingId),
+      {
+        depositType: params.depositType,
+        depositValue: params.depositValue,
+        previousAdvance,
+        newAdvance,
+        totalAmount: total,
+      },
+      params.adminUserId
+    );
+  } catch (err) {
+    console.warn('[Audit log warning]:', err);
+  }
+
+  return { advanceAmount: newAdvance, totalAmount: total };
+}
+
 /* ============================ Payments (Neon) ============================ */
 
 export async function createPaymentRecord(data: {

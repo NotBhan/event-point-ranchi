@@ -85,7 +85,10 @@ function noteFor(button: HTMLElement): string {
   return scope.querySelector<HTMLInputElement | HTMLTextAreaElement>('[data-dimension-note]')?.value.trim() ?? '';
 }
 
-document.addEventListener('click', (event) => {
+if (!(window as any).__requirements_ui_initialized) {
+  (window as any).__requirements_ui_initialized = true;
+
+  document.addEventListener('click', (event) => {
   const target = event.target as HTMLElement;
 
   const stepButton = target.closest<HTMLElement>('[data-qty-step]');
@@ -181,10 +184,11 @@ document.addEventListener('click', (event) => {
   }
 });
 
-window.addEventListener(REQUIREMENTS_EVENT, updateCounts);
-window.addEventListener('storage', (event) => {
-  if (event.key === REQUIREMENTS_STORAGE_KEY) updateCounts();
-});
+  window.addEventListener(REQUIREMENTS_EVENT, updateCounts);
+  window.addEventListener('storage', (event) => {
+    if (event.key === REQUIREMENTS_STORAGE_KEY) updateCounts();
+  });
+}
 
 document.addEventListener('DOMContentLoaded', updateCounts);
 document.addEventListener('astro:page-load', updateCounts);

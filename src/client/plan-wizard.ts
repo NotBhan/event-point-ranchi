@@ -1043,6 +1043,9 @@ async function submitEnquiry(): Promise<void> {
       status?: string;
       reference?: string;
       qrDataUrl?: string;
+      token?: string;
+      receiptUrl?: string;
+      pdfUrl?: string;
       message?: string;
     };
 
@@ -1050,7 +1053,10 @@ async function submitEnquiry(): Promise<void> {
       throw new Error(data.message || 'We could not submit the enquiry. Please try again.');
     }
 
-    showReceipt(data.reference, data.qrDataUrl);
+    const receiptUrl = data.receiptUrl || `/receipts/enquiry/${data.reference}${data.token ? `?token=${data.token}` : ''}`;
+    const pdfUrl = data.pdfUrl || `/api/enquiries/receipt/${data.reference}/pdf${data.token ? `?token=${data.token}` : ''}`;
+
+    showReceipt(data.reference, data.qrDataUrl, receiptUrl, pdfUrl);
   } catch (error) {
     showError(error instanceof Error ? error.message : 'We could not submit the enquiry. Please try again.');
   } finally {
@@ -1061,7 +1067,7 @@ async function submitEnquiry(): Promise<void> {
   }
 }
 
-function showReceipt(reference: string, qrDataUrl?: string): void {
+function showReceipt(reference: string, qrDataUrl?: string, receiptUrl?: string, pdfUrl?: string): void {
   if (planShell) planShell.hidden = true;
   if (receipt) {
     receipt.hidden = false;
@@ -1073,6 +1079,18 @@ function showReceipt(reference: string, qrDataUrl?: string): void {
       const qrImg = receipt.querySelector<HTMLImageElement>('[data-receipt-qr]');
       if (qrImg) qrImg.src = qrDataUrl;
       if (qrContainer) qrContainer.hidden = false;
+    }
+
+    if (receiptUrl) {
+      const viewLink = receipt.querySelector<HTMLAnchorElement>('[data-receipt-view-link]');
+      if (viewLink) viewLink.href = receiptUrl;
+      const primaryLink = receipt.querySelector<HTMLAnchorElement>('[data-receipt-primary-link]');
+      if (primaryLink) primaryLink.href = receiptUrl;
+    }
+
+    if (pdfUrl) {
+      const pdfLink = receipt.querySelector<HTMLAnchorElement>('[data-receipt-pdf-link]');
+      if (pdfLink) pdfLink.href = pdfUrl;
     }
 
     const heading = receipt.querySelector<HTMLElement>('h2');

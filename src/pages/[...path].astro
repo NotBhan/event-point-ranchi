@@ -1,37 +1,45 @@
 ---
 import NotFound from '../components/NotFound.astro';
+import ServerError from '../components/ServerError.astro';
 import { resolvePage } from '../core/registry';
 
 const matched = resolvePage(Astro.url.pathname);
 let Page: any = null;
 let pageProps: Record<string, unknown> = {};
 let response: Response | null = null;
+let serverError: string | null = null;
 
 if (!matched) {
   Astro.response.status = 404;
 } else {
-  const contentType = Astro.request.headers.get('content-type') ?? '';
-  const form =
-    Astro.request.method === 'POST' && contentType.includes('form')
-      ? await Astro.request.formData()
-      : null;
+  try {
+    const contentType = Astro.request.headers.get('content-type') ?? '';
+    const form =
+      Astro.request.method === 'POST' && contentType.includes('form')
+        ? await Astro.request.formData()
+        : null;
 
-  const result = await matched.route.handle({
-    request: Astro.request,
-    url: Astro.url,
-    params: matched.params,
-    form,
-    auth: Astro.locals.auth,
-    csrf: Astro.locals.csrf,
-    cookies: Astro.cookies,
-  });
+    const result = await matched.route.handle({
+      request: Astro.request,
+      url: Astro.url,
+      params: matched.params,
+      form,
+      auth: Astro.locals.auth,
+      csrf: Astro.locals.csrf,
+      cookies: Astro.cookies,
+    });
 
-  if (result instanceof Response) {
-    response = result;
-  } else {
-    Astro.response.status = result.status ?? 200;
-    Page = matched.route.component;
-    pageProps = result.props ?? {};
+    if (result instanceof Response) {
+      response = result;
+    } else {
+      Astro.response.status = result.status ?? 200;
+      Page = matched.route.component;
+      pageProps = result.props ?? {};
+    }
+  } catch (err: any) {
+    console.error(`[Server Error] Route handler failed for ${Astro.url.pathname}:`, err);
+    Astro.response.status = 500;
+    serverError = err?.message || 'Internal Server Error';
   }
 }
 
@@ -40,4 +48,5 @@ if (response) {
 }
 ---
 
-{Page ? <Page {...pageProps} /> : <NotFound />}
+{serverError ? <ServerError error={serverError} /> : Page ? <Page {...pageProps} /> : <NotFound path={Astro.url.pathname} />}
+

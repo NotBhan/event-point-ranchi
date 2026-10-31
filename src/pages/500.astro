@@ -1,0 +1,19 @@
+---
+import ServerError from '../components/ServerError.astro';
+
+interface Props {
+  error?: unknown;
+}
+
+const { error } = Astro.props;
+
+export const prerender = false;
+
+if (Astro.response) {
+  Astro.response.status = 500;
+}
+
+const errorMessage = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
+---
+
+<ServerError error={errorMessage} />

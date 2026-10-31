@@ -1,7 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import schemaSql from './schema.sql?raw';
+import { sqliteSchemaSql as schemaSql } from './sqlite-schema';
 import { hashPassword, verifyPassword } from './password';
 import { seedDatabase } from './seed';
 import { initStorageSchema } from './storage/schema';

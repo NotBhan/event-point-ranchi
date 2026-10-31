@@ -1164,3 +1164,36 @@ details[open] .summary-chevron {
   .summary-card { position: static; }
   .toast-stack { top: 76px; right: 12px; }
 }
+
+/* Page Navigation Tactile Responsiveness & Progress Bar */
+.page-progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0%;
+  height: 3px;
+  background: linear-gradient(90deg, var(--gold-deep, #c8a251), var(--gold, #d4b896), var(--brand-maroon, #721224));
+  z-index: 10000;
+  pointer-events: none;
+  opacity: 0;
+  transition: width 0.28s cubic-bezier(0.1, 0.9, 0.2, 1), opacity 0.2s ease;
+}
+
+.page-progress-bar.is-loading {
+  width: 75%;
+  opacity: 1;
+}
+
+.page-progress-bar.is-finished {
+  width: 100%;
+  opacity: 0;
+}
+
+/* Instant tactile response on click / tap to eliminate perception of lag */
+button:active:not(:disabled),
+.btn:active:not(:disabled),
+a:active {
+  transform: scale(0.985) !important;
+  transition: transform 0.04s ease-out !important;
+}
+

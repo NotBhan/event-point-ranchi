@@ -835,20 +835,29 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
             <p>
               Present this QR code to our planning team at our Main Road Ranchi studio or on-site for immediate blueprint retrieval.
             </p>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="window.print()">
-              <Icon name="receipt" size={15} /> Print Enquiry Slip
-            </button>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+              <a href="#" class="btn btn-gold btn-sm" data-receipt-view-link target="_blank" rel="noopener">
+                <Icon name="external" size={14} /> View Full Receipt
+              </a>
+              <a href="#" class="btn btn-secondary btn-sm" data-receipt-pdf-link download>
+                <Icon name="download" size={14} /> Download PDF
+              </a>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="window.print()">
+                <Icon name="receipt" size={14} /> Print Enquiry Slip
+              </button>
+            </div>
           </div>
         </div>
 
         <div class="receipt-actions">
-          <a href="/" class="btn btn-primary">Return to Homepage</a>
+          <a href="#" class="btn btn-primary" data-receipt-primary-link>View &amp; Print Full Receipt</a>
           <a href="/gallery" class="btn btn-secondary">Explore Design Gallery</a>
+          <a href="/" class="btn btn-ghost">Return to Homepage</a>
         </div>
 
         <p class="receipt-note">
           <Icon name="info" size={15} />
-          Nothing has been charged. Event Point Ranchi will confirm all item availability and date reservations in writing.
+          Nothing has been charged. This is an enquiry acknowledgement receipt, not a confirmed booking. Event Point Ranchi will confirm all item availability and date reservations in writing.
         </p>
       </div>
     </div>

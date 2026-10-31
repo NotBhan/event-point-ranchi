@@ -25,6 +25,7 @@ import {
   loadPaymentDetailAdmin,
   processRefundAdmin,
 } from '../service';
+import { updateBookingDepositConfig, type DepositType } from '../../../core/operational/service';
 import { runFormAction } from './shared';
 
 export async function adminLogin(ctx: PageContext) {
@@ -105,9 +106,19 @@ export function bookingDetail(ctx: PageContext) {
       ctx,
       {
         update_status: () => updateBookingStatus(id, getString(ctx.form, 'status')),
+        update_deposit: async () => {
+          const depositType = (getString(ctx.form, 'deposit_type') || 'percentage') as DepositType;
+          const depositValue = Number(getString(ctx.form, 'deposit_value') || 0);
+          await updateBookingDepositConfig({
+            bookingId: id,
+            depositType,
+            depositValue,
+            adminUserId: ctx.auth.user?.id,
+          });
+        },
         delete: () => deleteBooking(id),
       },
-      { redirectTo: backTo },
+      { redirectTo: backTo, successMessage: 'Booking details updated successfully.' },
     );
   }
 

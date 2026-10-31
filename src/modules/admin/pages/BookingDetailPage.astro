@@ -79,6 +79,125 @@ const statuses = ['pending', 'confirmed', 'cancelled', 'draft'];
       </div>
     </div>
 
+    <!-- Financial Breakdown & Deposit Configuration -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));gap:20px;margin-bottom:24px;">
+      <!-- Financial Overview -->
+      <div class="admin-panel">
+        <div class="admin-panel-head">
+          <div>
+            <h2>Financial Breakdown</h2>
+            <p>Ledger balances and payment health</p>
+          </div>
+          <span class={`badge ${(data.booking.payment_status || 'unpaid') === 'paid' ? 'badge-success' : (data.booking.payment_status || 'unpaid') === 'partially_paid' ? 'badge-info' : 'badge-gold'}`}>
+            {(data.booking.payment_status || 'unpaid').toUpperCase()}
+          </span>
+        </div>
+        <div class="admin-panel-body">
+          <div class="summary-row">
+            <div class="summary-left"><small>Total Booking Value</small><h4 class="money">{formatMoney(data.booking.total_amount)}</h4></div>
+          </div>
+          <div class="summary-row">
+            <div class="summary-left">
+              <small>Deposit / Advance Required</small>
+              <h4 class="money" style="color:var(--brand-maroon);">{formatMoney(data.booking.advance_amount ?? Math.round(data.booking.total_amount * 0.25))}</h4>
+            </div>
+          </div>
+          <div class="summary-row">
+            <div class="summary-left">
+              <small>Amount Paid</small>
+              <h4 class="money" style="color:#2e7d32;">{formatMoney(data.booking.amount_paid ?? 0)}</h4>
+            </div>
+          </div>
+          <div class="summary-row">
+            <div class="summary-left">
+              <small>Outstanding Balance</small>
+              <h4 class="money" style="color:var(--ink);">{formatMoney(data.booking.outstanding_balance ?? data.booking.total_amount)}</h4>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Deposit Configurator -->
+      <div class="admin-panel">
+        <div class="admin-panel-head">
+          <div>
+            <h2>Configure Booking Deposit</h2>
+            <p>Set required advance or full payment policy</p>
+          </div>
+        </div>
+        <div class="admin-panel-body">
+          <form method="POST" action={`/admin/bookings/${data.booking.id}`} class="form-grid">
+            <input type="hidden" name="_csrf" value={csrf} />
+            <input type="hidden" name="action" value="update_deposit" />
+            
+            <div class="field">
+              <label for="deposit_type">Deposit Policy Type</label>
+              <select class="select" id="deposit_type" name="deposit_type" onchange="
+                const valField = document.getElementById('depositValGroup');
+                const lbl = document.getElementById('depositValLabel');
+                if (this.value === 'full') {
+                  valField.style.display = 'none';
+                } else if (this.value === 'percentage') {
+                  valField.style.display = 'block';
+                  lbl.textContent = 'Percentage Value (1 - 100%)';
+                } else {
+                  valField.style.display = 'block';
+                  lbl.textContent = 'Amount in INR (₹)';
+                }
+              ">
+                <option value="percentage">Percentage Deposit (e.g. 25% or custom %)</option>
+                <option value="full">Full Payment Required (100% Upfront)</option>
+                <option value="fixed">Fixed Deposit Amount (₹)</option>
+                <option value="custom">Custom Approved Deposit (₹)</option>
+              </select>
+            </div>
+
+            <div class="field" id="depositValGroup">
+              <label for="deposit_value" id="depositValLabel">Percentage Value (1 - 100%)</label>
+              <input
+                type="number"
+                class="input"
+                id="deposit_value"
+                name="deposit_value"
+                min="1"
+                step="any"
+                value="25"
+                placeholder="e.g. 25 or amount in ₹"
+              />
+            </div>
+
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
+              <button type="submit" class="btn btn-primary btn-sm">
+                Apply Deposit Policy
+              </button>
+              <button
+                type="button"
+                class="btn btn-secondary btn-sm"
+                onclick="
+                  document.getElementById('deposit_type').value = 'percentage';
+                  document.getElementById('deposit_value').value = '25';
+                  document.getElementById('depositValGroup').style.display = 'block';
+                  document.getElementById('depositValLabel').textContent = 'Percentage Value (1 - 100%)';
+                "
+              >
+                25% Default
+              </button>
+              <button
+                type="button"
+                class="btn btn-secondary btn-sm"
+                onclick="
+                  document.getElementById('deposit_type').value = 'full';
+                  document.getElementById('depositValGroup').style.display = 'none';
+                "
+              >
+                100% Full
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
     <div class="admin-panel">
       <div class="admin-panel-head">
         <div><h2>Items &amp; pricing</h2><p>Server-verified line items</p></div>

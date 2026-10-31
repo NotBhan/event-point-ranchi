@@ -1,0 +1,11 @@
+---
+import NotFound from '../components/NotFound.astro';
+
+export const prerender = false;
+
+if (Astro.response) {
+  Astro.response.status = 404;
+}
+---
+
+<NotFound path={Astro.url.pathname} />

@@ -33,15 +33,16 @@ const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path
     <meta name="robots" content="noindex, nofollow" />
     <title>{title} · {site.name} Admin</title>
     <link rel="icon" type="image/svg+xml" href={site.logo} />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
-    <ClientRouter />
+    <ClientRouter fallback="swap" />
   </head>
   <body class="admin-body">
+    <div id="pageProgressBar" class="page-progress-bar" aria-hidden="true"></div>
     <div class="admin-shell" id="adminShell">
       <aside class="admin-sidebar">
         <div class="admin-brand">
@@ -102,6 +103,21 @@ const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path
 
     <script>
       import '../client/admin';
+
+      document.addEventListener('astro:before-preparation', () => {
+        const bar = document.getElementById('pageProgressBar');
+        if (bar) {
+          bar.classList.remove('is-finished');
+          bar.classList.add('is-loading');
+        }
+      });
+      document.addEventListener('astro:page-load', () => {
+        const bar = document.getElementById('pageProgressBar');
+        if (bar) {
+          bar.classList.add('is-finished');
+          bar.classList.remove('is-loading');
+        }
+      });
     </script>
   </body>
 </html>

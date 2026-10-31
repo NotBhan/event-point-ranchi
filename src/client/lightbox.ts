@@ -28,27 +28,31 @@ export function closeLightbox(): void {
 }
 
 // Global click listener for [data-lightbox] elements and dismissals
-document.addEventListener('click', (event) => {
-  const target = event.target as Element | null;
-  if (!target) return;
+if (!(window as any).__lightbox_initialized) {
+  (window as any).__lightbox_initialized = true;
 
-  const trigger = target.closest<HTMLElement>('[data-lightbox]');
-  if (trigger) {
-    event.preventDefault();
-    const src = trigger.dataset.src ?? '';
-    if (src) {
-      openLightbox(src, trigger.dataset.caption ?? '');
+  document.addEventListener('click', (event) => {
+    const target = event.target as Element | null;
+    if (!target) return;
+
+    const trigger = target.closest<HTMLElement>('[data-lightbox]');
+    if (trigger) {
+      event.preventDefault();
+      const src = trigger.dataset.src ?? '';
+      if (src) {
+        openLightbox(src, trigger.dataset.caption ?? '');
+      }
+      return;
     }
-    return;
-  }
 
-  const { root } = getLightboxElements();
-  if (target.closest('[data-lightbox-close]') || target === root) {
-    event.preventDefault();
-    closeLightbox();
-  }
-});
+    const { root } = getLightboxElements();
+    if (target.closest('[data-lightbox-close]') || target === root) {
+      event.preventDefault();
+      closeLightbox();
+    }
+  });
 
-document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') closeLightbox();
-});
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeLightbox();
+  });
+}

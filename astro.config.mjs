@@ -8,6 +8,10 @@ export default defineConfig({
   output: 'server',
   adapter: useVercel ? vercel() : node({ mode: 'standalone' }),
   server: { port: 4321, host: true },
+  prefetch: {
+    prefetchAll: true,
+    defaultStrategy: 'hover',
+  },
   devToolbar: { enabled: false },
   security: {
     checkOrigin: false,

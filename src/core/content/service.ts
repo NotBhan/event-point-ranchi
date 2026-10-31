@@ -42,7 +42,7 @@ export type {
 
 // In-memory cache for fast SSR page renders
 const contentCache = new Map<string, { data: unknown; timestamp: number }>();
-const CACHE_TTL_MS = 15_000; // 15-second freshness; instant invalidation on mutation
+const CACHE_TTL_MS = 60_000; // 60-second in-memory freshness for fast SSR; instant invalidation on mutation
 
 export function invalidateContentCache(key?: string): void {
   if (key) {

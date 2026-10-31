@@ -15,7 +15,8 @@
     "start": "node ./dist/server/entry.mjs",
     "check": "astro check",
     "test": "node --import tsx --test 'tests/**/*.test.ts'",
-    "db:reset": "node scripts/reset-db.mjs"
+    "db:reset": "node scripts/reset-db.mjs",
+    "db:audit": "node --import tsx scripts/db-audit.ts"
   },
   "dependencies": {
     "@astrojs/node": "^11.1.9",
