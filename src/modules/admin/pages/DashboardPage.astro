@@ -5,10 +5,10 @@ import { formatDate, formatDateTime, formatMoney } from '../../../core/http';
 import type { loadDashboard, loadStorageDashboard } from '../service';
 
 interface Props {
-  counts: ReturnType<typeof loadDashboard>['counts'];
-  recentBookings: ReturnType<typeof loadDashboard>['recentBookings'];
-  upcoming: ReturnType<typeof loadDashboard>['upcoming'];
-  topHalls: ReturnType<typeof loadDashboard>['topHalls'];
+  counts: Awaited<ReturnType<typeof loadDashboard>>['counts'];
+  recentBookings: Awaited<ReturnType<typeof loadDashboard>>['recentBookings'];
+  upcoming: Awaited<ReturnType<typeof loadDashboard>>['upcoming'];
+  topHalls: Awaited<ReturnType<typeof loadDashboard>>['topHalls'];
   storage: ReturnType<typeof loadStorageDashboard>;
 }
 

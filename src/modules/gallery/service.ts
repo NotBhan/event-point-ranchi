@@ -1,9 +1,15 @@
-import { all, one } from '../../core/db';
 import { buildPagination } from '../../core/http';
-import { loadPageSettings } from '../halls/service';
+import { getGalleryCatalog } from '../../core/content/service';
+
+export interface GalleryPageSettings {
+  hero_title: string;
+  hero_subtitle: string;
+  hero_badge: string;
+  hero_image: string | null;
+}
 
 export interface GalleryPageData {
-  settings: ReturnType<typeof loadPageSettings>;
+  settings: GalleryPageSettings;
   categories: Array<{ id: number; name: string; slug: string; count: number }>;
   items: Array<{ id: number; title: string; image: string; category_id: number; category_name: string; category_slug: string }>;
   category: string;
@@ -14,22 +20,27 @@ export interface GalleryPageData {
 export const GALLERY_PER_PAGE_OPTIONS = [12, 24, 48] as const;
 export const GALLERY_DEFAULT_PER_PAGE = 24;
 
-export function loadGalleryPage(options: { category?: string; page?: number; perPage?: number } = {}): GalleryPageData {
-  const settings = loadPageSettings('gallery', {
-    hero_title: 'Moments At Event Point Ranchi',
-    hero_subtitle: 'Mandap details, stage settings and celebrations styled by our Ranchi team.',
-    hero_badge: 'The collection',
-    hero_image: null,
-  });
+// Fallback hero copy only; the admin-editable D1 page content takes precedence.
+const DEFAULT_SETTINGS: GalleryPageSettings = {
+  hero_title: 'Moments At Event Point Ranchi',
+  hero_subtitle: 'Mandap details, stage settings and celebrations styled by our Ranchi team.',
+  hero_badge: 'The collection',
+  hero_image: null,
+};
 
-  const categories = all<{ id: number; name: string; slug: string; count: number }>(
-    `SELECT gc.id, gc.name, gc.slug, COUNT(gi.id) AS count
-     FROM gallery_categories gc
-     LEFT JOIN gallery_items gi ON gi.category_id = gc.id AND gi.is_active = 1
-     WHERE gc.is_active = 1
-     GROUP BY gc.id
-     ORDER BY gc.sort, gc.name`,
-  );
+export async function loadGalleryPage(
+  options: { category?: string; page?: number; perPage?: number } = {},
+): Promise<GalleryPageData> {
+  const catalog = await getGalleryCatalog();
+
+  const categories = catalog.categories
+    .filter((category) => category.is_visible)
+    .map((category) => ({
+      id: category.id,
+      name: category.name,
+      slug: category.slug,
+      count: catalog.items.filter((item) => item.category_id === category.id).length,
+    }));
 
   const requestedPerPage = Number(options.perPage);
   const perPage = (GALLERY_PER_PAGE_OPTIONS as readonly number[]).includes(requestedPerPage)
@@ -40,33 +51,25 @@ export function loadGalleryPage(options: { category?: string; page?: number; per
   const validCategory = (options.category ?? '').trim();
   const category = validCategory && categories.some((entry) => entry.slug === validCategory) ? validCategory : '';
 
-  // Server-side pagination: previously every gallery item was rendered into
-  // the HTML and filtered/paginated client-side.
-  const categoryFilter = category ? 'AND gc.slug = ?' : '';
-  const filterParams = category ? [category] : [];
-
-  const totalRow = one<{ count: number }>(
-    `SELECT COUNT(*) AS count
-     FROM gallery_items gi
-     JOIN gallery_categories gc ON gc.id = gi.category_id
-     WHERE gi.is_active = 1 AND gc.is_active = 1 ${categoryFilter}`,
-    filterParams,
+  // Server-side pagination over the snapshot catalogue: the page ships only the
+  // current slice, never the whole gallery.
+  const visibleItems = catalog.items.filter(
+    (item) => item.is_visible && (!category || item.category_slug === category),
   );
-  const totalCount = Number(totalRow?.count ?? 0);
+  const totalCount = visibleItems.length;
   const offset = buildPagination(requestedPage, perPage, totalCount, 0).offset;
 
-  const items = all<{ id: number; title: string; image: string; category_id: number; category_name: string; category_slug: string }>(
-    `SELECT gi.id, gi.title, gi.image, gi.category_id, gc.name AS category_name, gc.slug AS category_slug
-     FROM gallery_items gi
-     JOIN gallery_categories gc ON gc.id = gi.category_id
-     WHERE gi.is_active = 1 AND gc.is_active = 1 ${categoryFilter}
-     ORDER BY gi.created_at DESC, gi.id DESC
-     LIMIT ? OFFSET ?`,
-    [...filterParams, perPage, offset],
-  );
+  const items = visibleItems.slice(offset, offset + perPage).map((item) => ({
+    id: item.id,
+    title: item.caption,
+    image: item.image_url,
+    category_id: item.category_id,
+    category_name: item.category_name,
+    category_slug: item.category_slug,
+  }));
 
   return {
-    settings,
+    settings: DEFAULT_SETTINGS,
     categories,
     items,
     category,

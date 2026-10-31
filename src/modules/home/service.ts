@@ -1,5 +1,11 @@
-import { all, one } from '../../core/db';
-import { site } from '../../core/config';
+import {
+  getFurnitureCategories,
+  getFurnitureItems,
+  getGalleryCatalog,
+  getMandaps,
+  getSiteSettings,
+  getStages,
+} from '../../core/content/service';
 
 export interface HomeMandap {
   id: number;
@@ -72,80 +78,104 @@ export interface HomeData {
   contact: { address: string; phone: string; email: string };
 }
 
-export function loadHomePage(): HomeData {
-  const mandaps = all<HomeMandap>(
-    `SELECT id, name, slug, description, image, category, length_ft, width_ft, height_ft,
-            dimension_unit, material_specs
-     FROM mandaps WHERE is_active = 1 ORDER BY sort, id LIMIT 3`,
-  );
+const FALLBACK_HERO = '/storage/assets/banners/homepage/banner-hero.webp';
 
-  const stages = all<HomeStage>(
-    `SELECT id, name, slug, description, image, style_category, length_ft, width_ft, height_ft,
-            dimension_unit, decoration_notes
-     FROM stages WHERE is_active = 1 ORDER BY sort, id LIMIT 3`,
-  );
+/**
+ * Homepage data comes entirely from the published snapshot (D1-backed), so the
+ * public homepage no longer reads the local SQLite catalog.
+ */
+export async function loadHomePage(): Promise<HomeData> {
+  const [mandaps, stages, furnitureCategories, furnitureItems, gallery, settings] = await Promise.all([
+    getMandaps(),
+    getStages(),
+    getFurnitureCategories(),
+    getFurnitureItems(),
+    getGalleryCatalog(),
+    getSiteSettings(),
+  ]);
 
-  const categoryRows = all<{ id: number; name: string; slug: string; icon: string }>(
-    'SELECT id, name, slug, icon FROM equipment_categories WHERE is_active = 1 ORDER BY sort, id',
-  );
+  const homeMandaps: HomeMandap[] = mandaps.slice(0, 3).map((mandap) => ({
+    id: mandap.id,
+    name: mandap.name,
+    slug: mandap.slug,
+    description: mandap.description,
+    image: mandap.image_url || null,
+    category: mandap.category,
+    length_ft: mandap.length_ft,
+    width_ft: mandap.width_ft,
+    height_ft: mandap.height_ft,
+    dimension_unit: mandap.dimension_unit,
+    material_specs: mandap.material_specs,
+  }));
 
-  const itemRows = all<HomeEquipmentItem & { category_id: number }>(
-    `SELECT ei.id, ei.category_id, ei.name, ei.slug, ei.description, ei.image, ei.unit,
-            ei.specifications, ei.min_quantity, ei.default_quantity,
-            ec.name AS category, ec.slug AS category_slug, ec.icon AS category_icon
-     FROM equipment_items ei
-     JOIN equipment_categories ec ON ec.id = ei.category_id
-     WHERE ei.is_active = 1 AND ec.is_active = 1
-     ORDER BY ec.sort, ec.id, ei.sort, ei.id`,
-  );
+  const homeStages: HomeStage[] = stages.slice(0, 3).map((stage) => ({
+    id: stage.id,
+    name: stage.name,
+    slug: stage.slug,
+    description: stage.description,
+    image: stage.image_url || null,
+    style_category: stage.style_category,
+    length_ft: stage.length_ft,
+    width_ft: stage.width_ft,
+    height_ft: stage.height_ft,
+    dimension_unit: stage.dimension_unit,
+    decoration_notes: stage.decoration_notes,
+  }));
 
-  const equipment = categoryRows.map((category) => {
-    const items = itemRows.filter((item) => item.category_id === category.id);
+  const equipment: HomeEquipmentCategory[] = furnitureCategories.map((category) => {
+    const items = furnitureItems.filter((item) => item.category_id === category.id);
     return {
-      ...category,
-      items: items.slice(0, 3),
+      id: category.id,
+      name: category.name,
+      slug: category.slug,
+      icon: category.icon,
+      items: items.slice(0, 3).map((item) => ({
+        id: item.id,
+        name: item.name,
+        slug: item.slug,
+        description: item.description,
+        image: item.image_url || null,
+        unit: item.pricing_unit || 'per item',
+        specifications: item.specifications,
+        min_quantity: item.min_quantity,
+        default_quantity: item.default_quantity,
+        category: category.name,
+        category_slug: category.slug,
+        category_icon: category.icon,
+      })),
       itemCount: items.length,
     };
   });
 
-  const galleryCategories = all<{ id: number; name: string; slug: string }>(
-    'SELECT id, name, slug FROM gallery_categories WHERE is_active = 1 ORDER BY sort, id',
-  );
-
-  const galleryItems = all<HomeGalleryItem>(
-    `SELECT gi.id, gi.title, gi.image, gc.name AS category, gc.slug AS categorySlug
-     FROM gallery_items gi
-     JOIN gallery_categories gc ON gc.id = gi.category_id
-     WHERE gi.is_active = 1 AND gc.is_active = 1
-     ORDER BY gi.id LIMIT 8`,
-  );
-
-  const counts =
-    one<{ mandaps: number; stages: number; equipment: number; gallery: number }>(
-      `SELECT
-         (SELECT COUNT(*) FROM mandaps WHERE is_active = 1) AS mandaps,
-         (SELECT COUNT(*) FROM stages WHERE is_active = 1) AS stages,
-         (SELECT COUNT(*) FROM equipment_items WHERE is_active = 1) AS equipment,
-         (SELECT COUNT(*) FROM gallery_items WHERE is_active = 1) AS gallery`,
-    ) ?? { mandaps: 0, stages: 0, equipment: 0, gallery: 0 };
-
-  const contact = one<{ address: string; phone: string; email: string }>(
-    'SELECT address, phone, email FROM contact_info WHERE id = 1',
-  );
+  const galleryItems: HomeGalleryItem[] = gallery.items.slice(0, 8).map((item) => ({
+    id: item.id,
+    title: item.caption,
+    image: item.image_url,
+    category: item.category_name,
+    categorySlug: item.category_slug,
+  }));
 
   return {
-    heroImage: mandaps[0]?.image ?? '/storage/assets/banners/homepage/banner-hero.webp',
-    mandaps,
-    stages,
+    heroImage: homeMandaps[0]?.image ?? FALLBACK_HERO,
+    mandaps: homeMandaps,
+    stages: homeStages,
     equipment,
-    galleryCategories,
+    galleryCategories: gallery.categories.map((category) => ({
+      id: category.id,
+      name: category.name,
+      slug: category.slug,
+    })),
     galleryItems,
     stats: {
-      mandaps: Number(counts.mandaps),
-      stages: Number(counts.stages),
-      equipment: Number(counts.equipment),
-      gallery: Number(counts.gallery),
+      mandaps: mandaps.length,
+      stages: stages.length,
+      equipment: furnitureItems.length,
+      gallery: gallery.items.length,
     },
-    contact: contact ?? { address: site.address, phone: site.phone, email: site.email },
+    contact: {
+      address: settings.address,
+      phone: settings.phone,
+      email: settings.email,
+    },
   };
 }

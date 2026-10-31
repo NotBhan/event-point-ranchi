@@ -283,4 +283,62 @@ CREATE TABLE IF NOT EXISTS video_previews (
 CREATE INDEX IF NOT EXISTS idx_video_previews_platform ON video_previews(platform);
 CREATE INDEX IF NOT EXISTS idx_video_previews_published ON video_previews(is_published);
 CREATE INDEX IF NOT EXISTS idx_video_previews_sort ON video_previews(sort_order);
+
+-- Catering menu structure. Mirrors the legacy local SQLite tables so the admin
+-- CMS edits one store and the published snapshot carries the full menu.
+CREATE TABLE IF NOT EXISTS catering_features (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  package_id INTEGER NOT NULL REFERENCES catering_packages(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_catering_features_package ON catering_features(package_id);
+
+CREATE TABLE IF NOT EXISTS banner_features (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  package_id INTEGER NOT NULL REFERENCES catering_packages(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_banner_features_package ON banner_features(package_id);
+
+CREATE TABLE IF NOT EXISTS guest_pricing (
+  id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+  package_id            INTEGER NOT NULL REFERENCES catering_packages(id) ON DELETE CASCADE,
+  guest_count           INTEGER NOT NULL,
+  price_per_plate_paise INTEGER NOT NULL DEFAULT 0,
+  sort                  INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_guest_pricing_package ON guest_pricing(package_id);
+
+CREATE TABLE IF NOT EXISTS menu_sections (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  package_id      INTEGER NOT NULL REFERENCES catering_packages(id) ON DELETE CASCADE,
+  title           TEXT NOT NULL,
+  has_category    INTEGER NOT NULL DEFAULT 1,
+  available_items INTEGER NOT NULL DEFAULT 0,
+  max_selection   INTEGER NOT NULL DEFAULT 0,
+  sort            INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_menu_sections_package ON menu_sections(package_id);
+
+CREATE TABLE IF NOT EXISTS menu_categories (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  section_id INTEGER NOT NULL REFERENCES menu_sections(id) ON DELETE CASCADE,
+  title      TEXT NOT NULL,
+  sort       INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_menu_categories_section ON menu_categories(section_id);
+
+CREATE TABLE IF NOT EXISTS menu_items (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  category_id  INTEGER NOT NULL REFERENCES menu_categories(id) ON DELETE CASCADE,
+  name         TEXT NOT NULL,
+  is_available INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE INDEX IF NOT EXISTS idx_menu_items_category ON menu_items(category_id);
 `;

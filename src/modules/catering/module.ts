@@ -12,13 +12,13 @@ export default defineModule({
     {
       path: '/catering',
       component: CateringPage,
-      handle: () => ({ props: { data: loadCateringPage() } }),
+      handle: async () => ({ props: { data: await loadCateringPage() } }),
     },
     {
       path: '/catering/:slug',
       component: PackageDetailPage,
-      handle: ({ params }) => {
-        const data = loadPackageDetail(params.slug);
+      handle: async ({ params }) => {
+        const data = await loadPackageDetail(params.slug);
         if (!data) return { props: { notFound: true }, status: 404 };
         return { props: { data } };
       },

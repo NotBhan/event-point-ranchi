@@ -11,9 +11,9 @@ export default defineModule({
     {
       path: '/gallery',
       component: GalleryPage,
-      handle: ({ url }) => ({
+      handle: async ({ url }) => ({
         props: {
-          data: loadGalleryPage({
+          data: await loadGalleryPage({
             category: url.searchParams.get('category') ?? '',
             page: Number(url.searchParams.get('page') ?? '1'),
             perPage: Number(url.searchParams.get('per') ?? ''),

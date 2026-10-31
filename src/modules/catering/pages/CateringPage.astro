@@ -8,7 +8,7 @@ import { getPageContent } from '../../../core/content/service';
 import '../catering.css';
 
 interface Props {
-  data: ReturnType<typeof loadCateringPage>;
+  data: Awaited<ReturnType<typeof loadCateringPage>>;
 }
 
 const { data } = Astro.props;

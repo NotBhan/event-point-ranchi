@@ -36,10 +36,13 @@ process.env.DATA_DIR = join(tempRoot, 'data');
 process.env.STORAGE_DRIVER = 'mock';
 process.env.FILEBASE_PUBLIC_BASE_URL = 'https://cdn.event-point.test';
 process.env.APP_SECRET = 'storage-test-secret';
+// Catalog reads/writes go through D1; force its SQLite fallback so the test
+// never touches the production content database.
+process.env.D1_LOCAL = '1';
 delete process.env.GALLERY_STORAGE_LIMIT_BYTES;
 delete process.env.ASSET_STORAGE_LIMIT_BYTES;
 
-const { getDb, closeDb, all, one, run } = await import('../src/core/db');
+const { getDb, closeDb, all, one } = await import('../src/core/db');
 const {
   MockFilebaseClient,
   getFilebaseClient,
@@ -62,6 +65,15 @@ const {
 } = await import('../src/core/storage/service');
 const { galleryAdmin } = await import('../src/modules/admin/handlers/catalog');
 const { loadGalleryPage } = await import('../src/modules/gallery/service');
+const { getD1Client } = await import('../src/core/content/d1-client');
+
+async function findD1GalleryItem(id: number) {
+  const res = await getD1Client().query<{ id: number }>(
+    'SELECT id FROM gallery_items WHERE id = ? LIMIT 1',
+    [id],
+  );
+  return (res.results ?? [])[0] ?? null;
+}
 const { imageUrl } = await import('../src/core/http');
 const { authStateFor, emptyAuth } = await import('../src/core/auth');
 
@@ -998,13 +1010,15 @@ test('19. unauthorised users cannot upload or delete images', async () => {
   assert.equal(reservationCount(), 0);
   assert.equal((await getFilebaseClient().listObjects({ prefix: 'gallery/' })).objects.length, 0);
 
-  const categoryId = run(
-    "INSERT INTO gallery_categories (name, slug, sort) VALUES ('Test', 'test', 1)",
-  ).lastId;
-  const itemId = run(
-    'INSERT INTO gallery_items (category_id, title, image, is_active) VALUES (?, ?, ?, 1)',
+  const categoryRes = await getD1Client().query(
+    "INSERT INTO gallery_categories (name, slug, sort_order, is_visible) VALUES ('Test', 'test', 1, 1)",
+  );
+  const categoryId = Number(categoryRes.meta.last_row_id ?? 0);
+  const itemRes = await getD1Client().query(
+    'INSERT INTO gallery_items (category_id, caption, image_url, sort_order, is_visible) VALUES (?, ?, ?, 1, 1)',
     [categoryId, 'Protected image', '/images/placeholder.jpg'],
-  ).lastId;
+  );
+  const itemId = Number(itemRes.meta.last_row_id ?? 0);
 
   const deleteForm = new FormData();
   deleteForm.append('action', 'delete_item');
@@ -1013,9 +1027,7 @@ test('19. unauthorised users cannot upload or delete images', async () => {
   const anonymousDelete = await galleryAdmin(contextFor(emptyAuth, deleteForm));
   assert.ok(anonymousDelete instanceof Response);
   assert.equal(anonymousDelete.status, 303);
-  assert.ok(
-    one<{ id: number }>('SELECT id FROM gallery_items WHERE id = ?', [itemId]),
-  );
+  assert.ok(await findD1GalleryItem(itemId));
 
   const adminAuth = authStateFor({
     id: 1,
@@ -1028,16 +1040,16 @@ test('19. unauthorised users cannot upload or delete images', async () => {
   const adminDelete = await galleryAdmin(contextFor(adminAuth, deleteForm));
   assert.ok(adminDelete instanceof Response);
   assert.equal(adminDelete.status, 303);
-  assert.equal(
-    one<{ id: number }>('SELECT id FROM gallery_items WHERE id = ?', [itemId]),
-    undefined,
-  );
+  assert.equal(await findD1GalleryItem(itemId), null);
 });
 
 test('20. the existing public website still renders the correct images', async () => {
-  const categoryId = run(
-    "INSERT INTO gallery_categories (name, slug, sort) VALUES ('Weddings', 'weddings', 1)",
-  ).lastId;
+  const d1 = getD1Client();
+
+  const categoryRes = await d1.query(
+    "INSERT INTO gallery_categories (name, slug, sort_order, is_visible) VALUES ('Weddings', 'weddings', 1, 1)",
+  );
+  const categoryId = Number(categoryRes.meta.last_row_id ?? 0);
   const original = await storage.uploadImage(await pngFixture(300, 220), {
     entityType: 'gallery_item',
     entityId: 2001,
@@ -1047,16 +1059,16 @@ test('20. the existing public website still renders the correct images', async (
     entityId: 2002,
   });
 
-  run(
-    'INSERT INTO gallery_items (category_id, title, image, is_active) VALUES (?, ?, ?, 1)',
+  await d1.query(
+    'INSERT INTO gallery_items (category_id, caption, image_url, sort_order, is_visible) VALUES (?, ?, ?, 1, 1)',
     [categoryId, 'Reception', original.publicUrl],
   );
-  run(
-    'INSERT INTO gallery_items (category_id, title, image, is_active) VALUES (?, ?, ?, 0)',
+  await d1.query(
+    'INSERT INTO gallery_items (category_id, caption, image_url, sort_order, is_visible) VALUES (?, ?, ?, 2, 0)',
     [categoryId, 'Hidden', inactive.publicUrl],
   );
 
-  const before = loadGalleryPage();
+  const before = await loadGalleryPage();
   assert.equal(before.items.length, 1);
   assert.equal(before.items[0].image, original.publicUrl);
   assert.equal(before.items[0].title, 'Reception');
@@ -1067,12 +1079,12 @@ test('20. the existing public website still renders the correct images', async (
   );
 
   const replacement = await storage.replaceImage(original.objectId, await jpegFixture());
-  run('UPDATE gallery_items SET image = ? WHERE image = ?', [
+  await d1.query('UPDATE gallery_items SET image_url = ? WHERE image_url = ?', [
     replacement.object.publicUrl,
     original.publicUrl,
   ]);
 
-  const after = loadGalleryPage();
+  const after = await loadGalleryPage();
   assert.equal(after.items.length, 1);
   assert.equal(after.items[0].image, replacement.object.publicUrl);
   assert.equal(imageUrl(after.items[0].image), replacement.object.publicUrl);

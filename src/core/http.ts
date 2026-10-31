@@ -186,3 +186,15 @@ export function uniqueSlug(base: string, exists: (slug: string) => boolean): str
   while (exists(`${initial}-${counter}`)) counter += 1;
   return `${initial}-${counter}`;
 }
+
+/** Async variant for remote slug checks (D1-backed catalog rows). */
+export async function uniqueSlugAsync(
+  base: string,
+  exists: (slug: string) => Promise<boolean>,
+): Promise<string> {
+  const initial = slugify(base) || 'item';
+  if (!(await exists(initial))) return initial;
+  let counter = 2;
+  while (await exists(`${initial}-${counter}`)) counter += 1;
+  return `${initial}-${counter}`;
+}

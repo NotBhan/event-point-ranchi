@@ -114,11 +114,11 @@ export function hallDelete(ctx: PageContext) {
 
 /* ---------------- Catering ---------------- */
 
-export function cateringList(ctx: PageContext) {
+export async function cateringList(ctx: PageContext) {
   const denied = requireAdmin(ctx);
   if (denied) return denied;
   const { page, perPage } = parsePageParams(ctx.url, { defaultPerPage: 25 });
-  return { props: { ...listCateringAdmin({ page, perPage }) } };
+  return { props: { ...(await listCateringAdmin({ page, perPage })) } };
 }
 
 export async function cateringForm(ctx: PageContext) {
@@ -168,7 +168,7 @@ export async function cateringForm(ctx: PageContext) {
     );
   }
 
-  const data = id ? loadCateringAdmin(id) : null;
+  const data = id ? await loadCateringAdmin(id) : null;
   if (id && !data) return { props: { notFound: true }, status: 404 };
   return {
     props: {
@@ -199,7 +199,7 @@ export function cateringListAction(ctx: PageContext) {
 
 /* ---------------- Gallery ---------------- */
 
-export function galleryAdmin(ctx: PageContext) {
+export async function galleryAdmin(ctx: PageContext) {
   const denied = requireAdmin(ctx);
   if (denied) return denied;
 
@@ -223,7 +223,7 @@ export function galleryAdmin(ctx: PageContext) {
 
   const page = Math.max(1, parseInt(ctx.url.searchParams.get('page') || '1', 10) || 1);
   const categoryId = parseInt(ctx.url.searchParams.get('category') || '0', 10) || 0;
-  return { props: listGalleryAdmin({ page, perPage: 18, categoryId }) };
+  return { props: await listGalleryAdmin({ page, perPage: 18, categoryId }) };
 }
 
 /* ---------------- Content ---------------- */

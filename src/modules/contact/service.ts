@@ -1,4 +1,5 @@
-import { one, run } from '../../core/db';
+import { run } from '../../core/db';
+import { getSiteSettings } from '../../core/content/service';
 import { setError, setSuccess } from '../../core/flash';
 import { getInt, getString, isEmail, redirect } from '../../core/http';
 import type { PageContext } from '../../core/types';
@@ -9,14 +10,17 @@ export interface ContactInfo {
   email: string;
 }
 
-export function loadContactInfo(): ContactInfo {
-  return (
-    one<ContactInfo>('SELECT address, phone, email FROM contact_info WHERE id = 1') ?? {
-      address: 'Event Point, Main Road, Ranchi, Jharkhand 834001, India',
-      phone: '+91 98765 43210',
-      email: 'info@eventpointranchi.com',
-    }
-  );
+/**
+ * Contact details come from the shared site settings (snapshot-backed), so the
+ * contact card always matches the header/footer after a publish.
+ */
+export async function loadContactInfo(): Promise<ContactInfo> {
+  const settings = await getSiteSettings();
+  return {
+    address: settings.address,
+    phone: settings.phone,
+    email: settings.email,
+  };
 }
 
 export async function handleContactRequest(ctx: PageContext) {
@@ -49,5 +53,5 @@ export async function handleContactRequest(ctx: PageContext) {
     return redirect('/contact?sent=1');
   }
 
-  return { props: { info: loadContactInfo(), sent: ctx.url.searchParams.has('sent') } };
+  return { props: { info: await loadContactInfo(), sent: ctx.url.searchParams.has('sent') } };
 }

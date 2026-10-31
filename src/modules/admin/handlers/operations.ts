@@ -57,7 +57,7 @@ export async function adminLogout(ctx: PageContext) {
   return redirect('/admin/login');
 }
 
-export function dashboard(ctx: PageContext) {
+export async function dashboard(ctx: PageContext) {
   if (ctx.auth.user?.role === 'editor') {
     return redirect('/admin/content');
   }
@@ -75,7 +75,7 @@ export function dashboard(ctx: PageContext) {
     );
   }
 
-  return { props: { ...loadDashboard(), storage: loadStorageDashboard() } };
+  return { props: { ...(await loadDashboard()), storage: loadStorageDashboard() } };
 }
 
 export function bookingsList(ctx: PageContext) {

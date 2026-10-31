@@ -1,4 +1,5 @@
 import type { PublicContentSnapshot, SnapshotManifest } from './snapshot-types';
+import { SNAPSHOT_SCHEMA_VERSION } from './snapshot-types';
 import { validateSnapshotData } from './snapshot-builder';
 
 interface SnapshotBundle {
@@ -49,13 +50,36 @@ export function contentSourceMode(): 'auto' | 'snapshot' | 'd1' {
 }
 
 /**
- * `astro dev` keeps using live D1 so CMS edits show up immediately while
- * developing. Production builds (and `astro preview`) use the snapshot.
- * `CONTENT_SOURCE=snapshot` overrides this for local snapshot testing.
+ * Detects the dev server. `import.meta.env.DEV` is not reliable here because an
+ * ambient NODE_ENV=production turns it off inside `astro dev`, so the CLI
+ * command is checked as well (same approach the prefetch config uses).
  */
-function isDevServer(): boolean {
-  const viteEnv = (import.meta as { env?: { DEV?: boolean } }).env;
-  return Boolean(viteEnv?.DEV);
+export function isDevServer(): boolean {
+  const viteEnv = (import.meta as { env?: { DEV?: boolean; MODE?: string } }).env;
+  if (viteEnv?.DEV === true || viteEnv?.MODE === 'development') return true;
+  return process.argv.slice(0, 3).some((arg) => arg === 'dev');
+}
+
+export function formatSnapshotAge(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return 'unknown age';
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m old`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `${hours}h old`;
+  return `${Math.floor(hours / 24)}d old`;
+}
+
+/** One line per process so it is always clear which snapshot is being served. */
+function logSnapshotInUse(bundle: SnapshotBundle): void {
+  if (!bundle.manifest) return;
+  const { contentVersion, generatedAt, counts } = bundle.manifest;
+  const age = generatedAt ? formatSnapshotAge(Date.now() - Date.parse(generatedAt)) : 'unknown age';
+  console.log(
+    `[content-snapshot] serving v${contentVersion} (generated ${generatedAt ?? 'unknown'}, ${age}; ` +
+      `${counts.mandaps} mandaps, ${counts.stages} stages, ${counts.galleryItems} gallery images, ` +
+      `${counts.cateringPackages} catering packages)`,
+  );
 }
 
 function loadBundle(): SnapshotBundle | null {
@@ -75,6 +99,18 @@ function loadBundle(): SnapshotBundle | null {
   }
 
   const snapshot = rawSnapshot as PublicContentSnapshot;
+  const manifest = (rawManifest && typeof rawManifest === 'object' ? rawManifest : null) as SnapshotManifest | null;
+
+  if (manifest && manifest.schemaVersion !== SNAPSHOT_SCHEMA_VERSION) {
+    const message =
+      `[content-snapshot] Snapshot schema v${manifest.schemaVersion} is stale (this build needs v${SNAPSHOT_SCHEMA_VERSION}). ` +
+      'Run `npm run sync:content` to regenerate it.';
+    if (snapshotRequired()) throw new Error(message);
+    console.warn(`${message} Falling back to live D1 reads.`);
+    bundleScope.__eventPointSnapshot = null;
+    return null;
+  }
+
   try {
     validateSnapshotData(snapshot);
   } catch (error) {
@@ -87,8 +123,8 @@ function loadBundle(): SnapshotBundle | null {
     return null;
   }
 
-  const manifest = (rawManifest && typeof rawManifest === 'object' ? rawManifest : null) as SnapshotManifest | null;
   bundleScope.__eventPointSnapshot = { snapshot, manifest };
+  logSnapshotInUse(bundleScope.__eventPointSnapshot);
   return bundleScope.__eventPointSnapshot;
 }
 

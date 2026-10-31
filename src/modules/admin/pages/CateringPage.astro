@@ -6,8 +6,8 @@ import { thumbnailUrl } from '../../../core/media';
 import type { listCateringAdmin } from '../service';
 
 interface Props {
-  items: ReturnType<typeof listCateringAdmin>['items'];
-  pagination: ReturnType<typeof listCateringAdmin>['pagination'];
+  items: Awaited<ReturnType<typeof listCateringAdmin>>['items'];
+  pagination: Awaited<ReturnType<typeof listCateringAdmin>>['pagination'];
 }
 
 const { items: packages, pagination } = Astro.props;

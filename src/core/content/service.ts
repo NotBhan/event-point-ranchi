@@ -1,5 +1,11 @@
 import { getD1Client } from './d1-client';
 import { getSnapshot } from './snapshot';
+import {
+  fetchCateringCatalog,
+  fetchGalleryCatalog,
+  type CateringCatalog,
+  type GalleryCatalog,
+} from './catalog-store';
 import type {
   PageContent,
   SiteSettings,
@@ -693,6 +699,71 @@ export async function getGalleryItems(categorySlug?: string): Promise<GalleryIte
       created_at: i.created_at,
     }));
   });
+}
+
+/**
+ * Gallery catalogue for the public gallery page and the homepage strip.
+ * Served from the snapshot when bundled, otherwise read from D1.
+ */
+export async function getGalleryCatalog(): Promise<GalleryCatalog> {
+  const snapshot = getSnapshot();
+  if (snapshot) {
+    const categories = snapshot.galleryCategories.map((category) => ({
+      id: category.id,
+      name: category.name,
+      slug: category.slug,
+      sort_order: category.sort_order,
+      is_visible: category.is_visible ? 1 : 0,
+    }));
+    const nameById = new Map(categories.map((category) => [category.id, category.name]));
+
+    return {
+      categories,
+      items: snapshot.galleryItems.map((item) => ({
+        id: item.id,
+        category_id: item.category_id,
+        caption: item.caption,
+        image_url: item.image_url,
+        alt_text: item.alt_text,
+        is_visible: item.is_visible ? 1 : 0,
+        sort_order: item.sort_order,
+        created_at: item.created_at,
+        category_slug: item.category_slug,
+        category_name: nameById.get(item.category_id) ?? '',
+      })),
+    };
+  }
+
+  return fetchGalleryCatalog();
+}
+
+/**
+ * Catering catalogue (packages + full menu structure) for the public pages.
+ * Served from the snapshot when bundled, otherwise read from D1.
+ */
+export async function getCateringCatalog(): Promise<CateringCatalog> {
+  const snapshot = getSnapshot();
+  if (snapshot) {
+    return {
+      packages: snapshot.cateringPackages.map((pkg) => ({
+        id: pkg.id,
+        name: pkg.name,
+        slug: pkg.slug,
+        description: pkg.description,
+        badge: pkg.badge,
+        image_url: pkg.image_url,
+        price_per_plate_paise: pkg.price_per_plate_paise,
+        show_on_home: pkg.show_on_home ? 1 : 0,
+        is_visible: pkg.is_visible ? 1 : 0,
+        sort_order: pkg.sort_order,
+        created_at: '',
+        updated_at: '',
+      })),
+      ...snapshot.cateringMenu,
+    };
+  }
+
+  return fetchCateringCatalog();
 }
 
 /**

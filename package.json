@@ -20,7 +20,9 @@
     "perf:baseline": "node --import tsx scripts/perf-baseline.ts",
     "db:reset": "node scripts/reset-db.mjs",
     "db:audit": "node --import tsx scripts/db-audit.ts",
-    "db:migrate:publications": "node --import tsx scripts/migrate-publications-neon.ts"
+    "db:migrate:publications": "node --import tsx scripts/migrate-publications-neon.ts",
+    "db:migrate:catalog": "node --import tsx scripts/migrate-catalog-to-d1.ts",
+    "dev:snapshot": "CONTENT_SOURCE=snapshot astro dev"
   },
   "dependencies": {
     "@astrojs/node": "^11.1.9",

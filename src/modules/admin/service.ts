@@ -1,11 +1,11 @@
 import { all, one, run } from '../../core/db';
-import { buildPagination, getBoolean, getInt, getString, parseMoneyToPaise, uniqueSlug } from '../../core/http';
+import { buildPagination, getBoolean, getInt, getString, parseMoneyToPaise, uniqueSlug, uniqueSlugAsync } from '../../core/http';
+import * as catalog from '../../core/content/catalog-store';
 import { formatBytes } from '../../core/storage/config';
 import type { StorageDriver } from '../../core/storage/filebase';
 import type { QuotaUsage, QuotaWarningLevel, StorageCategory } from '../../core/storage/quota';
 import {
   imageStorage,
-  type ImageEntityType,
   type ReconcileStorageReport,
   type RetryPendingDeletionsReport,
   type StorageUsageSummary,
@@ -52,7 +52,22 @@ export { UploadError };
 
 /* ============================ Dashboard ============================ */
 
-export function loadDashboard() {
+// The catering count lives in D1 (a remote round trip). A KPI does not need to
+// be live to the second, so cache it briefly and keep the dashboard fast.
+let packagesCountCache: { value: number; at: number } | null = null;
+
+async function visibleCateringPackageCount(): Promise<number> {
+  if (packagesCountCache && Date.now() - packagesCountCache.at < 60_000) {
+    return packagesCountCache.value;
+  }
+  const value = await catalog
+    .countVisibleCateringPackages()
+    .catch(() => packagesCountCache?.value ?? 0);
+  packagesCountCache = { value, at: Date.now() };
+  return value;
+}
+
+export async function loadDashboard() {
   const counts =
     one<{
       bookings: number;
@@ -70,7 +85,7 @@ export function loadDashboard() {
       (SELECT COUNT(*) FROM bookings WHERE status = 'confirmed') AS confirmed,
       (SELECT COALESCE(SUM(total_amount), 0) FROM bookings WHERE status IN ('pending','confirmed')) AS revenue,
       (SELECT COUNT(*) FROM halls WHERE is_active = 1) AS halls,
-      (SELECT COUNT(*) FROM catering_packages WHERE is_active = 1) AS packages,
+      0 AS packages,
       (SELECT COUNT(*) FROM customers) AS customers,
       (SELECT COUNT(*) FROM contact_inquiries WHERE status = 'new') AS inquiries`,
     ) ?? {
@@ -83,6 +98,9 @@ export function loadDashboard() {
       customers: 0,
       inquiries: 0,
     };
+
+  // The catering catalogue lives in D1 (publishable), not in the local SQLite copy.
+  counts.packages = await visibleCateringPackageCount();
 
   const recentBookings = all<{
     id: number;
@@ -302,84 +320,57 @@ export function toggleHall(id: number): void {
 
 /* ============================ Catering ============================ */
 
-export function listCateringAdmin(paging: { page?: number; perPage?: number } = {}) {
+/** D1 rows use their own column names; the admin pages keep the legacy view model. */
+function toCateringAdminItem(
+  row: catalog.CateringPackageRow & { section_count?: number; item_count?: number },
+) {
+  return {
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    description: row.description,
+    badge: row.badge,
+    image: row.image_url,
+    price_paise: row.price_per_plate_paise,
+    is_active: row.is_visible,
+    show_on_home: row.show_on_home,
+    section_count: Number(row.section_count ?? 0),
+    item_count: Number(row.item_count ?? 0),
+  };
+}
+
+export async function listCateringAdmin(paging: { page?: number; perPage?: number } = {}) {
   const perPage = Math.max(1, Math.min(100, paging.perPage ?? 25));
   const requestedPage = Math.max(1, paging.page ?? 1);
 
-  const totalRow = one<{ count: number }>('SELECT COUNT(*) AS count FROM catering_packages');
-  const totalCount = Number(totalRow?.count ?? 0);
-  const offset = buildPagination(requestedPage, perPage, totalCount, 0).offset;
+  let result = await catalog.listCateringAdminRows(requestedPage, perPage);
+  const totalPages = Math.max(1, Math.ceil(result.totalCount / perPage));
+  const currentPage = Math.min(requestedPage, totalPages);
+  if (currentPage !== requestedPage) {
+    result = await catalog.listCateringAdminRows(currentPage, perPage);
+  }
 
-  const items = all<{
-    id: number;
-    name: string;
-    slug: string;
-    image: string | null;
-    price_paise: number;
-    badge: string;
-    is_active: number;
-    show_on_home: number;
-    section_count: number;
-    item_count: number;
-  }>(
-    `SELECT cp.id, cp.name, cp.slug, cp.image, cp.price_paise, cp.badge, cp.is_active, cp.show_on_home,
-            COALESCE(ms.section_count, 0) AS section_count,
-            COALESCE(mi.item_count, 0) AS item_count
-     FROM catering_packages cp
-     LEFT JOIN (
-       SELECT package_id, COUNT(*) AS section_count FROM menu_sections GROUP BY package_id
-     ) ms ON ms.package_id = cp.id
-     LEFT JOIN (
-       SELECT ms.package_id, COUNT(mi.id) AS item_count
-       FROM menu_sections ms
-       JOIN menu_categories mc ON mc.section_id = ms.id
-       JOIN menu_items mi ON mi.category_id = mc.id
-       GROUP BY ms.package_id
-     ) mi ON mi.package_id = cp.id
-     ORDER BY cp.is_active DESC, cp.id
-     LIMIT ? OFFSET ?`,
-    [perPage, offset],
-  );
-
-  return { items, pagination: buildPagination(requestedPage, perPage, totalCount, items.length) };
+  const items = result.items.map(toCateringAdminItem);
+  return {
+    items,
+    pagination: buildPagination(currentPage, perPage, result.totalCount, items.length),
+  };
 }
 
-export function loadCateringAdmin(id: number) {
-  const pkg = one<Record<string, unknown>>('SELECT * FROM catering_packages WHERE id = ?', [id]);
-  if (!pkg) return null;
-
-  const features = all<{ id: number; name: string }>(
-    'SELECT id, name FROM catering_features WHERE package_id = ? ORDER BY id',
-    [id],
-  );
-  const bannerFeatures = all<{ id: number; name: string }>(
-    'SELECT id, name FROM banner_features WHERE package_id = ? ORDER BY id',
-    [id],
-  );
-  const pricing = all<{ id: number; guest_count: number; price_per_plate_paise: number }>(
-    'SELECT id, guest_count, price_per_plate_paise FROM guest_pricing WHERE package_id = ? ORDER BY sort, guest_count',
-    [id],
-  );
-  const sections = all<{ id: number; title: string; max_selection: number }>(
-    'SELECT id, title, max_selection FROM menu_sections WHERE package_id = ? ORDER BY sort, id',
-    [id],
-  );
-  const items = all<{ id: number; section_id: number; name: string; is_available: number }>(
-    `SELECT mi.id, mc.section_id AS section_id, mi.name, mi.is_available
-     FROM menu_items mi JOIN menu_categories mc ON mc.id = mi.category_id
-     JOIN menu_sections ms ON ms.id = mc.section_id
-     WHERE ms.package_id = ? ORDER BY mi.id`,
-    [id],
-  );
+export async function loadCateringAdmin(id: number) {
+  const data = await catalog.loadCateringPackageAdmin(id);
+  if (!data) return null;
 
   return {
-    package: pkg,
-    features,
-    bannerFeatures,
-    pricing,
-    sections: sections.map((section) => ({
-      ...section,
-      items: items.filter((item) => item.section_id === section.id),
+    package: toCateringAdminItem(data.package),
+    features: data.features,
+    bannerFeatures: data.bannerFeatures,
+    pricing: data.pricing,
+    sections: data.sections.map((section) => ({
+      id: section.id,
+      title: section.title,
+      max_selection: section.max_selection,
+      items: section.items,
     })),
   };
 }
@@ -389,204 +380,175 @@ export async function saveCatering(form: FormData | null, id?: number): Promise<
   if (!name) throw new Error('Package name is required.');
 
   const existingId = id ?? 0;
-  const slug = uniqueSlug(getString(form, 'slug') || name, (candidate) => {
-    const clash = one<{ id: number }>(
-      'SELECT id FROM catering_packages WHERE slug = ? AND id != ?',
-      [candidate, existingId],
-    );
-    return Boolean(clash);
-  });
+  const slug = await uniqueSlugAsync(getString(form, 'slug') || name, (candidate) =>
+    catalog.cateringSlugTaken(candidate, existingId),
+  );
 
   const uploaded = await saveUploadedImage(form, 'image', 'catering');
-  const values = [
+  const input: catalog.CateringPackageInput = {
     name,
     slug,
-    (uploaded ?? getString(form, 'image_path')) || null,
-    parseMoneyToPaise(getString(form, 'price')),
-    getString(form, 'description'),
-    getString(form, 'badge'),
-    getBoolean(form, 'show_on_home') ? 1 : 0,
-    getBoolean(form, 'is_active') ? 1 : 0,
-  ];
+    imageUrl: (uploaded ?? getString(form, 'image_path')) || null,
+    pricePaise: parseMoneyToPaise(getString(form, 'price')),
+    description: getString(form, 'description'),
+    badge: getString(form, 'badge'),
+    showOnHome: getBoolean(form, 'show_on_home') ? 1 : 0,
+    isVisible: getBoolean(form, 'is_active') ? 1 : 0,
+  };
 
   if (id) {
-    run(
-      `UPDATE catering_packages SET name = ?, slug = ?, image = ?, price_paise = ?, description = ?, badge = ?,
-       show_on_home = ?, is_active = ? WHERE id = ?`,
-      [...values, id],
-    );
+    await catalog.updateCateringPackage(id, input);
     return id;
   }
 
-  const packageId = run(
-    `INSERT INTO catering_packages (name, slug, image, price_paise, description, badge, show_on_home, is_active)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    values,
-  ).lastId;
-
-  const sectionId = run(
-    `INSERT INTO menu_sections (package_id, title, has_category, available_items, max_selection, sort)
-     VALUES (?, 'Starters & Appetizers', 1, 0, 3, 1)`,
-    [packageId],
-  ).lastId;
-  run(`INSERT INTO menu_categories (section_id, title, sort) VALUES (?, 'Signature Bites', 1)`, [sectionId]);
+  const packageId = await catalog.insertCateringPackage(input);
+  await catalog.seedDefaultMenuSection(packageId);
 
   return packageId;
 }
 
-export function deleteCatering(id: number): void {
-  run('DELETE FROM catering_packages WHERE id = ?', [id]);
+export async function deleteCatering(id: number): Promise<void> {
+  await catalog.deleteCateringPackage(id);
 }
 
-export function toggleCatering(id: number): void {
-  run('UPDATE catering_packages SET is_active = CASE is_active WHEN 1 THEN 0 ELSE 1 END WHERE id = ?', [id]);
+export async function toggleCatering(id: number): Promise<void> {
+  await catalog.toggleCateringVisibility(id);
 }
 
-export function toggleCateringHome(id: number): void {
-  run('UPDATE catering_packages SET show_on_home = CASE show_on_home WHEN 1 THEN 0 ELSE 1 END WHERE id = ?', [id]);
+export async function toggleCateringHome(id: number): Promise<void> {
+  await catalog.toggleCateringHome(id);
 }
 
-export function addMenuSection(packageId: number, form: FormData | null): void {
+export async function addMenuSection(packageId: number, form: FormData | null): Promise<void> {
   const title = getString(form, 'title');
   if (!title) return;
-  const sectionId = run(
-    `INSERT INTO menu_sections (package_id, title, has_category, available_items, max_selection, sort)
-     VALUES (?, ?, 1, 0, ?, (SELECT COALESCE(MAX(sort), 0) + 1 FROM menu_sections WHERE package_id = ?))`,
-    [packageId, title, getInt(form, 'max_selection', 3), packageId],
-  ).lastId;
-  run(`INSERT INTO menu_categories (section_id, title, sort) VALUES (?, ?, 1)`, [sectionId, `${title} selection`]);
+  const sectionId = await catalog.insertMenuSection(packageId, title, getInt(form, 'max_selection', 3));
+  await catalog.insertMenuCategory(sectionId, `${title} selection`);
 }
 
-export function updateMenuSection(sectionId: number, form: FormData | null): void {
+export async function updateMenuSection(sectionId: number, form: FormData | null): Promise<void> {
   const title = getString(form, 'title');
   const maxSelection = getInt(form, 'max_selection', 3);
   if (!title) return;
-  run('UPDATE menu_sections SET title = ?, max_selection = ? WHERE id = ?', [title, maxSelection, sectionId]);
+  await catalog.updateMenuSection(sectionId, title, maxSelection);
 }
 
-export function deleteMenuSection(sectionId: number): void {
-  run('DELETE FROM menu_sections WHERE id = ?', [sectionId]);
+export async function deleteMenuSection(sectionId: number): Promise<void> {
+  await catalog.deleteMenuSection(sectionId);
 }
 
-export function addMenuItem(sectionId: number, form: FormData | null): void {
+export async function addMenuItem(sectionId: number, form: FormData | null): Promise<void> {
   const name = getString(form, 'name');
   if (!name) return;
-  const category = one<{ id: number }>(
-    'SELECT id FROM menu_categories WHERE section_id = ? ORDER BY sort, id LIMIT 1',
-    [sectionId],
-  );
   const categoryId =
-    category?.id ??
-    run(`INSERT INTO menu_categories (section_id, title, sort) VALUES (?, 'Selection', 1)`, [sectionId]).lastId;
-  run('INSERT INTO menu_items (category_id, name, is_available) VALUES (?, ?, 1)', [categoryId, name]);
+    (await catalog.findFirstMenuCategory(sectionId)) ?? (await catalog.insertMenuCategory(sectionId, 'Selection'));
+  await catalog.insertMenuItem(categoryId, name);
 }
 
-export function updateMenuItem(itemId: number, form: FormData | null): void {
+export async function updateMenuItem(itemId: number, form: FormData | null): Promise<void> {
   const name = getString(form, 'name');
   if (!name) return;
-  run('UPDATE menu_items SET name = ? WHERE id = ?', [name, itemId]);
+  await catalog.updateMenuItemName(itemId, name);
 }
 
-export function deleteMenuItem(itemId: number): void {
-  run('DELETE FROM menu_items WHERE id = ?', [itemId]);
+export async function deleteMenuItem(itemId: number): Promise<void> {
+  await catalog.deleteMenuItem(itemId);
 }
 
-export function toggleMenuItem(itemId: number): void {
-  run('UPDATE menu_items SET is_available = CASE is_available WHEN 1 THEN 0 ELSE 1 END WHERE id = ?', [itemId]);
+export async function toggleMenuItem(itemId: number): Promise<void> {
+  await catalog.toggleMenuItemAvailability(itemId);
 }
 
-export function addGuestPricing(packageId: number, form: FormData | null): void {
+export async function addGuestPricing(packageId: number, form: FormData | null): Promise<void> {
   const guestCount = getInt(form, 'guest_count', 0);
   const price = parseMoneyToPaise(getString(form, 'price_per_plate'));
   if (guestCount <= 0 || price <= 0) return;
-  run(
-    `INSERT INTO guest_pricing (package_id, guest_count, price_per_plate_paise, sort)
-     VALUES (?, ?, ?, (SELECT COALESCE(MAX(sort), 0) + 1 FROM guest_pricing WHERE package_id = ?))`,
-    [packageId, guestCount, price, packageId],
-  );
+  await catalog.insertGuestPricing(packageId, guestCount, price);
 }
 
-export function deleteGuestPricing(id: number): void {
-  run('DELETE FROM guest_pricing WHERE id = ?', [id]);
+export async function deleteGuestPricing(id: number): Promise<void> {
+  await catalog.deleteGuestPricing(id);
 }
 
-export function addPackageOption(table: 'catering_features' | 'banner_features', packageId: number, form: FormData | null): void {
+export async function addPackageOption(
+  table: 'catering_features' | 'banner_features',
+  packageId: number,
+  form: FormData | null,
+): Promise<void> {
   const name = getString(form, 'name');
   if (!name) return;
-  run(`INSERT INTO ${table} (package_id, name) VALUES (?, ?)`, [packageId, name]);
+  await catalog.insertPackageOption(table, packageId, name);
 }
 
-export function deletePackageOption(table: 'catering_features' | 'banner_features', id: number): void {
-  run(`DELETE FROM ${table} WHERE id = ?`, [id]);
+export async function deletePackageOption(
+  table: 'catering_features' | 'banner_features',
+  id: number,
+): Promise<void> {
+  await catalog.deletePackageOption(table, id);
 }
 
 /* ============================ Gallery ============================ */
 
-export function listGalleryAdmin(options?: { page?: number; perPage?: number; categoryId?: number }) {
+function toGalleryAdminItem(row: catalog.GalleryItemRow) {
+  return {
+    id: row.id,
+    title: row.caption,
+    image: row.image_url,
+    category_id: row.category_id,
+    is_active: row.is_visible,
+    created_at: row.created_at,
+  };
+}
+
+export async function listGalleryAdmin(options?: { page?: number; perPage?: number; categoryId?: number }) {
   const page = Math.max(1, options?.page ?? 1);
   const perPage = Math.max(1, Math.min(100, options?.perPage ?? 18));
   const categoryId = options?.categoryId ?? 0;
 
-  const categories = all<{ id: number; name: string; is_active: number; item_count: number }>(
-    `SELECT gc.id, gc.name, gc.is_active,
-            (SELECT COUNT(*) FROM gallery_items gi WHERE gi.category_id = gc.id) AS item_count
-     FROM gallery_categories gc ORDER BY gc.sort, gc.name`,
-  );
-
-  const whereClause = categoryId > 0 ? 'WHERE category_id = ?' : '';
-  const queryParams = categoryId > 0 ? [categoryId] : [];
-
-  const totalRow = one<{ count: number }>(
-    `SELECT COUNT(*) AS count FROM gallery_items ${whereClause}`,
-    queryParams,
-  );
-  const totalCount = Number(totalRow?.count ?? 0);
-  const totalPages = Math.max(1, Math.ceil(totalCount / perPage));
+  let result = await catalog.listGalleryAdminRows({ page, perPage, categoryId });
+  const totalPages = Math.max(1, Math.ceil(result.totalCount / perPage));
   const currentPage = Math.min(page, totalPages);
+  if (currentPage !== page) {
+    result = await catalog.listGalleryAdminRows({ page: currentPage, perPage, categoryId });
+  }
+
+  const items = result.items.map(toGalleryAdminItem);
   const offset = (currentPage - 1) * perPage;
 
-  const items = all<{ id: number; title: string; image: string; category_id: number; is_active: number; created_at: string }>(
-    `SELECT id, title, image, category_id, is_active, created_at FROM gallery_items ${whereClause} ORDER BY id DESC LIMIT ? OFFSET ?`,
-    [...queryParams, perPage, offset],
-  );
-
-  const storageUsage = getStorageUsage('gallery');
-
   return {
-    categories,
+    categories: result.categories.map((category) => ({
+      id: category.id,
+      name: category.name,
+      is_active: category.is_visible,
+      item_count: Number(category.item_count),
+    })),
     items,
     pagination: {
       page: currentPage,
       perPage,
-      totalCount,
+      totalCount: result.totalCount,
       totalPages,
       selectedCategory: categoryId,
-      startItem: totalCount === 0 ? 0 : offset + 1,
-      endItem: Math.min(offset + items.length, totalCount),
+      startItem: result.totalCount === 0 ? 0 : offset + 1,
+      endItem: Math.min(offset + items.length, result.totalCount),
     },
-    storageUsage,
+    storageUsage: getStorageUsage('gallery'),
   };
 }
 
-export function addGalleryCategory(form: FormData | null): void {
+export async function addGalleryCategory(form: FormData | null): Promise<void> {
   const name = getString(form, 'name');
   if (!name) return;
-  const slug = uniqueSlug(name, (candidate) =>
-    Boolean(one<{ id: number }>('SELECT id FROM gallery_categories WHERE slug = ?', [candidate])),
-  );
-  run('INSERT INTO gallery_categories (name, slug, sort) VALUES (?, ?, (SELECT COALESCE(MAX(sort), 0) + 1 FROM gallery_categories))', [
-    name,
-    slug,
-  ]);
+  const slug = await uniqueSlugAsync(name, (candidate) => catalog.galleryCategorySlugTaken(candidate));
+  await catalog.insertGalleryCategory(name, slug);
 }
 
-export function deleteGalleryCategory(id: number): void {
-  run('DELETE FROM gallery_categories WHERE id = ?', [id]);
+export async function deleteGalleryCategory(id: number): Promise<void> {
+  await catalog.deleteGalleryCategory(id);
 }
 
-export function toggleGalleryCategory(id: number): boolean {
-  run('UPDATE gallery_categories SET is_active = CASE is_active WHEN 1 THEN 0 ELSE 1 END WHERE id = ?', [id]);
-  return Boolean(one<{ is_active: number }>('SELECT is_active FROM gallery_categories WHERE id = ?', [id])?.is_active);
+export async function toggleGalleryCategory(id: number): Promise<boolean> {
+  return catalog.toggleGalleryCategoryVisibility(id);
 }
 
 export interface GalleryUploadFailure {
@@ -637,7 +599,7 @@ export async function batchUploadGalleryAdmin(
   const categoryId = getInt(form, 'category_id', 0);
   if (!categoryId) throw new Error('Choose a gallery category.');
 
-  const category = one<{ id: number }>('SELECT id FROM gallery_categories WHERE id = ?', [categoryId]);
+  const category = await catalog.findGalleryCategory(categoryId);
   if (!category) throw new Error('The selected gallery category no longer exists.');
 
   const title = getString(form, 'title');
@@ -648,19 +610,21 @@ export async function batchUploadGalleryAdmin(
   if (files.length === 0) {
     if (!pasted) throw new Error('Choose at least one image to upload.');
 
-    const itemId = run(
-      'INSERT INTO gallery_items (category_id, title, image, is_active) VALUES (?, ?, ?, 1)',
-      [categoryId, title || 'Gallery image', pasted],
-    ).lastId;
+    const itemId = await catalog.insertGalleryItem({
+      categoryId,
+      caption: title || 'Gallery image',
+      imageUrl: pasted,
+    });
 
     return { uploaded: 1, itemIds: [itemId], failures: [] };
   }
 
   for (const [index, file] of files.entries()) {
-    const itemId = run(
-      'INSERT INTO gallery_items (category_id, title, image, is_active) VALUES (?, ?, ?, 1)',
-      [categoryId, galleryCaption(title, file, index, files.length), ''],
-    ).lastId;
+    const itemId = await catalog.insertGalleryItem({
+      categoryId,
+      caption: galleryCaption(title, file, index, files.length),
+      imageUrl: '',
+    });
 
     try {
       const stored = await imageStorage.uploadImage(file, {
@@ -670,11 +634,11 @@ export async function batchUploadGalleryAdmin(
         filename: file.name,
       });
 
-      run('UPDATE gallery_items SET image = ? WHERE id = ?', [stored.publicUrl, itemId]);
+      await catalog.updateGalleryItemImage(itemId, stored.publicUrl);
       result.uploaded += 1;
       result.itemIds.push(itemId);
     } catch (error) {
-      run('DELETE FROM gallery_items WHERE id = ?', [itemId]);
+      await catalog.deleteGalleryItem(itemId);
       result.failures.push({
         filename: file.name || `image-${index + 1}`,
         error: errorMessage(error),
@@ -698,10 +662,7 @@ export async function replaceGalleryItemAdmin(
   itemId: number,
   form: FormData | null,
 ): Promise<GalleryImageUpdate> {
-  const item = one<{ id: number; image: string }>(
-    'SELECT id, image FROM gallery_items WHERE id = ?',
-    [itemId],
-  );
+  const item = await catalog.findGalleryItem(itemId);
 
   if (!item) throw new Error('Gallery image not found.');
 
@@ -711,83 +672,34 @@ export async function replaceGalleryItemAdmin(
     slot: 'primary',
   });
   const pasted = getString(form, 'image_path');
-  const image = uploaded ?? (pasted && pasted !== item.image ? pasted : '');
+  const image = uploaded ?? (pasted && pasted !== item.image_url ? pasted : '');
 
   if (!image) throw new Error('Choose a replacement image.');
 
-  run('UPDATE gallery_items SET image = ? WHERE id = ?', [image, itemId]);
+  await catalog.updateGalleryItemImage(itemId, image);
   return { itemId, image };
 }
 
-export function saveGalleryItemTitle(id: number, form: FormData | null): string {
+export async function saveGalleryItemTitle(id: number, form: FormData | null): Promise<string> {
   const title = getString(form, 'title');
   if (!title) throw new Error('Add a caption for the image.');
-  run('UPDATE gallery_items SET title = ? WHERE id = ?', [title, id]);
+  await catalog.updateGalleryItemCaption(id, title);
   return title;
 }
 
-export function saveGalleryItemCategory(id: number, form: FormData | null): number {
+export async function saveGalleryItemCategory(id: number, form: FormData | null): Promise<number> {
   const categoryId = getInt(form, 'category_id', 0);
   if (!categoryId) throw new Error('Choose a valid category.');
-  run('UPDATE gallery_items SET category_id = ? WHERE id = ?', [categoryId, id]);
+  await catalog.updateGalleryItemCategory(id, categoryId);
   return categoryId;
 }
 
-export function deleteGalleryItem(id: number): void {
-  run('DELETE FROM gallery_items WHERE id = ?', [id]);
+export async function deleteGalleryItem(id: number): Promise<void> {
+  await catalog.deleteGalleryItem(id);
 }
 
-export function toggleGalleryItem(id: number): boolean {
-  run('UPDATE gallery_items SET is_active = CASE is_active WHEN 1 THEN 0 ELSE 1 END WHERE id = ?', [id]);
-  return Boolean(one<{ is_active: number }>('SELECT is_active FROM gallery_items WHERE id = ?', [id])?.is_active);
-}
-
-/* ============================ Catalog media ============================ */
-
-export interface CatalogImageUpdate {
-  id: number;
-  image: string;
-}
-
-async function updateCatalogImageAdmin(
-  table: 'mandaps' | 'stages' | 'equipment_items',
-  entityType: ImageEntityType,
-  label: string,
-  id: number,
-  form: FormData | null,
-): Promise<CatalogImageUpdate> {
-  if (!Number.isInteger(id) || id <= 0) throw new Error(`Invalid ${label.toLowerCase()} id.`);
-
-  const row = one<{ id: number; image: string | null }>(
-    `SELECT id, image FROM ${table} WHERE id = ?`,
-    [id],
-  );
-  if (!row) throw new Error(`${label} not found.`);
-
-  const uploaded = await saveUploadedImage(form, 'image', table, {
-    entityType,
-    entityId: id,
-    slot: 'primary',
-  });
-  const pasted = getString(form, 'image_path');
-  const image = uploaded ?? (pasted && pasted !== (row.image ?? '') ? pasted : '');
-
-  if (!image) throw new Error(`Choose an image for this ${label.toLowerCase()}.`);
-
-  run(`UPDATE ${table} SET image = ? WHERE id = ?`, [image, id]);
-  return { id, image };
-}
-
-export function updateMandapImageAdmin(id: number, form: FormData | null): Promise<CatalogImageUpdate> {
-  return updateCatalogImageAdmin('mandaps', 'mandap', 'Mandap', id, form);
-}
-
-export function updateStageImageAdmin(id: number, form: FormData | null): Promise<CatalogImageUpdate> {
-  return updateCatalogImageAdmin('stages', 'stage', 'Stage', id, form);
-}
-
-export function updateEquipmentImageAdmin(id: number, form: FormData | null): Promise<CatalogImageUpdate> {
-  return updateCatalogImageAdmin('equipment_items', 'equipment', 'Equipment item', id, form);
+export async function toggleGalleryItem(id: number): Promise<boolean> {
+  return catalog.toggleGalleryItemVisibility(id);
 }
 
 /* ============================ Storage ============================ */

@@ -166,6 +166,12 @@ function validRows(overrides: Partial<PublicContentRows> = {}): PublicContentRow
         sort_order: 0,
       },
     ],
+    cateringFeatures: [{ id: 1, package_id: 6, name: 'Starter' }],
+    bannerFeatures: [{ id: 2, package_id: 6, name: 'Live counters' }],
+    guestPricing: [{ id: 3, package_id: 6, guest_count: 100, price_per_plate_paise: 50000, sort: 1 }],
+    menuSections: [{ id: 4, package_id: 6, title: 'Welcome', has_category: 1, available_items: 0, max_selection: 3, sort: 1 }],
+    menuCategories: [{ id: 5, section_id: 4, title: 'Signature Bites', sort: 1 }],
+    menuItems: [{ id: 6, category_id: 5, name: 'Paneer Tikka', is_available: 1 }],
     galleryCategories: [{ id: 7, name: 'Mandap Designs', slug: 'mandap-designs', sort_order: 0, is_visible: 1 }],
     galleryItems: [{ id: 8, category_id: 7, caption: 'Mandap', image_url: '/storage/gallery-1.webp', alt_text: '', is_visible: 1, sort_order: 0, created_at: '' }],
     videos: [
@@ -208,7 +214,7 @@ test('only published and visible rows are requested from D1', async () => {
   assert.match(joined, /furniture_items WHERE is_visible = 1/);
   assert.match(joined, /gallery_items WHERE is_visible = 1/);
   assert.match(joined, /video_previews WHERE is_published = 1/);
-  assert.equal(statements.length, 15, 'all public tables come from one batch');
+  assert.equal(statements.length, 21, 'all public tables come from one batch');
 });
 
 test('builds a valid snapshot and a stable content version', () => {
@@ -223,7 +229,7 @@ test('builds a valid snapshot and a stable content version', () => {
   assert.deepEqual(snapshot.pages.find((page) => page.page_key === 'home')?.content_json, { badge: 'Signature' });
 
   const manifest = buildManifest(snapshot, '2026-05-01T00:00:00.000Z');
-  assert.equal(manifest.schemaVersion, 1);
+  assert.equal(manifest.schemaVersion, 2);
   assert.equal(manifest.counts.mandaps, 1);
   assert.equal(manifest.counts.furnitureItems, 1);
   assert.equal(manifest.generatedAt, '2026-05-01T00:00:00.000Z');
@@ -273,6 +279,19 @@ test('rejects incomplete or inconsistent content', () => {
 
   const unsafeSlug = buildSnapshot(validRows({ furnitureCategories: [{ ...validRows().furnitureCategories[0], slug: '../evil' }] }));
   assert.throws(() => validateSnapshotData(unsafeSlug), /unsafe slug/);
+
+  const noCatering = buildSnapshot(validRows({ cateringPackages: [] }));
+  assert.throws(() => validateSnapshotData(noCatering), /no visible packages/);
+
+  const danglingMenuItem = buildSnapshot(
+    validRows({ menuItems: [{ ...validRows().menuItems[0], category_id: 999 }] }),
+  );
+  assert.throws(() => validateSnapshotData(danglingMenuItem), /references a missing category/);
+
+  const orphanFeature = buildSnapshot(
+    validRows({ cateringFeatures: [{ id: 9, package_id: 999, name: 'Orphan feature' }] }),
+  );
+  assert.throws(() => validateSnapshotData(orphanFeature), /hidden\/missing package/);
 });
 
 test('resolveSyncConfig reports missing credentials and resolves configured ones', () => {
@@ -324,7 +343,7 @@ test('validation failure is an error and leaves no files behind', async () => {
     syncContent({
       fetcher: {
         async batch<T>(input: Array<{ sql: string }>): Promise<Array<{ results: T[] }>> {
-          assert.equal(input.length, 15);
+          assert.equal(input.length, 21);
           return rowsToBatchResults(rows) as Array<{ results: T[] }>;
         },
       },
@@ -405,6 +424,12 @@ function rowsToBatchResults(rows: PublicContentRows): Array<{ results: Array<Rec
     { results: rows.furnitureCategories },
     { results: rows.furnitureItems },
     { results: rows.cateringPackages },
+    { results: rows.cateringFeatures },
+    { results: rows.bannerFeatures },
+    { results: rows.guestPricing },
+    { results: rows.menuSections },
+    { results: rows.menuCategories },
+    { results: rows.menuItems },
     { results: rows.galleryCategories },
     { results: rows.galleryItems },
     { results: rows.videos },

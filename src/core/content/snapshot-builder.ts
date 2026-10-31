@@ -23,6 +23,13 @@ import {
   type SnapshotGalleryItem,
   type SnapshotManifest,
 } from './snapshot-types';
+import type {
+  CateringNameRow,
+  GuestPricingRow,
+  MenuCategoryRow,
+  MenuItemRow,
+  MenuSectionRow,
+} from './catalog-store';
 
 export interface SnapshotRowFetcher {
   batch<T = ContentRow>(
@@ -150,6 +157,12 @@ export async function fetchPublicContentRows(client: SnapshotRowFetcher): Promis
     { sql: 'SELECT * FROM furniture_categories WHERE is_visible = 1 ORDER BY sort_order ASC, id ASC' },
     { sql: 'SELECT * FROM furniture_items WHERE is_visible = 1 ORDER BY sort_order ASC, id ASC' },
     { sql: 'SELECT * FROM catering_packages WHERE is_visible = 1 ORDER BY sort_order ASC, id ASC' },
+    { sql: 'SELECT * FROM catering_features ORDER BY id ASC' },
+    { sql: 'SELECT * FROM banner_features ORDER BY id ASC' },
+    { sql: 'SELECT * FROM guest_pricing ORDER BY sort ASC, guest_count ASC, id ASC' },
+    { sql: 'SELECT * FROM menu_sections ORDER BY sort ASC, id ASC' },
+    { sql: 'SELECT * FROM menu_categories ORDER BY sort ASC, id ASC' },
+    { sql: 'SELECT * FROM menu_items ORDER BY id ASC' },
     { sql: 'SELECT * FROM gallery_categories WHERE is_visible = 1 ORDER BY sort_order ASC, id ASC' },
     { sql: 'SELECT * FROM gallery_items WHERE is_visible = 1 ORDER BY sort_order ASC, id ASC' },
     { sql: 'SELECT * FROM video_previews WHERE is_published = 1 ORDER BY sort_order ASC, id DESC' },
@@ -171,9 +184,15 @@ export async function fetchPublicContentRows(client: SnapshotRowFetcher): Promis
     furnitureCategories: rowsAt(9),
     furnitureItems: rowsAt(10),
     cateringPackages: rowsAt(11),
-    galleryCategories: rowsAt(12),
-    galleryItems: rowsAt(13),
-    videos: rowsAt(14),
+    cateringFeatures: rowsAt(12),
+    bannerFeatures: rowsAt(13),
+    guestPricing: rowsAt(14),
+    menuSections: rowsAt(15),
+    menuCategories: rowsAt(16),
+    menuItems: rowsAt(17),
+    galleryCategories: rowsAt(18),
+    galleryItems: rowsAt(19),
+    videos: rowsAt(20),
   };
 }
 
@@ -320,6 +339,54 @@ function mapCateringPackage(row: ContentRow): CateringPackage {
   };
 }
 
+function mapCateringName(row: ContentRow): CateringNameRow {
+  return {
+    id: Number(row.id ?? 0),
+    package_id: Number(row.package_id ?? 0),
+    name: String(row.name ?? ''),
+  };
+}
+
+function mapGuestPricing(row: ContentRow): GuestPricingRow {
+  return {
+    id: Number(row.id ?? 0),
+    package_id: Number(row.package_id ?? 0),
+    guest_count: Number(row.guest_count ?? 0),
+    price_per_plate_paise: Number(row.price_per_plate_paise ?? 0),
+    sort: Number(row.sort ?? 0),
+  };
+}
+
+function mapMenuSection(row: ContentRow): MenuSectionRow {
+  return {
+    id: Number(row.id ?? 0),
+    package_id: Number(row.package_id ?? 0),
+    title: String(row.title ?? ''),
+    has_category: Number(row.has_category ?? 1),
+    available_items: Number(row.available_items ?? 0),
+    max_selection: Number(row.max_selection ?? 0),
+    sort: Number(row.sort ?? 0),
+  };
+}
+
+function mapMenuCategory(row: ContentRow): MenuCategoryRow {
+  return {
+    id: Number(row.id ?? 0),
+    section_id: Number(row.section_id ?? 0),
+    title: String(row.title ?? ''),
+    sort: Number(row.sort ?? 0),
+  };
+}
+
+function mapMenuItem(row: ContentRow): MenuItemRow {
+  return {
+    id: Number(row.id ?? 0),
+    category_id: Number(row.category_id ?? 0),
+    name: String(row.name ?? ''),
+    is_available: Number(row.is_available ?? 1),
+  };
+}
+
 function mapGalleryCategory(row: ContentRow): GalleryCategory {
   return {
     id: Number(row.id ?? 0),
@@ -405,6 +472,14 @@ export function buildSnapshot(rows: PublicContentRows): PublicContentSnapshot {
     furnitureCategories: rows.furnitureCategories.map(mapFurnitureCategory),
     furnitureItems: rows.furnitureItems.map(mapFurnitureItem),
     cateringPackages: rows.cateringPackages.map(mapCateringPackage),
+    cateringMenu: {
+      features: rows.cateringFeatures.map(mapCateringName),
+      bannerFeatures: rows.bannerFeatures.map(mapCateringName),
+      guestPricing: rows.guestPricing.map(mapGuestPricing),
+      sections: rows.menuSections.map(mapMenuSection),
+      categories: rows.menuCategories.map(mapMenuCategory),
+      items: rows.menuItems.map(mapMenuItem),
+    },
     galleryCategories,
     galleryItems: rows.galleryItems.map((row) =>
       mapGalleryItem(row, gallerySlugById.get(Number(row.category_id ?? 0)) ?? ''),
@@ -464,6 +539,7 @@ export function validateSnapshotData(snapshot: PublicContentSnapshot): void {
   if (snapshot.stages.length === 0) problems.push('stages: no visible stages');
   if (snapshot.furnitureCategories.length === 0) problems.push('furniture_categories: no visible categories');
   if (snapshot.furnitureItems.length === 0) problems.push('furniture_items: no visible items');
+  if (snapshot.cateringPackages.length === 0) problems.push('catering_packages: no visible packages');
   if (snapshot.galleryCategories.length === 0) problems.push('gallery_categories: no visible categories');
   if (snapshot.galleryItems.length === 0) problems.push('gallery_items: no visible items');
 
@@ -498,6 +574,41 @@ export function validateSnapshotData(snapshot: PublicContentSnapshot): void {
     }
   }
 
+  const cateringPackageIds = new Set(snapshot.cateringPackages.map((pkg) => pkg.id));
+  const menu = snapshot.cateringMenu;
+  for (const feature of menu.features) {
+    if (!cateringPackageIds.has(feature.package_id)) {
+      problems.push(`catering_features: "${feature.name}" references a hidden/missing package`);
+    }
+  }
+  for (const feature of menu.bannerFeatures) {
+    if (!cateringPackageIds.has(feature.package_id)) {
+      problems.push(`banner_features: "${feature.name}" references a hidden/missing package`);
+    }
+  }
+  for (const tier of menu.guestPricing) {
+    if (!cateringPackageIds.has(tier.package_id)) {
+      problems.push(`guest_pricing: tier ${tier.id} references a hidden/missing package`);
+    }
+  }
+  for (const section of menu.sections) {
+    if (!cateringPackageIds.has(section.package_id)) {
+      problems.push(`menu_sections: "${section.title}" references a hidden/missing package`);
+    }
+  }
+  const menuSectionIds = new Set(menu.sections.map((section) => section.id));
+  for (const category of menu.categories) {
+    if (!menuSectionIds.has(category.section_id)) {
+      problems.push(`menu_categories: "${category.title}" references a missing section`);
+    }
+  }
+  const menuCategoryIds = new Set(menu.categories.map((category) => category.id));
+  for (const item of menu.items) {
+    if (!menuCategoryIds.has(item.category_id)) {
+      problems.push(`menu_items: "${item.name}" references a missing category`);
+    }
+  }
+
   if (problems.length > 0) throw new SnapshotValidationError(problems);
 }
 
@@ -512,6 +623,9 @@ export function snapshotCounts(snapshot: PublicContentSnapshot): SnapshotCounts 
     furnitureCategories: snapshot.furnitureCategories.length,
     furnitureItems: snapshot.furnitureItems.length,
     cateringPackages: snapshot.cateringPackages.length,
+    cateringFeatures: snapshot.cateringMenu.features.length,
+    menuSections: snapshot.cateringMenu.sections.length,
+    menuItems: snapshot.cateringMenu.items.length,
     galleryCategories: snapshot.galleryCategories.length,
     galleryItems: snapshot.galleryItems.length,
     videos: snapshot.videos.length,

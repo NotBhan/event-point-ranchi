@@ -13,11 +13,31 @@ import type {
   StageItem,
   VideoPreviewItem,
 } from './types';
+import type {
+  CateringNameRow,
+  GuestPricingRow,
+  MenuCategoryRow,
+  MenuItemRow,
+  MenuSectionRow,
+} from './catalog-store';
 
-export const SNAPSHOT_SCHEMA_VERSION = 1;
+export const SNAPSHOT_SCHEMA_VERSION = 2;
 
 export interface SnapshotGalleryItem extends GalleryItem {
   category_slug: string;
+}
+
+/**
+ * Full catering menu structure. Mirrors the D1 tables so the public catering
+ * pages can render without touching the database at request time.
+ */
+export interface SnapshotCateringMenu {
+  features: CateringNameRow[];
+  bannerFeatures: CateringNameRow[];
+  guestPricing: GuestPricingRow[];
+  sections: MenuSectionRow[];
+  categories: MenuCategoryRow[];
+  items: MenuItemRow[];
 }
 
 /**
@@ -37,6 +57,7 @@ export interface PublicContentSnapshot {
   furnitureCategories: FurnitureCategory[];
   furnitureItems: FurnitureItem[];
   cateringPackages: CateringPackage[];
+  cateringMenu: SnapshotCateringMenu;
   galleryCategories: GalleryCategory[];
   galleryItems: SnapshotGalleryItem[];
   videos: VideoPreviewItem[];
@@ -52,6 +73,9 @@ export interface SnapshotCounts {
   furnitureCategories: number;
   furnitureItems: number;
   cateringPackages: number;
+  cateringFeatures: number;
+  menuSections: number;
+  menuItems: number;
   galleryCategories: number;
   galleryItems: number;
   videos: number;
@@ -85,6 +109,12 @@ export interface PublicContentRows {
   furnitureCategories: ContentRow[];
   furnitureItems: ContentRow[];
   cateringPackages: ContentRow[];
+  cateringFeatures: ContentRow[];
+  bannerFeatures: ContentRow[];
+  guestPricing: ContentRow[];
+  menuSections: ContentRow[];
+  menuCategories: ContentRow[];
+  menuItems: ContentRow[];
   galleryCategories: ContentRow[];
   galleryItems: ContentRow[];
   videos: ContentRow[];

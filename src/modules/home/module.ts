@@ -11,7 +11,7 @@ export default defineModule({
     {
       path: '/',
       component: HomePage,
-      handle: () => ({ props: { data: loadHomePage() } }),
+      handle: async () => ({ props: { data: await loadHomePage() } }),
     },
   ],
 });

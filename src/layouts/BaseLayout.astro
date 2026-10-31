@@ -4,6 +4,7 @@ import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import Toast from '../components/Toast.astro';
 import { getSiteSettings } from '../core/content/service';
+import { formatSnapshotAge, getSnapshotManifest, isDevServer } from '../core/content/snapshot';
 import '../styles/fonts.css';
 import '../styles/tokens.css';
 import '../styles/base.css';
@@ -22,6 +23,14 @@ interface Props {
 }
 
 const siteSettings = await getSiteSettings();
+
+// Snapshot diagnostics for local development only: when the dev server is
+// forced to serve a snapshot, make its version and age visible on every page so
+// stale content never goes unnoticed.
+const devSnapshot =
+  isDevServer() && process.env.CONTENT_SOURCE === 'snapshot' ? getSnapshotManifest() : null;
+const devSnapshotAge =
+  devSnapshot?.generatedAt ? formatSnapshotAge(Date.now() - Date.parse(devSnapshot.generatedAt)) : null;
 
 const {
   title = siteSettings.seo.defaultTitle,
@@ -55,6 +64,11 @@ const {
   </head>
   <body class={bodyClass} id="top">
     <div id="pageProgressBar" class="page-progress-bar" aria-hidden="true"></div>
+    {devSnapshot && (
+      <div class="dev-snapshot-badge" data-dev-snapshot title="Local development is serving a content snapshot. Run `npm run sync:content` to refresh it.">
+        snapshot v{devSnapshot.contentVersion} · {devSnapshotAge}
+      </div>
+    )}
     <a class="skip-link" href="#main">Skip to content</a>
     <Header settings={siteSettings} />
     <Toast flash={Astro.locals.flash} />
@@ -94,3 +108,21 @@ const {
     </script>
   </body>
 </html>
+
+<style>
+  .dev-snapshot-badge {
+    position: fixed;
+    left: 12px;
+    bottom: 12px;
+    z-index: 9999;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: rgba(20, 12, 14, 0.88);
+    color: #f4d58a;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    border: 1px solid rgba(224, 184, 104, 0.45);
+    pointer-events: auto;
+  }
+</style>

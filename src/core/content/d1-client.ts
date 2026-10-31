@@ -70,7 +70,12 @@ export class D1Client {
         : (process.env.CLOUDFLARE_API_TOKEN ||
           (typeof import.meta !== 'undefined' && import.meta.env?.CLOUDFLARE_API_TOKEN));
 
-    if (this.accountId && this.databaseId && this.apiToken) {
+    // D1_LOCAL=1 forces the SQLite fallback for tests and offline work. It is
+    // ignored in production: the guard below still throws when the fallback is
+    // requested without an explicit localDbPath there.
+    const forceLocal = (process.env.D1_LOCAL ?? '') === '1';
+
+    if (!forceLocal && this.accountId && this.databaseId && this.apiToken) {
       this.isRemote = true;
     } else {
       const isProduction = Boolean(
@@ -78,7 +83,7 @@ export class D1Client {
         process.env.VERCEL_ENV ||
         (process.env.NODE_ENV === 'production' && !process.env.TEST && !process.env.VITEST)
       );
-      if (isProduction && !config?.localDbPath) {
+      if (isProduction && !config?.localDbPath && !forceLocal) {
         throw new Error(
           '[Cloudflare D1] Missing required credentials (CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_DATABASE_ID, CLOUDFLARE_API_TOKEN) in production environment. Silent fallback to local SQLite is disabled in production.'
         );
@@ -100,7 +105,14 @@ export class D1Client {
       process.env.NOW_REGION ||
       (typeof import.meta !== 'undefined' && (import.meta.env?.VERCEL || import.meta.env?.VERCEL_ENV))
     );
-    const dbDir = isVercelEnv ? '/tmp/data' : resolve(process.cwd(), './data');
+    const dbDir = isVercelEnv
+      ? '/tmp/data'
+      : resolve(
+          process.cwd(),
+          process.env.DATA_DIR ||
+            (typeof import.meta !== 'undefined' && import.meta.env?.DATA_DIR) ||
+            './data',
+        );
     mkdirSync(dbDir, { recursive: true });
     const filePath = customPath || join(dbDir, 'event-point-d1.db');
     if (isVercelEnv && !existsSync(filePath)) {

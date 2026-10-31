@@ -7,10 +7,10 @@ import ImageUploadDropzone from '../../../components/admin/ImageUploadDropzone.a
 import type { listGalleryAdmin } from '../service';
 
 interface Props {
-  categories: ReturnType<typeof listGalleryAdmin>['categories'];
-  items: ReturnType<typeof listGalleryAdmin>['items'];
-  pagination: ReturnType<typeof listGalleryAdmin>['pagination'];
-  storageUsage: ReturnType<typeof listGalleryAdmin>['storageUsage'];
+  categories: Awaited<ReturnType<typeof listGalleryAdmin>>['categories'];
+  items: Awaited<ReturnType<typeof listGalleryAdmin>>['items'];
+  pagination: Awaited<ReturnType<typeof listGalleryAdmin>>['pagination'];
+  storageUsage: Awaited<ReturnType<typeof listGalleryAdmin>>['storageUsage'];
 }
 
 const { categories, items, pagination, storageUsage } = Astro.props;

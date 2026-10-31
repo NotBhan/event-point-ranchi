@@ -1,5 +1,4 @@
-import { all, one } from '../../core/db';
-import { loadPageSettings } from '../halls/service';
+import { getCateringCatalog } from '../../core/content/service';
 
 export interface PackageCard {
   id: number;
@@ -24,93 +23,79 @@ export interface MenuSectionData {
   }>;
 }
 
-export function loadCateringPage() {
-  const settings = loadPageSettings('catering', {
-    hero_title: 'Catering Packages',
-    hero_subtitle: 'Select the perfect menu for your event, prepared fresh by our kitchen.',
-    hero_badge: 'Curated menus',
-    hero_image: null,
-  });
-
-  const packages = all<Omit<PackageCard, 'features' | 'bannerFeatures'>>(
-    `SELECT id, name, slug, image, price_paise, description, badge
-     FROM catering_packages WHERE is_active = 1 ORDER BY price_paise DESC`,
-  );
-
-  const features = all<{ package_id: number; name: string }>(
-    'SELECT package_id, name FROM catering_features ORDER BY id',
-  );
-  const bannerFeatures = all<{ package_id: number; name: string }>(
-    'SELECT package_id, name FROM banner_features ORDER BY id',
-  );
-
-  return {
-    settings,
-    packages: packages.map((pkg) => ({
-      ...pkg,
-      features: features.filter((feature) => feature.package_id === pkg.id).map((feature) => feature.name),
-      bannerFeatures: bannerFeatures
-        .filter((feature) => feature.package_id === pkg.id)
-        .map((feature) => feature.name),
-    })),
-  };
-}
-
 export interface PackageDetail {
   package: PackageCard;
   guestPricing: Array<{ guest_count: number; price_per_plate_paise: number }>;
   sections: MenuSectionData[];
 }
 
-export function loadPackageDetail(slug: string): PackageDetail | null {
-  const pkg = one<Omit<PackageCard, 'features' | 'bannerFeatures'>>(
-    `SELECT id, name, slug, image, price_paise, description, badge
-     FROM catering_packages WHERE slug = ? AND is_active = 1`,
-    [slug],
-  );
+const DEFAULT_SETTINGS = {
+  hero_title: 'Catering Packages',
+  hero_subtitle: 'Select the perfect menu for your event, prepared fresh by our kitchen.',
+  hero_badge: 'Curated menus',
+  hero_image: null as string | null,
+};
 
+export async function loadCateringPage() {
+  const catalog = await getCateringCatalog();
+
+  const packages = catalog.packages
+    .filter((pkg) => pkg.is_visible)
+    .sort((a, b) => b.price_per_plate_paise - a.price_per_plate_paise)
+    .map((pkg) => ({
+      id: pkg.id,
+      name: pkg.name,
+      slug: pkg.slug,
+      image: pkg.image_url || null,
+      price_paise: pkg.price_per_plate_paise,
+      description: pkg.description,
+      badge: pkg.badge,
+      features: catalog.features.filter((feature) => feature.package_id === pkg.id).map((feature) => feature.name),
+      bannerFeatures: catalog.bannerFeatures
+        .filter((feature) => feature.package_id === pkg.id)
+        .map((feature) => feature.name),
+    }));
+
+  return { settings: DEFAULT_SETTINGS, packages };
+}
+
+export async function loadPackageDetail(slug: string): Promise<PackageDetail | null> {
+  const catalog = await getCateringCatalog();
+  const pkg = catalog.packages.find((entry) => entry.slug === slug && entry.is_visible);
   if (!pkg) return null;
 
-  const features = all<{ name: string }>(
-    'SELECT name FROM catering_features WHERE package_id = ? ORDER BY id',
-    [pkg.id],
-  );
-  const bannerFeatures = all<{ name: string }>(
-    'SELECT name FROM banner_features WHERE package_id = ? ORDER BY id',
-    [pkg.id],
-  );
-  const guestPricing = all<{ guest_count: number; price_per_plate_paise: number }>(
-    'SELECT guest_count, price_per_plate_paise FROM guest_pricing WHERE package_id = ? ORDER BY sort, guest_count',
-    [pkg.id],
-  );
+  const guestPricing = catalog.guestPricing
+    .filter((tier) => tier.package_id === pkg.id)
+    .sort((a, b) => a.sort - b.sort || a.guest_count - b.guest_count)
+    .map((tier) => ({
+      guest_count: tier.guest_count,
+      price_per_plate_paise: tier.price_per_plate_paise,
+    }));
 
-  const sections = all<{ id: number; title: string; max_selection: number }>(
-    'SELECT id, title, max_selection FROM menu_sections WHERE package_id = ? ORDER BY sort, id',
-    [pkg.id],
-  );
-  const categories = all<{ id: number; section_id: number; title: string }>(
-    `SELECT mc.id, mc.section_id, mc.title
-     FROM menu_categories mc
-     JOIN menu_sections ms ON ms.id = mc.section_id
-     WHERE ms.package_id = ?
-     ORDER BY mc.sort, mc.id`,
-    [pkg.id],
-  );
-  const items = all<{ id: number; category_id: number; name: string }>(
-    `SELECT mi.id, mi.category_id, mi.name
-     FROM menu_items mi
-     JOIN menu_categories mc ON mc.id = mi.category_id
-     JOIN menu_sections ms ON ms.id = mc.section_id
-     WHERE ms.package_id = ? AND mi.is_available = 1
-     ORDER BY mi.id`,
-    [pkg.id],
-  );
+  const sections = catalog.sections
+    .filter((section) => section.package_id === pkg.id)
+    .sort((a, b) => a.sort - b.sort || a.id - b.id);
+
+  const sectionIds = new Set(sections.map((section) => section.id));
+  const categories = catalog.categories
+    .filter((category) => sectionIds.has(category.section_id))
+    .sort((a, b) => a.sort - b.sort || a.id - b.id);
+  const categoryIds = new Set(categories.map((category) => category.id));
+  const items = catalog.items.filter((item) => item.is_available && categoryIds.has(item.category_id));
 
   return {
     package: {
-      ...pkg,
-      features: features.map((feature) => feature.name),
-      bannerFeatures: bannerFeatures.map((feature) => feature.name),
+      id: pkg.id,
+      name: pkg.name,
+      slug: pkg.slug,
+      image: pkg.image_url || null,
+      price_paise: pkg.price_per_plate_paise,
+      description: pkg.description,
+      badge: pkg.badge,
+      features: catalog.features.filter((feature) => feature.package_id === pkg.id).map((feature) => feature.name),
+      bannerFeatures: catalog.bannerFeatures
+        .filter((feature) => feature.package_id === pkg.id)
+        .map((feature) => feature.name),
     },
     guestPricing,
     sections: sections.map((section) => ({
@@ -122,7 +107,9 @@ export function loadPackageDetail(slug: string): PackageDetail | null {
         .map((category) => ({
           id: category.id,
           title: category.title,
-          items: items.filter((item) => item.category_id === category.id),
+          items: items
+            .filter((item) => item.category_id === category.id)
+            .map((item) => ({ id: item.id, name: item.name })),
         })),
     })),
   };
