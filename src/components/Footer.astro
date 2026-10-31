@@ -82,21 +82,21 @@ const phoneHref = `tel:${phone.replace(/\s/g, '')}`;
       </div>
 
       <nav class="footer-col" aria-label="Explore">
-        <h4>Explore</h4>
+        <h2>Explore</h2>
         <div class="footer-links">
           {nav.map((item) => <a href={item.href}>{item.label}</a>)}
         </div>
       </nav>
 
       <nav class="footer-col" aria-label="Plan">
-        <h4>Plan</h4>
+        <h2>Plan</h2>
         <div class="footer-links">
           {planLinks.map(([label, href]) => <a href={href}>{label}</a>)}
         </div>
       </nav>
 
       <div class="footer-col footer-reach">
-        <h4>Reach us</h4>
+        <h2>Reach us</h2>
         <ul class="footer-contact">
           <li>
             <span class="footer-contact-icon"><Icon name="pin" size={15} /></span>

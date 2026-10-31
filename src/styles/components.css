@@ -31,7 +31,7 @@
   color: #fff;
   border-color: var(--gold-deep);
 }
-.btn-gold:hover { background: #8f7027; border-color: #8f7027; }
+.btn-gold:hover { background: #74581a; border-color: #74581a; }
 
 .btn-secondary {
   background: var(--surface);

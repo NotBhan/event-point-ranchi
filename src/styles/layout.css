@@ -556,7 +556,7 @@
 }
 
 /* Link columns */
-.footer-col h4 {
+.footer-col h2 {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -568,7 +568,7 @@
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
-.footer-col h4::after {
+.footer-col h2::after {
   content: '';
   flex: 1;
   height: 1px;
