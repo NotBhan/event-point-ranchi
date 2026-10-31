@@ -415,7 +415,13 @@ export function matchDeployment(
 
   const requestedAt = Date.parse(publication.requested_at);
   if (Number.isNaN(requestedAt)) return null;
-  const cutoff = requestedAt - 5 * 60 * 1000;
+
+  // Only a deployment created *after* the request can be the build this
+  // publication triggered. A deployment that was already live — even one that
+  // went READY seconds before the request — must never be mistaken for it, or
+  // the publication would be confirmed against the previous build. The small
+  // negative tolerance absorbs clock skew between this server and Vercel.
+  const cutoff = requestedAt - 30 * 1000;
 
   const candidates = deployments
     .filter((deployment) => typeof deployment.createdAt === 'number' && deployment.createdAt >= cutoff)

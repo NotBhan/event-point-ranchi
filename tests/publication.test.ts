@@ -397,3 +397,30 @@ test('matches deployments by URL first and by time second', () => {
   );
   assert.equal(byTime?.uid, 'fresh');
 });
+
+test('never confirms a publication against a deployment that predates the request', () => {
+  const requestedAt = Date.now();
+  const publication = {
+    id: 'race',
+    requested_at: new Date(requestedAt).toISOString(),
+    deployment_url: '',
+    built_version: '',
+    requested_version: '',
+  } as never;
+
+  // Reproduces the production race: an already-READY deployment created
+  // minutes before the publish request must not be mistaken for the build the
+  // deploy hook is about to start.
+  const stale = matchDeployment(publication, [
+    { uid: 'live-before', url: 'event-point-live.vercel.app', createdAt: requestedAt - 159_000, state: 'READY' },
+  ]);
+  assert.equal(stale, null);
+
+  // The hook's deployment appears seconds after the request and is the one
+  // that gets confirmed.
+  const fresh = matchDeployment(publication, [
+    { uid: 'live-before', url: 'event-point-live.vercel.app', createdAt: requestedAt - 159_000, state: 'READY' },
+    { uid: 'hook-build', url: 'event-point-hook.vercel.app', createdAt: requestedAt + 8_000, state: 'BUILDING' },
+  ]);
+  assert.equal(fresh?.uid, 'hook-build');
+});
