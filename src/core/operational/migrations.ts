@@ -1,0 +1,322 @@
+/**
+ * Versioned schema migrations for the operational database.
+ *
+ * Schema changes must not run during a user request: a normal request has no
+ * business holding DDL privileges, and a failure halfway through would be
+ * indistinguishable from a data error. Migrations live here, are applied by
+ * `npm run db:migrate:schema`, and are recorded in `schema_migrations` so they
+ * run exactly once.
+ *
+ * Each migration is written to be safe to re-run (it checks before it changes),
+ * because a crash between the DDL and the bookkeeping insert would otherwise
+ * leave the schema ahead of the record.
+ */
+
+export type MigrationDialect = 'postgres' | 'sqlite';
+
+export interface MigrationClient {
+  query<T = Record<string, unknown>>(
+    sql: string,
+    params?: unknown[],
+  ): Promise<{ rows: T[]; rowCount: number }>;
+  isUsingRemote?(): boolean;
+}
+
+export interface MigrationContext {
+  client: MigrationClient;
+  dialect: MigrationDialect;
+  hasColumn(table: string, column: string): Promise<boolean>;
+}
+
+export interface SchemaMigration {
+  id: string;
+  description: string;
+  up(context: MigrationContext): Promise<void>;
+}
+
+const IDENTIFIER = /^[a-z_][a-z0-9_]*$/;
+
+async function hasColumn(
+  client: MigrationClient,
+  dialect: MigrationDialect,
+  table: string,
+  column: string,
+): Promise<boolean> {
+  if (!IDENTIFIER.test(table) || !IDENTIFIER.test(column)) {
+    throw new Error(`Refusing to inspect suspicious identifier ${table}.${column}`);
+  }
+
+  if (dialect === 'postgres') {
+    const res = await client.query<{ present: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = $1 AND column_name = $2
+       ) AS present`,
+      [table, column],
+    );
+    return Boolean(res.rows[0]?.present);
+  }
+
+  const res = await client.query<{ name: string }>(`PRAGMA table_info(${table})`);
+  return res.rows.some((row) => row.name === column);
+}
+
+function nowDefault(dialect: MigrationDialect): string {
+  return dialect === 'postgres' ? 'NOW()' : "(datetime('now'))";
+}
+
+async function ensureMigrationTable(context: MigrationContext): Promise<void> {
+  await context.client.query(
+    `CREATE TABLE IF NOT EXISTS schema_migrations (
+       version     TEXT PRIMARY KEY,
+       description TEXT NOT NULL DEFAULT '',
+       applied_at  ${context.dialect === 'postgres' ? 'TIMESTAMPTZ' : 'TEXT'} NOT NULL DEFAULT ${nowDefault(context.dialect)}
+     )`,
+  );
+}
+
+/**
+ * Deposit policy snapshot on a booking (see commit 2b860cf). Previously applied
+ * lazily from `createBooking()`, which required DDL rights on a user request.
+ */
+const bookingDepositSnapshot: SchemaMigration = {
+  id: '001_booking_deposit_snapshot',
+  description: 'Add bookings.deposit_type / deposit_value so a quoted deposit policy is immutable',
+  async up(context) {
+    const { client, dialect } = context;
+
+    if (!(await context.hasColumn('bookings', 'deposit_type'))) {
+      await client.query(
+        dialect === 'postgres'
+          ? `ALTER TABLE bookings ADD COLUMN deposit_type VARCHAR(20) NOT NULL DEFAULT 'percentage'`
+          : `ALTER TABLE bookings ADD COLUMN deposit_type TEXT NOT NULL DEFAULT 'percentage'`,
+      );
+    }
+
+    if (!(await context.hasColumn('bookings', 'deposit_value'))) {
+      await client.query(
+        dialect === 'postgres'
+          ? 'ALTER TABLE bookings ADD COLUMN deposit_value BIGINT NOT NULL DEFAULT 25'
+          : 'ALTER TABLE bookings ADD COLUMN deposit_value INTEGER NOT NULL DEFAULT 25',
+      );
+    }
+
+    await client.query(
+      'CREATE INDEX IF NOT EXISTS idx_bookings_deposit_type ON bookings(deposit_type)',
+    );
+  },
+};
+
+/**
+ * Content publication ledger. Previously created lazily by the Content Studio.
+ */
+const contentPublications: SchemaMigration = {
+  id: '002_content_publications',
+  description: 'Create the content_publications ledger used by the publishing workflow',
+  async up({ client }) {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS content_publications (
+        id                 TEXT PRIMARY KEY,
+        requested_by       INTEGER,
+        requested_by_name  TEXT NOT NULL DEFAULT '',
+        status             TEXT NOT NULL DEFAULT 'requested',
+        requested_version  TEXT NOT NULL DEFAULT '',
+        built_version      TEXT NOT NULL DEFAULT '',
+        published_version  TEXT NOT NULL DEFAULT '',
+        deploy_hook_status INTEGER,
+        deployment_id      TEXT NOT NULL DEFAULT '',
+        deployment_url     TEXT NOT NULL DEFAULT '',
+        error              TEXT NOT NULL DEFAULT '',
+        requested_at       TEXT NOT NULL,
+        built_at           TEXT,
+        completed_at       TEXT
+      )`);
+    await client.query(
+      'CREATE INDEX IF NOT EXISTS idx_content_publications_status ON content_publications(status)',
+    );
+  },
+};
+
+/**
+ * Active public-content pointer and publication history.
+ *
+ * Filebase cannot enforce conditional writes (see
+ * docs/filebase-compatibility-audit.md), so the single mutable pointer that
+ * decides which immutable manifest is live must live in a store that supports
+ * compare-and-swap. That store is Neon.
+ *
+ * `content_pointers` holds exactly one row (`id = 'active'`). Its
+ * `site_version` is the expected-version token used by
+ * `UPDATE … WHERE id = 'active' AND site_version = $expected`.
+ *
+ * An empty `site_version` means "nothing published from the new store yet" and
+ * is what makes the D1 fallback the safe default before cutover.
+ */
+const contentReleases: SchemaMigration = {
+  id: '003_content_releases',
+  description: 'Create the active content pointer and publication history used by the Filebase content store',
+  async up({ client, dialect }) {
+    const timestamp = dialect === 'postgres' ? 'TIMESTAMPTZ' : 'TEXT';
+    const now = dialect === 'postgres' ? 'NOW()' : "(datetime('now'))";
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS content_pointers (
+        id              TEXT PRIMARY KEY,
+        site_version    TEXT NOT NULL DEFAULT '',
+        manifest_key    TEXT NOT NULL DEFAULT '',
+        manifest_sha256 TEXT NOT NULL DEFAULT '',
+        publication_id  TEXT NOT NULL DEFAULT '',
+        updated_at      ${timestamp} NOT NULL DEFAULT ${now},
+        updated_by      INTEGER
+      )`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS content_releases (
+        id                TEXT PRIMARY KEY,
+        site_version      TEXT NOT NULL UNIQUE,
+        status            TEXT NOT NULL DEFAULT 'pending'
+                          CHECK (status IN ('pending','uploading','verified','published','failed','conflicted','rolled_back')),
+        expected_version  TEXT NOT NULL DEFAULT '',
+        manifest_key      TEXT NOT NULL DEFAULT '',
+        manifest_sha256   TEXT NOT NULL DEFAULT '',
+        pages_json        TEXT NOT NULL DEFAULT '{}',
+        published_by      INTEGER,
+        published_by_name TEXT NOT NULL DEFAULT '',
+        error             TEXT NOT NULL DEFAULT '',
+        created_at        ${timestamp} NOT NULL DEFAULT ${now},
+        updated_at        ${timestamp} NOT NULL DEFAULT ${now},
+        completed_at      ${timestamp},
+        rolled_back_to    TEXT NOT NULL DEFAULT ''
+      )`);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_content_releases_status ON content_releases(status)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_content_releases_created ON content_releases(created_at DESC)');
+
+    // The pointer row must exist before anything compares-and-swaps against it.
+    await client.query(
+      dialect === 'postgres'
+        ? `INSERT INTO content_pointers (id, site_version) VALUES ('active', '')
+           ON CONFLICT (id) DO NOTHING`
+        : `INSERT OR IGNORE INTO content_pointers (id, site_version) VALUES ('active', '')`,
+    );
+  },
+};
+
+
+/**
+ * Drafts for the Content Studio editor.
+ *
+ * A draft is one JSON document per page plus a revision counter. Saving uses
+ * `WHERE revision = $expected`, so two administrators editing the same page get
+ * a visible conflict instead of silently overwriting each other.
+ */
+const contentDrafts: SchemaMigration = {
+  id: '004_content_drafts',
+  description: 'Create the Content Studio draft store for object-storage page content',
+  async up({ client, dialect }) {
+    const timestamp = dialect === 'postgres' ? 'TIMESTAMPTZ' : 'TEXT';
+    const now = dialect === 'postgres' ? 'NOW()' : "(datetime('now'))";
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS content_drafts (
+        page_id           TEXT PRIMARY KEY,
+        document_json     TEXT NOT NULL,
+        revision          INTEGER NOT NULL DEFAULT 1,
+        base_site_version TEXT NOT NULL DEFAULT '',
+        updated_by        TEXT NOT NULL DEFAULT '',
+        updated_at        ${timestamp} NOT NULL DEFAULT ${now}
+      )`);
+  },
+};
+
+export const SCHEMA_MIGRATIONS: SchemaMigration[] = [
+  bookingDepositSnapshot,
+  contentPublications,
+  contentReleases,
+  contentDrafts,
+];
+
+export function migrationDialect(client: MigrationClient): MigrationDialect {
+  return client.isUsingRemote?.() ? 'postgres' : 'sqlite';
+}
+
+export interface MigrationRunResult {
+  dialect: MigrationDialect;
+  applied: string[];
+  skipped: string[];
+}
+
+/**
+ * Applies every pending migration in order. Safe to run repeatedly: applied
+ * versions are recorded in `schema_migrations` and each migration also checks
+ * the live schema before changing it.
+ */
+export async function applyMigrations(
+  client: MigrationClient,
+  migrations: SchemaMigration[] = SCHEMA_MIGRATIONS,
+): Promise<MigrationRunResult> {
+  const dialect = migrationDialect(client);
+  const context: MigrationContext = {
+    client,
+    dialect,
+    hasColumn: (table, column) => hasColumn(client, dialect, table, column),
+  };
+
+  await ensureMigrationTable(context);
+
+  const existing = await client.query<{ version: string }>('SELECT version FROM schema_migrations');
+  const recorded = new Set(existing.rows.map((row) => row.version));
+
+  const applied: string[] = [];
+  const skipped: string[] = [];
+
+  for (const migration of migrations) {
+    if (recorded.has(migration.id)) {
+      skipped.push(migration.id);
+      continue;
+    }
+
+    await migration.up(context);
+
+    await client.query(
+      dialect === 'postgres'
+        ? `INSERT INTO schema_migrations (version, description) VALUES ($1, $2)
+           ON CONFLICT (version) DO NOTHING`
+        : `INSERT OR IGNORE INTO schema_migrations (version, description) VALUES ($1, $2)`,
+      [migration.id, migration.description],
+    );
+
+    applied.push(migration.id);
+  }
+
+  return { dialect, applied, skipped };
+}
+
+/** Reports which migrations are pending, without changing anything. */
+export async function migrationStatus(
+  client: MigrationClient,
+  migrations: SchemaMigration[] = SCHEMA_MIGRATIONS,
+): Promise<{ dialect: MigrationDialect; applied: string[]; pending: string[] }> {
+  const dialect = migrationDialect(client);
+  const context: MigrationContext = {
+    client,
+    dialect,
+    hasColumn: (table, column) => hasColumn(client, dialect, table, column),
+  };
+
+  let applied: string[] = [];
+  try {
+    const existing = await client.query<{ version: string }>('SELECT version FROM schema_migrations');
+    applied = existing.rows.map((row) => row.version);
+  } catch {
+    // The bookkeeping table does not exist yet: nothing has been applied.
+    applied = [];
+  }
+
+  const appliedSet = new Set(applied);
+  return {
+    dialect,
+    applied,
+    pending: migrations.filter((migration) => !appliedSet.has(migration.id)).map((migration) => migration.id),
+  };
+}

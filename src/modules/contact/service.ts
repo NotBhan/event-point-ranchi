@@ -1,4 +1,4 @@
-import { run } from '../../core/db';
+import { createContactInquiry } from '../../core/operational/service';
 import { getSiteSettings } from '../../core/content/service';
 import { setError, setSuccess } from '../../core/flash';
 import { getInt, getString, isEmail, redirect } from '../../core/http';
@@ -43,11 +43,24 @@ export async function handleContactRequest(ctx: PageContext) {
       return redirect('/contact');
     }
 
-    run(
-      `INSERT INTO contact_inquiries (name, phone, email, event_type, event_date, guest_count, message, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'new')`,
-      [name, phone, email, eventType, eventDate || null, guestCount || null, message],
-    );
+    // Contact inquiries are operational records: they are written to Neon and
+    // the visitor is only thanked once the insert has committed. A storage
+    // failure surfaces as an error, never as a false success.
+    try {
+      await createContactInquiry({
+        name,
+        phone,
+        email,
+        eventType,
+        eventDate: eventDate || null,
+        guestCount: guestCount || null,
+        message,
+      });
+    } catch (error) {
+      console.error('[contact] inquiry could not be saved:', error);
+      setError(ctx.cookies, 'We could not save your message right now. Please call or WhatsApp us instead.');
+      return redirect('/contact');
+    }
 
     setSuccess(ctx.cookies, 'Thank you! Our event consultant will call you within one working day.');
     return redirect('/contact?sent=1');

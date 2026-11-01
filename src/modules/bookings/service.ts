@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { isEmail } from '../../core/http';
 import { getNeonClient } from '../../core/operational/neon-client';
 import {
-  ensureBookingDepositColumns,
+  assertBookingDepositColumns,
   findOrCreateCustomer,
   getBookingItems,
   getCustomerBookingsForUser,
@@ -78,7 +78,7 @@ export async function createBooking(auth: AuthState, payload: CartPayload): Prom
   }
 
   const neon = getNeonClient();
-  await ensureBookingDepositColumns();
+  await assertBookingDepositColumns();
   const accessToken = randomBytes(18).toString('base64url');
   const advanceAmount = Math.round((priced.totalPaise * DEFAULT_DEPOSIT_PERCENT) / 100);
 
@@ -170,6 +170,13 @@ export interface QuotationData {
   };
   customer: { name: string; phone: string; email: string; address: string };
   lines: BookingLine[];
+  /**
+   * True for bookings created before line items were stored in the operational
+   * database. Their itemised breakdown is unrecoverable, so the page must say so
+   * rather than present an empty table as if nothing had been ordered.
+   */
+  isLegacy: boolean;
+  legacyReason?: string;
 }
 
 const LINE_LABELS: Record<string, string> = {
@@ -273,6 +280,8 @@ export async function loadBookingForViewer(
   const customerRow = customerRes.rows[0];
 
   const items = await getBookingItems(bookingId);
+  const lines = items.map(describeBookingLine);
+  const isLegacy = lines.length === 0 && Number(booking.total_amount) > 0;
 
   return {
     booking: {
@@ -289,7 +298,11 @@ export async function loadBookingForViewer(
       email: customerRow?.email ?? '',
       address: customerRow?.address ?? '',
     },
-    lines: items.map(describeBookingLine),
+    lines,
+    isLegacy,
+    legacyReason: isLegacy
+      ? 'This booking was recorded before itemised line items were stored. The total is correct; the original breakdown is no longer available.'
+      : undefined,
   };
 }
 

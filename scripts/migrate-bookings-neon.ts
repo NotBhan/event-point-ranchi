@@ -23,7 +23,7 @@ import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { getNeonClient } from '../src/core/operational/neon-client';
-import { ensureBookingDepositColumns, type BookingItemInput } from '../src/core/operational/service';
+import { assertBookingDepositColumns, type BookingItemInput } from '../src/core/operational/service';
 
 interface LegacyBooking {
   id: number;
@@ -193,7 +193,7 @@ async function main(): Promise<void> {
     );
   }
 
-  await ensureBookingDepositColumns();
+  await assertBookingDepositColumns();
 
   // Bookings reference customers, so customers are resolved first. Matching is
   // by Neon user, then phone, then a fresh row — never by SQLite id, which has

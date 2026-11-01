@@ -9,7 +9,7 @@ const { NeonOperationalClient } = await import('../src/core/operational/neon-cli
 const {
   createPublication,
   deployHookConfigured,
-  ensurePublicationsTable,
+  assertPublicationsTable,
   getActivePublication,
   listPublications,
   markBuilt,
@@ -162,8 +162,8 @@ function batchResults(rows: PublicContentRows) {
 
 test('creates the publications table once per client', async () => {
   const client = freshClient();
-  await ensurePublicationsTable(client);
-  await ensurePublicationsTable(client);
+  await assertPublicationsTable(client);
+  await assertPublicationsTable(client);
 
   const res = await client.query(
     "SELECT name FROM sqlite_master WHERE type='table' AND name='content_publications'",
@@ -173,7 +173,7 @@ test('creates the publications table once per client', async () => {
 
 test('prevents concurrent publications and allows a retry after failure', async () => {
   const client = freshClient();
-  await ensurePublicationsTable(client);
+  await assertPublicationsTable(client);
 
   const first = await createPublication(
     { requestedBy: 1, requestedByName: 'Admin', requestedVersion: 'v1' },
@@ -214,7 +214,7 @@ test('prevents concurrent publications and allows a retry after failure', async 
 
 test('walks requested → deploying → built → published', async () => {
   const client = freshClient();
-  await ensurePublicationsTable(client);
+  await assertPublicationsTable(client);
 
   const { publication } = await createPublication(
     { requestedBy: 1, requestedByName: 'Admin', requestedVersion: 'v9' },
@@ -243,7 +243,7 @@ test('walks requested → deploying → built → published', async () => {
 
 test('confirms READY deployments through the Vercel API', async () => {
   const client = freshClient();
-  await ensurePublicationsTable(client);
+  await assertPublicationsTable(client);
   const { publication } = await createPublication(
     { requestedBy: 1, requestedByName: 'Admin', requestedVersion: 'v-ready' },
     client,
@@ -274,7 +274,7 @@ test('confirms READY deployments through the Vercel API', async () => {
 
 test('marks ERROR deployments as failed', async () => {
   const client = freshClient();
-  await ensurePublicationsTable(client);
+  await assertPublicationsTable(client);
   const { publication } = await createPublication(
     { requestedBy: 1, requestedByName: 'Admin', requestedVersion: 'v-bad' },
     client,
@@ -306,7 +306,7 @@ test('marks ERROR deployments as failed', async () => {
 
 test('without Vercel credentials a built publication is never reported as published', async () => {
   const client = freshClient();
-  await ensurePublicationsTable(client);
+  await assertPublicationsTable(client);
   const { publication } = await createPublication(
     { requestedBy: 1, requestedByName: 'Admin', requestedVersion: 'v-silent' },
     client,

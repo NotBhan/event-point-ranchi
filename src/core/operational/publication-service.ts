@@ -59,54 +59,31 @@ export interface VercelDeployment {
   errorMessage?: string;
 }
 
-const TABLE_DDL = `
-CREATE TABLE IF NOT EXISTS content_publications (
-  id                TEXT PRIMARY KEY,
-  requested_by      INTEGER,
-  requested_by_name TEXT NOT NULL DEFAULT '',
-  status            TEXT NOT NULL DEFAULT 'requested',
-  requested_version TEXT NOT NULL DEFAULT '',
-  built_version     TEXT NOT NULL DEFAULT '',
-  published_version TEXT NOT NULL DEFAULT '',
-  deploy_hook_status INTEGER,
-  deployment_id     TEXT NOT NULL DEFAULT '',
-  deployment_url    TEXT NOT NULL DEFAULT '',
-  error             TEXT NOT NULL DEFAULT '',
-  requested_at      TEXT NOT NULL,
-  built_at          TEXT,
-  completed_at      TEXT
-)`;
-
-const TABLE_INDEX_DDL =
-  'CREATE INDEX IF NOT EXISTS idx_content_publications_status ON content_publications(status)';
-
-const ensuredClients = new WeakSet<NeonOperationalClient>();
-const ensureInflight = new WeakMap<NeonOperationalClient, Promise<void>>();
+const publicationSchemaVerified = new WeakSet<NeonOperationalClient>();
 
 /**
- * Idempotently creates the publications table. Works on Neon PostgreSQL and on
- * the local SQLite fallback used by development and tests. The DDL runs once
- * per client instance.
+ * Verifies that the content_publications ledger exists.
+ *
+ * The table is created by `npm run db:migrate:schema` (migration
+ * 002_content_publications). Publishing must not perform DDL on a live request,
+ * so a missing table fails with an actionable message instead.
  */
-export async function ensurePublicationsTable(client: NeonOperationalClient = getNeonClient()): Promise<void> {
-  if (ensuredClients.has(client)) return;
+export async function assertPublicationsTable(
+  client: NeonOperationalClient = getNeonClient(),
+): Promise<void> {
+  if (publicationSchemaVerified.has(client)) return;
 
-  const inflight = ensureInflight.get(client);
-  if (inflight) return inflight;
+  try {
+    await client.query('SELECT 1 FROM content_publications LIMIT 0');
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      'The operational database schema is out of date: content_publications is missing. ' +
+        `Run \`npm run db:migrate:schema\` before publishing. (${detail})`,
+    );
+  }
 
-  const promise = (async () => {
-    await client.query(TABLE_DDL);
-    await client.query(TABLE_INDEX_DDL);
-  })()
-    .then(() => {
-      ensuredClients.add(client);
-    })
-    .finally(() => {
-      ensureInflight.delete(client);
-    });
-
-  ensureInflight.set(client, promise);
-  return promise;
+  publicationSchemaVerified.add(client);
 }
 
 function rowToPublication(row: Record<string, any>): ContentPublication {
@@ -186,7 +163,7 @@ export async function getPublication(
   id: string,
   client: NeonOperationalClient = getNeonClient(),
 ): Promise<ContentPublication | null> {
-  await ensurePublicationsTable(client);
+  await assertPublicationsTable(client);
   const res = await client.query('SELECT * FROM content_publications WHERE id = $1 LIMIT 1', [id]);
   const row = res.rows?.[0];
   return row ? rowToPublication(row) : null;
@@ -196,7 +173,7 @@ export async function listPublications(
   limit = 10,
   client: NeonOperationalClient = getNeonClient(),
 ): Promise<ContentPublication[]> {
-  await ensurePublicationsTable(client);
+  await assertPublicationsTable(client);
   const res = await client.query(
     'SELECT * FROM content_publications ORDER BY requested_at DESC LIMIT $1',
     [limit],
@@ -207,7 +184,7 @@ export async function listPublications(
 export async function listActivePublications(
   client: NeonOperationalClient = getNeonClient(),
 ): Promise<ContentPublication[]> {
-  await ensurePublicationsTable(client);
+  await assertPublicationsTable(client);
   const res = await client.query(
     "SELECT * FROM content_publications WHERE status IN ('requested','deploying','built') ORDER BY requested_at ASC",
   );
@@ -229,7 +206,7 @@ export async function createPublication(
   input: CreatePublicationInput,
   client: NeonOperationalClient = getNeonClient(),
 ): Promise<CreatePublicationResult> {
-  await ensurePublicationsTable(client);
+  await assertPublicationsTable(client);
 
   const id = randomUUID();
   const requestedAt = new Date().toISOString();

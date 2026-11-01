@@ -1,5 +1,8 @@
 import { getD1Client } from './d1-client';
 import { getSnapshot } from './snapshot';
+import { contentStoreEnabled, getPublishedPageDocument, getPublishedSiteDocument } from '../content-storage/read';
+import { withContentFallback } from '../content-storage/observability';
+import { isPageId, type PageDocument, type SiteDocument } from '../content-storage/schema';
 import {
   fetchCateringCatalog,
   fetchGalleryCatalog,
@@ -200,6 +203,14 @@ export function mergeSiteSettingsRow(row: SiteSettings | null | undefined): Merg
  * live Cloudflare D1 (admin preview / local dev without a snapshot).
  */
 export async function getSiteSettings(preview = false): Promise<MergedSiteSettings> {
+  if (!preview && contentStoreEnabled()) {
+    const stored = await readFromContentStore('getSiteSettings', 'site', async () => {
+      const document = await getPublishedSiteDocument();
+      return document.pageId === 'site' ? siteSettingsFromStoreDocument(document) : null;
+    });
+    if (stored) return stored;
+  }
+
   const snapshot = preview ? null : getSnapshot();
   if (snapshot) return mergeSiteSettingsRow(snapshot.settings);
 
@@ -317,6 +328,14 @@ export async function getHomepageContent(
   fallbackHeroImage = '/storage/assets/banners/homepage/banner-hero.webp',
   preview = false,
 ): Promise<MergedHomepageContent> {
+  if (!preview && contentStoreEnabled()) {
+    const stored = await readFromContentStore('getHomepageContent', 'site', async () => {
+      const document = await getPublishedSiteDocument();
+      return document.pageId === 'site' ? homepageFromStoreDocument(document, fallbackHeroImage) : null;
+    });
+    if (stored) return stored;
+  }
+
   const snapshot = preview ? null : getSnapshot();
   if (snapshot) return mergeHomepageContentFromSections(snapshot.homeSections, fallbackHeroImage);
 
@@ -374,6 +393,25 @@ export async function getHomepageContent(
  * Returns services from Cloudflare D1.
  */
 export async function getServices(preview = false): Promise<ServiceItem[]> {
+  if (!preview && contentStoreEnabled()) {
+    const stored = await readFromContentStore('getServices', 'site', async () => {
+      const document = await getPublishedSiteDocument();
+      if (document.pageId !== 'site') return null;
+      return document.services.map((service, index) => ({
+        id: index + 1,
+        slug: service.slug,
+        title: service.title,
+        description: service.description,
+        badge: service.badge,
+        image_url: service.imageUrl,
+        features: service.features,
+        is_visible: service.isVisible,
+        sort_order: service.sortOrder ?? index,
+      }));
+    });
+    if (stored) return stored;
+  }
+
   const snapshot = preview ? null : getSnapshot();
   if (snapshot) return snapshot.services.slice();
 
@@ -770,6 +808,22 @@ export async function getCateringCatalog(): Promise<CateringCatalog> {
  * Returns page-level SEO settings from Cloudflare D1.
  */
 export async function getSeoSettings(pageKey: string): Promise<SeoSettings | null> {
+  if (contentStoreEnabled() && isPageId(pageKey) && pageKey !== 'site') {
+    const stored = await readFromContentStore(`getSeoSettings(${pageKey})`, pageKey, async () => {
+      const document = await getPublishedPageDocument(pageKey);
+      if (document.pageId === 'site') return null;
+      return {
+        id: 0,
+        page_key: document.pageId,
+        title: document.seo.metaTitle || document.seo.title,
+        description: document.seo.metaDescription,
+        canonical_url: document.seo.canonicalUrl,
+        og_image_url: document.seo.ogImage,
+      };
+    });
+    if (stored) return stored;
+  }
+
   const snapshot = getSnapshot();
   if (snapshot) return snapshot.seo.find((row) => row.page_key === pageKey) ?? null;
 
@@ -986,7 +1040,119 @@ export function mergePageContentRow(
   };
 }
 
+/**
+ * Object-storage read gate.
+ *
+ * When `CONTENT_STORE=filebase` is set, simple page content is read from the
+ * published Filebase version. Every failure is logged as structured JSON with
+ * the page id, active site version, error category and fallback source, and is
+ * counted, so a silent per-field fallback to D1 cannot hide a broken deployment.
+ *
+ * `CONTENT_FALLBACK=strict` turns the same failure into a request error, which
+ * is what a Preview deployment should use.
+ */
+async function readFromContentStore<T>(
+  label: string,
+  pageId: string,
+  reader: () => Promise<T | null>,
+): Promise<T | null> {
+  return withContentFallback(label, pageId, reader);
+}
+
+function pageContentFromStoreDocument(document: PageDocument): PageContent {
+  const config = (document.config ?? {}) as Record<string, any>;
+  return mergePageContentRow(
+    {
+      page_key: document.pageId,
+      title: document.title,
+      subtitle: document.subtitle,
+      description: document.description,
+      banner_image_url: typeof config.bannerImageUrl === 'string' ? config.bannerImageUrl : '',
+      banner_enabled: config.bannerEnabled === false ? 0 : 1,
+      content_json: config,
+      seo_title: document.seo.metaTitle || document.seo.title,
+      seo_description: document.seo.metaDescription,
+      og_image_url: document.seo.ogImage,
+      published: 1,
+      updated_at: document.updatedAt,
+    },
+    pageContentFallback(document.pageId),
+  );
+}
+
+function siteSettingsFromStoreDocument(document: SiteDocument): MergedSiteSettings {
+  return mergeSiteSettingsRow({
+    id: 'global',
+    name: document.settings.name,
+    legal_name: document.settings.legalName,
+    tagline: document.settings.tagline,
+    short_description: document.settings.shortDescription,
+    logo_url: document.settings.logo,
+    favicon_url: document.settings.favicon,
+    phone: document.settings.phone,
+    whatsapp: document.settings.whatsapp,
+    email: document.settings.email,
+    address: document.settings.address,
+    venue_address: document.settings.venueAddress,
+    business_hours: document.settings.businessHours,
+    social_links_json: JSON.stringify(
+      document.settings.social.map((link) => ({ platform: link.label, url: link.href })),
+    ),
+    primary_color: document.settings.theme.primaryColor,
+    gold_bright: document.settings.theme.goldBright,
+    font_preset: document.settings.theme.fontPreset,
+    default_title: document.settings.seo.defaultTitle,
+    default_description: document.settings.seo.defaultDescription,
+    og_image_url: document.settings.seo.ogImage,
+    currency: 'INR',
+    locale: 'en-IN',
+    announcement_enabled: 1,
+    announcement_text: '',
+    announcement_location: '',
+    announcement_phone: '',
+    google_maps_url: document.settings.googleMapsUrl,
+    latitude: document.settings.latitude,
+    longitude: document.settings.longitude,
+    footer_text: document.settings.footerText,
+    contact_buttons_enabled: document.settings.contactButtonsEnabled ? 1 : 0,
+    maintenance_enabled: 0,
+    maintenance_message: '',
+    created_at: '',
+    updated_at: document.updatedAt,
+  } as SiteSettings);
+}
+
+function homepageFromStoreDocument(document: SiteDocument, fallbackHeroImage: string): MergedHomepageContent {
+  const rows: HomepageSection[] = document.homepageSections.map((section, index) => ({
+    id: section.sectionKey,
+    section_key: section.sectionKey,
+    section_type: section.sectionType,
+    title: section.title,
+    subtitle: section.subtitle,
+    description: section.description,
+    image_url: section.imageUrl,
+    cta_label: section.ctaLabel,
+    cta_url: section.ctaUrl,
+    badge: section.badge,
+    is_visible: section.isVisible ? 1 : 0,
+    sort_order: section.sortOrder ?? index,
+    config_json: JSON.stringify(section.config ?? {}),
+    created_at: '',
+    updated_at: '',
+  }));
+
+  return mergeHomepageContentFromSections(rows, fallbackHeroImage);
+}
+
 export async function getPageContent(pageKey: string, preview = false): Promise<PageContent> {
+  if (!preview && contentStoreEnabled() && isPageId(pageKey) && pageKey !== 'site') {
+    const stored = await readFromContentStore(`getPageContent(${pageKey})`, pageKey, async () => {
+      const document = await getPublishedPageDocument(pageKey);
+      return document.pageId === 'site' ? null : pageContentFromStoreDocument(document);
+    });
+    if (stored) return stored;
+  }
+
   const snapshot = preview ? null : getSnapshot();
   if (snapshot) {
     const row = snapshot.pages.find((page) => page.page_key === pageKey);

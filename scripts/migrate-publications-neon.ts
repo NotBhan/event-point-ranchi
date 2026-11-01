@@ -1,4 +1,4 @@
-import { ensurePublicationsTable } from '../src/core/operational/publication-service';
+import { assertPublicationsTable } from '../src/core/operational/publication-service';
 import { getNeonClient } from '../src/core/operational/neon-client';
 
 const client = getNeonClient();
@@ -10,7 +10,7 @@ if (!client.isUsingRemote()) {
   );
   process.exitCode = 1;
 } else {
-  await ensurePublicationsTable(client);
+  await assertPublicationsTable(client);
   console.log('[migrate:publications] content_publications table is ready.');
   await client.close();
 }

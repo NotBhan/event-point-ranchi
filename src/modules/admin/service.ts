@@ -1,7 +1,9 @@
 import { all, one, run } from '../../core/db';
 import {
   countBookings,
+  countContactInquiries,
   countCustomers,
+  deleteContactInquiry,
   countEventEnquiries,
   deleteBookingRecord,
   getBookingStats,
@@ -12,9 +14,11 @@ import {
   getRecentBookings,
   getUpcomingBookings,
   listBookingsPage,
+  listContactInquiriesPage,
   listCustomersPage,
   listEventEnquiriesPage,
   setBookingStatus,
+  updateContactInquiryStatus as updateContactInquiryStatusNeon,
   updateEventEnquiryStatus as updateEventEnquiryStatusNeon,
 } from '../../core/operational/service';
 import { buildPagination, getBoolean, getInt, getString, parseMoneyToPaise, uniqueSlug, uniqueSlugAsync } from '../../core/http';
@@ -30,6 +34,10 @@ import {
 } from '../../core/storage/service';
 import { getStorageUsage, saveUploadedImage, UploadError } from '../../core/uploads';
 import { getD1Client } from '../../core/content/d1-client';
+import { getActivePointer, listReleases } from '../../core/content-storage/publication';
+import { listDrafts, getEditableDocument, getDraft } from '../../core/content-storage/drafts';
+import { getContentFallbackCounters } from '../../core/content-storage/read';
+import { isPageId, PAGE_IDS, type PageId } from '../../core/content-storage/schema';
 import {
   dashboardUrl,
   deployHookConfigured,
@@ -92,12 +100,9 @@ async function visibleCateringPackageCount(): Promise<number> {
 export async function loadDashboard() {
   const localCounts = one<{
     halls: number;
-    inquiries: number;
   }>(
-    `SELECT
-      (SELECT COUNT(*) FROM halls WHERE is_active = 1) AS halls,
-      (SELECT COUNT(*) FROM contact_inquiries WHERE status = 'new') AS inquiries`,
-  ) ?? { halls: 0, inquiries: 0 };
+    `SELECT (SELECT COUNT(*) FROM halls WHERE is_active = 1) AS halls`,
+  ) ?? { halls: 0 };
 
   const bookingStats = await getBookingStats();
   const counts = {
@@ -108,7 +113,7 @@ export async function loadDashboard() {
     halls: Number(localCounts.halls ?? 0),
     packages: 0,
     customers: await countCustomers(),
-    inquiries: Number(localCounts.inquiries ?? 0),
+    inquiries: await countContactInquiries('new'),
   };
 
   // The catering catalogue lives in D1 (publishable), not in the local SQLite copy.
@@ -801,39 +806,29 @@ export async function loadCustomerAdmin(id: number) {
 
 /* ============================ Inquiries ============================ */
 
-export function listInquiries(status?: string, paging: { page?: number; perPage?: number } = {}) {
-  const where = status && status !== 'all' ? 'WHERE status = ?' : '';
-  const params = where ? [status] : [];
+export async function listInquiries(status?: string, paging: { page?: number; perPage?: number } = {}) {
   const perPage = Math.max(1, Math.min(100, paging.perPage ?? 25));
   const requestedPage = Math.max(1, paging.page ?? 1);
 
-  const totalRow = one<{ count: number }>(`SELECT COUNT(*) AS count FROM contact_inquiries ${where}`, params);
-  const totalCount = Number(totalRow?.count ?? 0);
+  const totalCount = await countContactInquiries(status);
   const offset = buildPagination(requestedPage, perPage, totalCount, 0).offset;
-
-  const items = all<{
-    id: number;
-    name: string;
-    phone: string;
-    email: string;
-    event_type: string;
-    event_date: string | null;
-    guest_count: number | null;
-    message: string;
-    status: string;
-    created_at: string;
-  }>(`SELECT * FROM contact_inquiries ${where} ORDER BY id DESC LIMIT ? OFFSET ?`, [...params, perPage, offset]);
+  const items = await listContactInquiriesPage(status, { limit: perPage, offset });
 
   return { items, pagination: buildPagination(requestedPage, perPage, totalCount, items.length) };
 }
 
-export function updateInquiryStatus(id: number, status: string): void {
-  if (!['new', 'contacted', 'closed'].includes(status)) return;
-  run('UPDATE contact_inquiries SET status = ? WHERE id = ?', [status, id]);
+export async function updateInquiryStatus(id: number, status: string): Promise<void> {
+  if (!['new', 'contacted', 'closed'].includes(status)) {
+    throw new Error('Invalid inquiry status.');
+  }
+
+  const updated = await updateContactInquiryStatusNeon(id, status);
+  if (!updated) throw new Error(`Inquiry #${id} was not found.`);
 }
 
-export function deleteInquiry(id: number): void {
-  run('DELETE FROM contact_inquiries WHERE id = ?', [id]);
+export async function deleteInquiry(id: number): Promise<void> {
+  const deleted = await deleteContactInquiry(id);
+  if (!deleted) throw new Error(`Inquiry #${id} was not found.`);
 }
 
 /* ============================ Content ============================ */
@@ -851,6 +846,7 @@ export const CONTENT_STUDIO_TABS = [
   'page-catering',
   'page-stages',
   'page-equipment',
+  'documents',
 ] as const;
 
 export type ContentStudioTab = (typeof CONTENT_STUDIO_TABS)[number];
@@ -867,7 +863,7 @@ export function parseContentStudioTab(raw: string | null | undefined): ContentSt
  */
 export async function loadContentAdmin(
   tab: ContentStudioTab = 'brand',
-  options: { origin?: string } = {},
+  options: { origin?: string; page?: string } = {},
 ) {
   if (tab === 'brand') {
     let siteSettings: any = null;
@@ -912,16 +908,82 @@ export async function loadContentAdmin(
       getActivePublication(),
       options.origin ? fetchLiveManifest(options.origin) : Promise.resolve(null),
     ]);
+
+    // Object-storage publication state (the D1→Filebase pipeline).
+    let objectStore: {
+      configured: boolean;
+      error?: string;
+      activeVersion: string;
+      activeManifest: string;
+      updatedAt: string | null;
+      releases: Array<{
+        id: string;
+        siteVersion: string;
+        status: string;
+        publishedByName: string;
+        createdAt: string | null;
+        completedAt: string | null;
+        error: string;
+        rolledBackTo: string;
+      }>;
+    } = { configured: false, activeVersion: '', activeManifest: '', updatedAt: null, releases: [] };
+
+    try {
+      const [pointer, releases] = await Promise.all([getActivePointer(), listReleases(8)]);
+      objectStore = {
+        configured: true,
+        activeVersion: pointer.siteVersion,
+        activeManifest: pointer.manifestKey,
+        updatedAt: pointer.updatedAt,
+        releases: releases.map((release) => ({
+          id: release.id,
+          siteVersion: release.siteVersion,
+          status: release.status,
+          publishedByName: release.publishedByName,
+          createdAt: release.createdAt,
+          completedAt: release.completedAt,
+          error: release.error,
+          rolledBackTo: release.rolledBackTo,
+        })),
+      };
+    } catch (error) {
+      objectStore.error = error instanceof Error ? error.message : String(error);
+    }
+
     return {
       tab,
       publications,
       activePublication,
       liveManifest,
+      objectStore,
       publishConfig: {
         deployHookConfigured: deployHookConfigured(),
         vercelConfigured: vercelConfig().configured,
         dashboardUrl: dashboardUrl(),
       },
+    };
+  }
+
+  if (tab === 'documents') {
+    const requested = options.page ?? 'home';
+    const pageId: PageId = isPageId(requested) ? requested : 'home';
+
+    const [document, draft, drafts, pointer] = await Promise.all([
+      getEditableDocument(pageId),
+      getDraft(pageId),
+      listDrafts(),
+      getActivePointer().catch(() => null),
+    ]);
+
+    return {
+      tab,
+      contentPageId: pageId,
+      contentPageIds: [...PAGE_IDS],
+      contentDocument: document,
+      contentDraft: draft,
+      draftPageIds: drafts.map((entry) => entry.pageId),
+      contentPublishedVersion: pointer?.siteVersion ?? '',
+      fallbackCounters: getContentFallbackCounters().snapshot(),
     };
   }
 

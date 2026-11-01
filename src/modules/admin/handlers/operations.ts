@@ -146,7 +146,7 @@ export async function customerDetail(ctx: PageContext) {
   return { props: { data } };
 }
 
-export function inquiriesList(ctx: PageContext) {
+export async function inquiriesList(ctx: PageContext) {
   const denied = requireAdmin(ctx);
   if (denied) return denied;
 
@@ -164,7 +164,7 @@ export function inquiriesList(ctx: PageContext) {
   }
 
   const { page, perPage } = parsePageParams(ctx.url, { defaultPerPage: 25 });
-  return { props: { ...listInquiries(status, { page, perPage }), status } };
+  return { props: { ...(await listInquiries(status, { page, perPage })), status } };
 }
 
 export async function eventEnquiriesList(ctx: PageContext) {

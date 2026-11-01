@@ -317,6 +317,36 @@ test('configuring an unknown booking fails instead of reporting success', async 
   );
 });
 
+test('a booking without line items is presented as a legacy record, not an invented breakdown', async () => {
+  const { createBooking: createBookingRow } = await import('../src/core/operational/service');
+  const customerId = await (async () => {
+    const neon = getNeonClient();
+    const res = await neon.query<{ id: number }>(
+      `INSERT INTO customers (name, phone, email) VALUES ($1, $2, $3) RETURNING id`,
+      ['Legacy Fixture', '9876500456', 'legacy@example.test'],
+    );
+    return Number(res.rows[0].id);
+  })();
+
+  // Mirrors a pre-consolidation row: a total but no booking_items.
+  const legacy = await createBookingRow({
+    customer_id: customerId,
+    event_type: 'Wedding',
+    event_date: '2026-10-26',
+    total_amount: 138025000,
+    status: 'confirmed',
+  });
+
+  const viewer = await loadBookingForViewer(legacy.id, guestAuth, legacy.access_token);
+  assert.notEqual(viewer, 'not-found');
+  if (viewer === 'not-found' || viewer === 'forbidden') return;
+
+  assert.equal(viewer.lines.length, 0);
+  assert.equal(viewer.isLegacy, true, 'an empty breakdown must be flagged as legacy');
+  assert.match(viewer.legacyReason ?? '', /no longer available/i);
+  assert.equal(viewer.booking.total_amount, 138025000, 'the original total is preserved');
+});
+
 test('deposit maths matches the shared calculator', () => {
   assert.equal(calculateAdvanceRequired(1000000, 'full'), 1000000);
   assert.equal(calculateAdvanceRequired(1000000, 'percentage', 30), 300000);

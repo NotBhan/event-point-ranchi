@@ -24,6 +24,12 @@
     "db:reset": "node scripts/reset-db.mjs",
     "db:audit": "node --import tsx scripts/db-audit.ts",
     "db:migrate:publications": "node --import tsx scripts/migrate-publications-neon.ts",
+    "db:migrate:schema": "node --import tsx scripts/migrate-schema-neon.ts",
+    "content:export": "node --import tsx scripts/migrate-page-content-to-filebase.ts",
+    "content:parity": "node --import tsx scripts/content-parity.ts",
+    "probe:filebase": "node --import tsx scripts/probe-filebase.ts",
+    "db:migrate:inquiries": "node --import tsx scripts/migrate-contact-inquiries-neon.ts",
+    "db:migrate:bookings": "node --import tsx scripts/migrate-bookings-neon.ts",
     "db:migrate:catalog": "node --import tsx scripts/migrate-catalog-to-d1.ts",
     "dev:snapshot": "CONTENT_SOURCE=snapshot astro dev"
   },

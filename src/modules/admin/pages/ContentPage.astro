@@ -60,15 +60,40 @@ interface Props {
     requested_version: string;
   } | null;
   liveManifest?: { contentVersion: string | null; generatedAt: string | null } | null;
+  objectStore?: {
+    configured: boolean;
+    error?: string;
+    activeVersion: string;
+    activeManifest: string;
+    updatedAt: string | null;
+    releases: Array<{
+      id: string;
+      siteVersion: string;
+      status: string;
+      publishedByName: string;
+      createdAt: string | null;
+      completedAt: string | null;
+      error: string;
+      rolledBackTo: string;
+    }>;
+  };
   publishConfig?: {
     deployHookConfigured: boolean;
     vercelConfigured: boolean;
     dashboardUrl: string;
   };
   tab?: string;
+  contentPageId?: string;
+  contentPageIds?: string[];
+  contentDocument?: any;
+  contentDraft?: { revision: number; updatedBy: string; updatedAt: string | null } | null;
+  draftPageIds?: string[];
+  contentPublishedVersion?: string;
+  fallbackCounters?: Record<string, number>;
 }
 
 const CONTENT_STUDIO_TABS = [
+  'documents',
   'brand',
   'locations',
   'videos',
@@ -93,7 +118,15 @@ const {
   publications = [],
   activePublication = null,
   liveManifest = null,
+  objectStore = { configured: false, activeVersion: '', activeManifest: '', updatedAt: null, releases: [] },
   publishConfig = { deployHookConfigured: false, vercelConfigured: false, dashboardUrl: 'https://vercel.com/dashboard' },
+  contentPageId = 'home',
+  contentPageIds = [],
+  contentDocument = null,
+  contentDraft = null,
+  draftPageIds = [],
+  contentPublishedVersion = '',
+  fallbackCounters = {},
 } = Astro.props;
 
 const activeTab = (CONTENT_STUDIO_TABS as readonly string[]).includes(Astro.props.tab ?? '')
@@ -834,6 +867,151 @@ const pageContentMap = new Map(pagesContent.map((p) => [p.page_key, p]));
     </div>
     )}
 
+    <!-- ==================== TAB: PAGE CONTENT (object storage) ==================== -->
+    {activeTab === 'documents' && contentDocument && (
+      <div id="tab-documents" class="studio-panel active" role="tabpanel">
+        <div class="admin-panel">
+          <div class="admin-panel-head">
+            <div>
+              <h2>Page content</h2>
+              <p>
+                Edits are saved as drafts and published as an immutable version. Catalogue items
+                (mandaps, stages, equipment, catering, gallery) are still edited in their own tabs and stay in D1.
+              </p>
+            </div>
+            <div class="admin-row-actions">
+              <a class="btn btn-secondary btn-sm" href={`/admin/content?tab=documents&page=${contentPageId}&preview=1`}>Preview</a>
+              {contentDraft && (
+                <form method="POST" action="/admin/content">
+                  <input type="hidden" name="_csrf" value={csrf} />
+                  <input type="hidden" name="action" value="discard_content_draft" />
+                  <input type="hidden" name="page_id" value={contentPageId} />
+                  <button type="submit" class="btn btn-ghost btn-sm" data-confirm="Discard this draft?">Discard draft</button>
+                </form>
+              )}
+            </div>
+          </div>
+          <div class="admin-panel-body">
+            <div class="admin-row-actions" style="margin-bottom:14px;flex-wrap:wrap;gap:6px;">
+              {contentPageIds.map((id) => (
+                <a
+                  class:list={['btn btn-sm', id === contentPageId ? 'btn-primary' : 'btn-secondary']}
+                  href={`/admin/content?tab=documents&page=${id}`}
+                >
+                  {id}{draftPageIds.includes(id) ? ' •' : ''}
+                </a>
+              ))}
+            </div>
+
+            <p class="text-xs text-muted">
+              Active published version: <strong>{contentPublishedVersion || 'not published'}</strong>
+              {contentDraft
+                ? ` · Draft revision ${contentDraft.revision} by ${contentDraft.updatedBy}`
+                : ' · No draft for this page'}
+              {Object.keys(fallbackCounters).length > 0
+                ? ` · Content fallbacks recorded: ${fallbackCounters.total ?? 0}`
+                : ''}
+            </p>
+
+            {Astro.url.searchParams.get('preview') === '1' && (
+              <div class="publish-notice info" style="margin:14px 0;">
+                <Icon name="info" size={15} />
+                <span>
+                  <strong>Preview (not published).</strong> {contentDocument.title || contentDocument.settings?.name}
+                  {contentDocument.pageId === 'site'
+                    ? ` — ${contentDocument.homepageSections?.length ?? 0} homepage sections`
+                    : ` — ${contentDocument.sections?.length ?? 0} sections`}
+                </span>
+              </div>
+            )}
+
+            <form method="POST" action="/admin/content">
+              <input type="hidden" name="_csrf" value={csrf} />
+              <input type="hidden" name="action" value="save_content_draft" />
+              <input type="hidden" name="page_id" value={contentPageId} />
+              <input type="hidden" name="revision" value={contentDraft?.revision ?? 0} />
+
+              {contentDocument.pageId === 'site' ? (
+                <div class="form-grid cols-2">
+                  <div class="field"><label>Brand name</label>
+                    <input class="input" name="settings_name" value={contentDocument.settings?.name ?? ''} /></div>
+                  <div class="field"><label>Tagline</label>
+                    <input class="input" name="settings_tagline" value={contentDocument.settings?.tagline ?? ''} /></div>
+                  <div class="field"><label>Phone</label>
+                    <input class="input" name="settings_phone" value={contentDocument.settings?.phone ?? ''} /></div>
+                  <div class="field"><label>Email</label>
+                    <input class="input" name="settings_email" value={contentDocument.settings?.email ?? ''} /></div>
+                  <div class="field"><label>Address</label>
+                    <input class="input" name="settings_address" value={contentDocument.settings?.address ?? ''} /></div>
+                  <div class="field"><label>Footer text</label>
+                    <input class="input" name="settings_footer_text" value={contentDocument.settings?.footerText ?? ''} /></div>
+                  <div class="field"><label>Hero heading</label>
+                    <input class="input" name="hero_title" value={contentDocument.homepageSections?.find((section: any) => section.sectionKey === 'hero')?.title ?? ''} /></div>
+                  <div class="field"><label>Hero subheading</label>
+                    <input class="input" name="hero_subtitle" value={contentDocument.homepageSections?.find((section: any) => section.sectionKey === 'hero')?.subtitle ?? ''} /></div>
+                  <div class="field"><label>Promo badge</label>
+                    <input class="input" name="promo_badge" value={contentDocument.homepageSections?.find((section: any) => section.sectionKey === 'promo_banner')?.badge ?? ''} /></div>
+                  <div class="field"><label>Promo headline</label>
+                    <input class="input" name="promo_headline" value={contentDocument.homepageSections?.find((section: any) => section.sectionKey === 'promo_banner')?.title ?? ''} /></div>
+                  <div class="field"><label>Promo description</label>
+                    <input class="input" name="promo_description" value={contentDocument.homepageSections?.find((section: any) => section.sectionKey === 'promo_banner')?.description ?? ''} /></div>
+                  <div class="field"><label>Promo CTA label</label>
+                    <input class="input" name="promo_cta_label" value={contentDocument.homepageSections?.find((section: any) => section.sectionKey === 'promo_banner')?.ctaLabel ?? ''} /></div>
+                  <div class="field"><label>Promo CTA URL</label>
+                    <input class="input" name="promo_cta_url" value={contentDocument.homepageSections?.find((section: any) => section.sectionKey === 'promo_banner')?.ctaUrl ?? ''} /></div>
+                </div>
+              ) : (
+                <>
+                  <div class="form-grid cols-2">
+                    <div class="field"><label>Page title</label>
+                      <input class="input" name="title" value={contentDocument.title ?? ''} required /></div>
+                    <div class="field"><label>Subheading</label>
+                      <input class="input" name="subtitle" value={contentDocument.subtitle ?? ''} /></div>
+                    <div class="field"><label>Meta title</label>
+                      <input class="input" name="meta_title" maxlength="200" value={contentDocument.seo?.metaTitle ?? ''} /></div>
+                    <div class="field"><label>Meta description</label>
+                      <input class="input" name="meta_description" maxlength="320" value={contentDocument.seo?.metaDescription ?? ''} /></div>
+                    <div class="field"><label>Canonical path or URL</label>
+                      <input class="input" name="canonical_url" value={contentDocument.seo?.canonicalUrl ?? contentDocument.path ?? ''} /></div>
+                    <div class="field"><label>Robots</label>
+                      <select class="select" name="robots">
+                        {['index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow'].map((value) => (
+                          <option value={value} selected={contentDocument.seo?.robots === value}>{value}</option>
+                        ))}
+                      </select></div>
+                  </div>
+                  <div class="field"><label>Page description</label>
+                    <textarea class="input" name="description" rows="3">{contentDocument.description ?? ''}</textarea></div>
+
+                  <h3 class="admin-section-title" style="margin-top:16px;">Sections</h3>
+                  {Array.from({ length: 6 }).map((_, index) => {
+                    const section = (contentDocument.sections ?? [])[index];
+                    return (
+                      <div class="form-grid cols-2" style="margin-bottom:8px;">
+                        <div class="field"><label>Section id</label>
+                          <input class="input" name={`section_id_${index}`} value={section?.id ?? ''} placeholder="intro" /></div>
+                        <div class="field"><label>Section heading</label>
+                          <input class="input" name={`section_heading_${index}`} value={section?.heading ?? ''} /></div>
+                        <div class="field"><label>Section subheading</label>
+                          <input class="input" name={`section_subheading_${index}`} value={section?.subheading ?? ''} /></div>
+                        <div class="field"><label>Section text</label>
+                          <textarea class="input" name={`section_description_${index}`} rows="2">{section?.description ?? ''}</textarea></div>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+
+              <div class="admin-row-actions" style="margin-top:14px;">
+                <button type="submit" class="btn btn-primary btn-sm">Save draft</button>
+                <span class="text-xs text-muted">Saving does not publish. Publish from the Publish tab.</span>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    )}
+
     <!-- ==================== TAB: PUBLISH CHANGES ==================== -->
     {activeTab === 'publish' && isAdmin && (
     <div
@@ -844,6 +1022,110 @@ const pageContentMap = new Map(pagesContent.map((p) => [p.page_key, p]));
       data-active-id={activePublication?.id ?? ''}
       data-active-status={activePublication?.status ?? ''}
     >
+      <div class="admin-panel" style="margin-bottom:18px;">
+        <div class="admin-panel-head">
+          <div>
+            <h2>Object-storage content version</h2>
+            <p>
+              Immutable page JSON in Filebase, with the active pointer held in PostgreSQL. Publishing uploads and
+              verifies every object before the pointer moves.
+            </p>
+          </div>
+          {objectStore.configured && (
+            <form method="POST" action="/admin/content">
+              <input type="hidden" name="_csrf" value={csrf} />
+              <input type="hidden" name="action" value="publish_object_store" />
+              <button type="submit" class="btn btn-primary btn-sm">Publish to object storage</button>
+            </form>
+          )}
+        </div>
+        <div class="admin-panel-body">
+          {!objectStore.configured ? (
+            <div class="publish-notice warn">
+              <Icon name="alert" size={15} />
+              <span>
+                <strong>Object-storage publishing is unavailable.</strong>
+                {objectStore.error ? ` ${objectStore.error}` : ' Run `npm run db:migrate:schema` to create the publication tables.'}
+              </span>
+            </div>
+          ) : (
+            <>
+              <div class="admin-grid-2">
+                <div class="publish-stat">
+                  <span class="text-xs text-muted">Active content version</span>
+                  <strong>{objectStore.activeVersion || 'Not published yet'}</strong>
+                  <span class="text-xs text-muted">
+                    {objectStore.updatedAt ? `Pointer updated ${formatStamp(objectStore.updatedAt)}` : 'The site still reads Cloudflare D1'}
+                  </span>
+                </div>
+                <div class="publish-stat">
+                  <span class="text-xs text-muted">Manifest object</span>
+                  <strong style="word-break:break-all;font-size:12px;">{objectStore.activeManifest || '—'}</strong>
+                  <span class="text-xs text-muted">Immutable; rollback only moves the pointer</span>
+                </div>
+              </div>
+
+              <h3 class="admin-section-title" style="margin-top:18px;">Version history</h3>
+              {objectStore.releases.length === 0 ? (
+                <p class="text-sm text-muted">No object-storage publications yet.</p>
+              ) : (
+                <div class="table-wrap">
+                  <table class="table">
+                    <thead>
+                      <tr>
+                        <th>Version</th>
+                        <th>Status</th>
+                        <th>Publisher</th>
+                        <th>Created</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {objectStore.releases.map((release) => (
+                        <tr>
+                          <td><code style="font-size:11.5px;">{release.siteVersion}</code></td>
+                          <td>
+                            <span class:list={[
+                              'badge',
+                              release.status === 'published' ? 'badge-success'
+                                : release.status === 'failed' || release.status === 'conflicted' ? 'badge-danger'
+                                : release.status === 'rolled_back' ? 'badge-gold'
+                                : 'badge-info',
+                            ]}>{release.status}</span>
+                            {release.rolledBackTo && (
+                              <div class="text-xs text-muted">to {release.rolledBackTo}</div>
+                            )}
+                            {release.error && <div class="text-xs" style="color:var(--danger);">{release.error}</div>}
+                          </td>
+                          <td class="text-sm">{release.publishedByName || '—'}</td>
+                          <td class="text-xs">{release.createdAt ? formatStamp(release.createdAt) : '—'}</td>
+                          <td>
+                            {release.status === 'published' && release.siteVersion !== objectStore.activeVersion && (
+                              <form method="POST" action="/admin/content">
+                                <input type="hidden" name="_csrf" value={csrf} />
+                                <input type="hidden" name="action" value="rollback_object_store" />
+                                <input type="hidden" name="site_version" value={release.siteVersion} />
+                                <button
+                                  type="submit"
+                                  class="btn btn-secondary btn-sm"
+                                  data-confirm={`Roll back the public content to ${release.siteVersion}?`}
+                                >
+                                  Roll back
+                                </button>
+                              </form>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
       <div class="admin-panel">
         <div class="admin-panel-head">
           <div>

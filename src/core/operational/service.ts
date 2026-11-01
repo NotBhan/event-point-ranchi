@@ -618,6 +618,85 @@ export async function updateContactInquiryStatus(id: number, status: string): Pr
   return res.rowCount > 0;
 }
 
+export interface NewContactInquiryInput {
+  name: string;
+  phone: string;
+  email: string;
+  eventType: string;
+  eventDate: string | null;
+  guestCount: number | null;
+  message: string;
+}
+
+/**
+ * Persists a contact-form inquiry. Returns only after the insert commits, so a
+ * visitor is never thanked for a submission that was not stored.
+ */
+export async function createContactInquiry(input: NewContactInquiryInput): Promise<{ id: number }> {
+  const neon = getNeonClient();
+  const res = await neon.query<{ id: number }>(
+    `INSERT INTO contact_inquiries
+       (name, phone, email, event_type, event_date, guest_count, message, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, 'new')
+     RETURNING id`,
+    [
+      input.name,
+      input.phone,
+      input.email,
+      input.eventType,
+      input.eventDate,
+      input.guestCount,
+      input.message,
+    ],
+  );
+
+  const id = Number(res.rows[0]?.id ?? 0);
+  if (!id) throw new Error('The inquiry was written but its id could not be read back.');
+  return { id };
+}
+
+function contactInquiryFilter(status?: string): { where: string; params: unknown[] } {
+  if (!status || status === 'all') return { where: '', params: [] };
+  return { where: 'WHERE status = $1', params: [status] };
+}
+
+export async function countContactInquiries(status?: string): Promise<number> {
+  const neon = getNeonClient();
+  const { where, params } = contactInquiryFilter(status);
+  const res = await neon.query<{ count: number | string }>(
+    `SELECT COUNT(*) AS count FROM contact_inquiries ${where}`,
+    params,
+  );
+  return Number(res.rows[0]?.count ?? 0);
+}
+
+export async function listContactInquiriesPage(
+  status: string | undefined,
+  paging: { limit?: number; offset?: number } = {},
+): Promise<ContactInquiryRow[]> {
+  const neon = getNeonClient();
+  const { where, params } = contactInquiryFilter(status);
+  const limit = Math.max(1, Math.min(100, paging.limit ?? 25));
+  const offset = Math.max(0, paging.offset ?? 0);
+
+  const res = await neon.query<ContactInquiryRow>(
+    `SELECT * FROM contact_inquiries ${where} ORDER BY id DESC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+    [...params, limit, offset],
+  );
+
+  return res.rows.map((row) => ({
+    ...row,
+    guest_count: row.guest_count === null || row.guest_count === undefined ? null : Number(row.guest_count),
+  }));
+}
+
+export async function deleteContactInquiry(id: number): Promise<boolean> {
+  const neon = getNeonClient();
+  const res = await neon.query('DELETE FROM contact_inquiries WHERE id = $1', [id]);
+  return res.rowCount > 0;
+}
+
 /* ============================ Bookings (Neon) ============================ */
 
 export async function getBookings(): Promise<BookingRow[]> {
@@ -740,7 +819,7 @@ export async function createBooking(data: {
   deposit_value?: number;
 }): Promise<BookingRow> {
   const neon = getNeonClient();
-  await ensureBookingDepositColumns();
+  await assertBookingDepositColumns();
   const token = randomBytes(24).toString('hex');
   const totalAmount = data.total_amount;
   const advanceAmount = data.advance_amount ?? Math.round((totalAmount * 25) / 100);
@@ -1308,7 +1387,7 @@ export async function updateBookingDepositConfig(params: {
   adminUserId?: number;
 }): Promise<{ advanceAmount: number; totalAmount: number; depositType: DepositType; depositValue: number }> {
   const neon = getNeonClient();
-  await ensureBookingDepositColumns();
+  await assertBookingDepositColumns();
 
   const current = await neon.query<BookingRow>(
     'SELECT * FROM bookings WHERE id = $1 LIMIT 1',
@@ -1384,32 +1463,31 @@ export async function updateBookingDepositConfig(params: {
   };
 }
 
+const bookingSchemaVerified = new WeakSet<object>();
+
 /**
- * Adds the deposit-policy snapshot columns to an existing `bookings` table.
- * Idempotent and memoised per process.
+ * Verifies — with a read-only query — that the deposit snapshot columns exist.
+ *
+ * The columns are added by `npm run db:migrate:schema` (migration
+ * 001_booking_deposit_snapshot). A request must never perform DDL, so if the
+ * migration has not run the request fails with an actionable message instead of
+ * a raw "column does not exist".
  */
-const bookingSchemaEnsured = new WeakSet<object>();
-
-export async function ensureBookingDepositColumns(): Promise<void> {
+export async function assertBookingDepositColumns(): Promise<void> {
   const neon = getNeonClient();
-  if (bookingSchemaEnsured.has(neon)) return;
+  if (bookingSchemaVerified.has(neon)) return;
 
-  if (neon.isUsingRemote()) {
-    await neon.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS deposit_type VARCHAR(20) NOT NULL DEFAULT 'percentage'`);
-    await neon.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS deposit_value BIGINT NOT NULL DEFAULT 25`);
-  } else {
-    // SQLite has no ADD COLUMN IF NOT EXISTS; inspect the table first.
-    const columns = await neon.query<{ name: string }>('PRAGMA table_info(bookings)');
-    const existing = new Set(columns.rows.map((column) => column.name));
-    if (!existing.has('deposit_type')) {
-      await neon.query(`ALTER TABLE bookings ADD COLUMN deposit_type TEXT NOT NULL DEFAULT 'percentage'`);
-    }
-    if (!existing.has('deposit_value')) {
-      await neon.query('ALTER TABLE bookings ADD COLUMN deposit_value INTEGER NOT NULL DEFAULT 25');
-    }
+  try {
+    await neon.query('SELECT deposit_type, deposit_value FROM bookings LIMIT 0');
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      'The operational database schema is out of date: bookings.deposit_type / bookings.deposit_value are missing. ' +
+        `Run \`npm run db:migrate:schema\` before serving traffic. (${detail})`,
+    );
   }
 
-  bookingSchemaEnsured.add(neon);
+  bookingSchemaVerified.add(neon);
 }
 
 /* ============================ Payments (Neon) ============================ */

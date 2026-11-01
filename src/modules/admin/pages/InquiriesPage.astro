@@ -5,8 +5,8 @@ import { formatDate, formatDateTime } from '../../../core/http';
 import type { listInquiries } from '../service';
 
 interface Props {
-  items: ReturnType<typeof listInquiries>['items'];
-  pagination: ReturnType<typeof listInquiries>['pagination'];
+  items: Awaited<ReturnType<typeof listInquiries>>['items'];
+  pagination: Awaited<ReturnType<typeof listInquiries>>['pagination'];
   status: string;
 }
 
