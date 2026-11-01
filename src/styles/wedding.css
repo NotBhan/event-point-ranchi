@@ -51,8 +51,8 @@
 .requirements-link {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 11px;
+  gap: 5px;
+  padding: 6px 9px;
   border: 1px solid var(--line-strong);
   border-radius: var(--r-pill);
   background: var(--surface);
@@ -77,13 +77,61 @@
 }
 .requirements-count.is-empty { background: var(--line-strong); color: var(--body); }
 .header-cta { letter-spacing: 0.01em; }
-.header-staff-link {
-  font-size: 11.5px;
-  color: var(--muted);
+/* Customer auth entry points in the public header. Register is the only
+   outlined button, Login is a quiet link, and both collapse into the mobile
+   drawer below 900px so the header never overflows. */
+.header-auth-links {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.header-auth-link {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
   padding: 6px 8px;
   border-radius: var(--r-sm);
+  transition: color 0.15s var(--ease);
 }
-.header-staff-link:hover { color: var(--brand-maroon); background: var(--gold-soft); }
+.header-auth-link:hover,
+.header-auth-link:focus-visible { color: var(--brand-maroon); }
+.header-auth-register { white-space: nowrap; }
+@media (max-width: 1100px) {
+  .header-auth-link { display: none; }
+}
+@media (max-width: 900px) {
+  .header-auth-links { display: none; }
+}
+/* On the narrowest phones the register button would push the menu toggle off
+   screen; the drawer already carries both auth actions. */
+@media (max-width: 380px) {
+  .header-auth-links { display: none; }
+  /* The requirements chip would otherwise push the menu toggle past the edge;
+     the drawer already exposes it. */
+  .requirements-link { display: none; }
+}
+@media (max-width: 1080px) {
+  .nav-actions-divider { display: none; }
+}
+
+.nav-actions-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--line-strong);
+  opacity: 0.7;
+}
+.header-staff-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  color: var(--muted);
+  border-radius: var(--r-sm);
+  transition: color 0.15s var(--ease), background 0.15s var(--ease);
+}
+.header-staff-link:hover,
+.header-staff-link:focus-visible { color: var(--brand-maroon); background: var(--gold-soft); }
 .nav-mobile-actions { display: none; }
 
 /* ---------- Footer refinements ---------- */
@@ -1656,37 +1704,63 @@
   gap: 18px;
 }
 .plan-blueprint-card {
-  padding: 24px;
+  padding: 22px 22px 18px;
   background: var(--surface);
-  border: 1.5px solid rgba(184, 134, 11, 0.35);
-  border-top: 4px solid var(--brand-maroon);
+  border: 1px solid var(--line);
   border-radius: var(--r-xl, 16px);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 2px rgba(38, 26, 24, 0.04), 0 10px 28px rgba(38, 26, 24, 0.05);
 }
 .blueprint-card-head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
-  margin-bottom: 6px;
 }
-.blueprint-pulse {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #10b981;
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
-}
-.blueprint-card-head h3 {
-  font-size: 1.15rem;
-  font-weight: 600;
-  margin: 0;
-}
-.blueprint-card-desc {
-  font-size: 12px;
+.blueprint-eyebrow {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: var(--muted);
-  margin: 0 0 16px;
-  line-height: 1.5;
 }
+.blueprint-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px 2px 7px;
+  border-radius: var(--r-pill);
+  background: var(--gold-soft);
+  color: var(--gold-deep);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.blueprint-live::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.blueprint-title {
+  margin: 8px 0 14px;
+  font-size: 1.08rem;
+  line-height: 1.25;
+}
+.blueprint-cta-group {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.blueprint-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--brand-maroon);
+}
+.blueprint-link:hover { color: var(--brand-maroon-dark); text-decoration: underline; }
 .blueprint-summary-list {
   display: flex;
   flex-direction: column;

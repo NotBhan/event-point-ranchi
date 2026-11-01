@@ -98,9 +98,13 @@ const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWit
     </nav>
 
     <div class="nav-actions">
-      <a href="/plan" class="requirements-link" aria-label="View your event requirements">
+      <a
+        href="/plan"
+        class="requirements-link"
+        aria-label="View your event requirements"
+        title="Your event requirements"
+      >
         <Icon name="receipt" size={16} />
-        <span class="requirements-label">Requirements</span>
         <span class="requirements-count" data-requirements-count>0</span>
       </a>
 
@@ -205,7 +209,15 @@ const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWit
         </span>
       )}
 
-      <a href="/admin/login" class="header-staff-link" aria-label="Staff console">Staff</a>
+      <span class="nav-actions-divider" aria-hidden="true"></span>
+      <a
+        href="/admin/login"
+        class="header-staff-link"
+        aria-label="Staff console"
+        title="Staff console"
+      >
+        <Icon name="shield" size={15} />
+      </a>
 
       <button type="button" class="nav-toggle" data-nav-toggle aria-label="Open menu" aria-expanded="false">
         <Icon name="menu" size={20} />

@@ -1197,3 +1197,42 @@ a:active {
   transition: transform 0.04s ease-out !important;
 }
 
+
+/* ---------- Venue suggestions (plan form) ---------- */
+.field:has(> .venue-suggestions) { position: relative; }
+.venue-suggestions {
+  position: absolute;
+  z-index: 60;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  box-shadow: 0 12px 28px rgba(38, 26, 24, 0.14);
+  max-height: 260px;
+  overflow-y: auto;
+}
+.venue-suggestions li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--r-sm);
+  font-size: 13.5px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.venue-suggestions li[aria-selected='true'],
+.venue-suggestions li.is-active { background: var(--gold-soft); }
+.venue-suggestion-kind {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  flex-shrink: 0;
+}

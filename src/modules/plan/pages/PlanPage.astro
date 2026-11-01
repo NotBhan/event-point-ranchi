@@ -177,6 +177,11 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
                   placeholder="e.g. Harmu Ground, Ranchi Club, Morabadi"
                   required
                   aria-required="true"
+                  autocomplete="off"
+                  role="combobox"
+                  aria-expanded="false"
+                  aria-autocomplete="list"
+                  aria-controls="venueSuggestions"
                 />
               </div>
             </div>
@@ -781,18 +786,20 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
         <aside class="plan-aside">
           <div class="plan-aside-card plan-blueprint-card">
             <div class="blueprint-card-head">
-              <span class="blueprint-pulse"></span>
-              <h3>Live Event Blueprint</h3>
+              <span class="blueprint-eyebrow">Your requirements</span>
+              <span class="blueprint-live" aria-hidden="true">Live</span>
             </div>
-            <p class="blueprint-card-desc">Your selections update automatically as you build your requirements.</p>
 
-            <div class="blueprint-summary-list" data-plan-live-summary>
+            <h3 class="blueprint-title">Event blueprint</h3>
+
+            <div class="blueprint-summary-list" data-plan-live-summary aria-live="polite">
               <!-- Rendered dynamically by plan-wizard.ts -->
             </div>
 
             <div class="blueprint-cta-group">
-              <a href="/gallery" class="text-link" target="_blank" rel="noopener">
-                Browse real event gallery ↗
+              <a href="/gallery" class="blueprint-link" target="_blank" rel="noopener">
+                See how these look at real events
+                <span aria-hidden="true">→</span>
               </a>
             </div>
           </div>
@@ -870,5 +877,6 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
   <script type="application/json" id="planCatalogue" set:html={catalogueJson}></script>
   <script>
     import '../../../client/plan-wizard';
+  import '../../../client/venue-suggestions';
   </script>
 </BaseLayout>
