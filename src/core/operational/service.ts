@@ -308,6 +308,105 @@ export async function listUsers(): Promise<UserRow[]> {
   return res.rows;
 }
 
+/* ============================ Customer registration (Neon) ============================ */
+
+export interface CustomerRegistrationInput {
+  username: string;
+  email: string;
+  passwordHash: string;
+  firstName: string;
+  name: string;
+  phone: string;
+  /** Links an existing, still-unclaimed customer row with this phone. */
+  linkByPhone?: boolean;
+}
+
+export type CustomerRegistrationResult =
+  | { ok: true; userId: number; customerId: number }
+  | { ok: false; error: 'username_taken' | 'email_taken' };
+
+/**
+ * Creates the login account and its customer record in one Neon transaction.
+ *
+ * Registration used to write to the per-instance SQLite copy while login read
+ * Neon, so a new account could never sign in. Uniqueness is enforced by the
+ * database constraints, not by a prior SELECT, and the email is normalised to
+ * lower case before the insert.
+ *
+ * An existing customer row is linked **only** when it has no user yet and its
+ * phone matches exactly. Accounts are never merged by name.
+ */
+export async function registerCustomerAccount(
+  input: CustomerRegistrationInput,
+): Promise<CustomerRegistrationResult> {
+  const neon = getNeonClient();
+  const email = input.email.trim().toLowerCase();
+  const username = input.username.trim();
+
+  try {
+    return await neon.tx(async (client) => {
+      const inserted = await client.query<{ id: number }>(
+        `INSERT INTO users (username, email, password_hash, first_name, role, is_active)
+         VALUES ($1, $2, $3, $4, 'customer', true)
+         RETURNING id`,
+        [username, email, input.passwordHash, input.firstName],
+      );
+      const userId = Number(inserted.rows[0]?.id ?? 0);
+      if (!userId) throw new Error('The account was created but its id could not be read back.');
+
+      let customerId = 0;
+      if (input.linkByPhone) {
+        const claimable = await client.query<{ id: number }>(
+          'SELECT id FROM customers WHERE phone = $1 AND user_id IS NULL ORDER BY id ASC LIMIT 1',
+          [input.phone],
+        );
+        if (claimable.rows[0]) {
+          customerId = Number(claimable.rows[0].id);
+          await client.query('UPDATE customers SET user_id = $1, name = $2, email = $3 WHERE id = $4', [
+            userId,
+            input.name,
+            email,
+            customerId,
+          ]);
+        }
+      }
+
+      if (!customerId) {
+        const customer = await client.query<{ id: number }>(
+          `INSERT INTO customers (user_id, name, phone, email) VALUES ($1, $2, $3, $4) RETURNING id`,
+          [userId, input.name, input.phone || `pending-${userId}`, email],
+        );
+        customerId = Number(customer.rows[0]?.id ?? 0);
+        if (!customerId) throw new Error('The customer record could not be created.');
+      }
+
+      return { ok: true as const, userId, customerId };
+    });
+  } catch (error) {
+    if (!isUniqueConstraintError(error)) throw error;
+    // The constraint tells us which column collided.
+    const message = error instanceof Error ? error.message : '';
+    if (/username/i.test(message)) return { ok: false, error: 'username_taken' };
+    if (/email/i.test(message)) return { ok: false, error: 'email_taken' };
+    return { ok: false, error: 'email_taken' };
+  }
+}
+
+/** Updates a customer record only when it belongs to the given user. */
+export async function updateCustomerProfile(
+  userId: number,
+  data: { name: string; email: string; phone: string; address: string },
+): Promise<boolean> {
+  const neon = getNeonClient();
+  const res = await neon.query(
+    `UPDATE customers
+        SET name = $1, email = $2, phone = $3, address = $4
+      WHERE user_id = $5`,
+    [data.name, data.email, data.phone, data.address, userId],
+  );
+  return res.rowCount > 0;
+}
+
 /* ============================ Customers (Neon) ============================ */
 
 export async function ensureCustomerForUser(userId: number, defaults: Partial<CustomerRow> = {}): Promise<CustomerRow> {
@@ -2042,3 +2141,13 @@ export async function getEnquiryQrTokenByEnquiryId(enquiryId: number): Promise<E
   return res.rows[0] || null;
 }
 
+
+/** Updates the display name / login email of a user. */
+export async function updateUserName(userId: number, firstName: string, email: string | null): Promise<boolean> {
+  const neon = getNeonClient();
+  const res = await neon.query(
+    'UPDATE users SET first_name = $1, email = $2, updated_at = NOW() WHERE id = $3',
+    [firstName, email, userId],
+  );
+  return res.rowCount > 0;
+}

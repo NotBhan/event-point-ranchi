@@ -1,0 +1,118 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Icon from '../../../components/Icon.astro';
+import { formatDate, formatMoney } from '../../../core/http';
+
+interface Props {
+  user: { id: number; username: string; firstName: string; email: string | null };
+  customer: { name: string; phone: string; email: string | null; address: string | null };
+  bookings: Array<{
+    id: number;
+    event_date: string | null;
+    event_type: string;
+    total_guest: number;
+    total_amount: number;
+    advance_amount: number;
+    amount_paid: number;
+    outstanding_balance: number;
+    payment_status: string;
+    status: string;
+    created_at: string;
+  }>;
+}
+
+const { user, customer, bookings } = Astro.props;
+const csrf = Astro.locals.csrf;
+const statusClass: Record<string, string> = {
+  draft: 'badge-muted', pending: 'badge-warning', confirmed: 'badge-success', cancelled: 'badge-danger',
+};
+---
+<BaseLayout title="My account | Event Point Ranchi" description="Manage your Event Point Ranchi account and bookings." noCart>
+  <section class="page-hero">
+    <div class="container">
+      <span class="eyebrow">Customer account</span>
+      <h1>Welcome, {user.firstName}</h1>
+      <p>Manage your details and review every booking linked to your account.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container account-layout">
+      <div class="panel account-panel">
+        <h2 class="account-heading">Profile</h2>
+        <form method="POST" action="/account" class="account-form">
+          <input type="hidden" name="_csrf" value={csrf} />
+          <div class="field">
+            <label for="name">Full name</label>
+            <input class="input" id="name" name="name" value={customer.name} required />
+          </div>
+          <div class="field">
+            <label for="email">Email address</label>
+            <input class="input" id="email" name="email" type="email" value={customer.email ?? ''} />
+          </div>
+          <div class="field">
+            <label for="phone">Mobile number</label>
+            <input class="input" id="phone" name="phone" inputmode="numeric" value={customer.phone} required />
+          </div>
+          <div class="field">
+            <label for="address">Address</label>
+            <input class="input" id="address" name="address" value={customer.address ?? ''} />
+          </div>
+          <div class="account-actions">
+            <button type="submit" class="btn btn-primary">Save changes</button>
+            <a href="/change-password" class="btn btn-secondary">Change password</a>
+            <a href="/logout" class="btn btn-ghost">Log out</a>
+          </div>
+        </form>
+      </div>
+
+      <div class="panel account-panel">
+        <h2 class="account-heading">Your bookings</h2>
+        {bookings.length === 0 ? (
+          <div class="account-empty">
+            <Icon name="receipt" size={26} />
+            <p><strong>No bookings yet.</strong></p>
+            <p class="text-sm text-muted">Enquiries you send from the planning wizard will appear here once they become bookings.</p>
+            <a href="/plan" class="btn btn-primary btn-sm">Plan your event</a>
+          </div>
+        ) : (
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Reference</th><th>Event</th><th>Status</th><th>Total</th><th>Paid</th><th>Balance</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {bookings.map((booking) => (
+                  <tr>
+                    <td><strong>EP-{String(booking.id).padStart(5, '0')}</strong></td>
+                    <td>
+                      <div>{booking.event_type}</div>
+                      <div class="text-xs text-muted">{booking.event_date ? formatDate(booking.event_date) : 'Date pending'}</div>
+                    </td>
+                    <td><span class:list={['badge', statusClass[booking.status] ?? 'badge-muted']}>{booking.status}</span></td>
+                    <td class="money">{formatMoney(booking.total_amount)}</td>
+                    <td class="money">{formatMoney(booking.amount_paid)}</td>
+                    <td class="money">{formatMoney(booking.outstanding_balance)}</td>
+                    <td><a class="text-link" href={`/booking/${booking.id}/quotation`}>Open</a></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .account-layout { display: grid; gap: 22px; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 900px) { .account-layout { grid-template-columns: 360px minmax(0, 1fr); align-items: start; } }
+  .account-panel { padding: 22px; }
+  .account-heading { font-size: 1.05rem; margin: 0 0 16px; }
+  .account-form .field { margin-bottom: 14px; }
+  .account-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+  .account-empty { display: grid; justify-items: start; gap: 8px; color: var(--muted); }
+</style>

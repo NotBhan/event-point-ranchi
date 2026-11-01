@@ -79,6 +79,14 @@ const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWit
           <span>Call: {phone}</span>
         </a>
         <div class="nav-mobile-actions">
+          {auth.user ? (
+            <a href="/account" class="btn btn-secondary btn-block">My account</a>
+          ) : (
+            <>
+              <a href="/login" class="btn btn-secondary btn-block">Login</a>
+              <a href="/register" class="btn btn-ghost btn-block">Create an account</a>
+            </>
+          )}
           <a href="/plan" class="btn btn-primary btn-block">Plan Your Event</a>
           <a href="/plan" class="btn btn-secondary btn-block nav-requirements-btn">
             <Icon name="receipt" size={15} />
@@ -191,8 +199,13 @@ const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWit
           </div>
         </div>
       ) : (
-        <a href="/admin/login" class="header-staff-link" aria-label="Staff console">Staff</a>
+        <span class="header-auth-links">
+          <a href="/login" class="header-auth-link">Login</a>
+          <a href="/register" class="btn btn-secondary btn-sm header-auth-register">Register</a>
+        </span>
       )}
+
+      <a href="/admin/login" class="header-staff-link" aria-label="Staff console">Staff</a>
 
       <button type="button" class="nav-toggle" data-nav-toggle aria-label="Open menu" aria-expanded="false">
         <Icon name="menu" size={20} />

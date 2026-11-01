@@ -1,13 +1,14 @@
-import { one, run, tx } from '../../core/db';
 import { isEmail } from '../../core/http';
 import { hashPassword, verifyPassword } from '../../core/password';
 import type { Role } from '../../core/types';
 import {
+  registerCustomerAccount,
   findUserByLogin as neonFindUserByLogin,
   authenticate as neonAuthenticate,
   findUserById as neonFindUserById,
   ensureCustomerForUser as neonEnsureCustomerForUser,
   updateUserPassword as neonUpdateUserPassword,
+  updateCustomerProfile,
 } from '../../core/operational/service';
 
 export interface UserRow {
@@ -49,61 +50,63 @@ export interface RegisterInput {
   confirmPassword: string;
 }
 
-export function registerCustomer(input: RegisterInput): { ok: true; userId: number } | { ok: false; error: string } {
-  if (!input.name || !input.username || !input.password) {
-    return { ok: false, error: 'Name, username and password are required.' };
-  }
-  if (input.password.length < 6) {
-    return { ok: false, error: 'Password must be at least 6 characters long.' };
-  }
-  if (input.password !== input.confirmPassword) {
-    return { ok: false, error: 'Passwords do not match.' };
-  }
-  if (input.email && !isEmail(input.email)) {
-    return { ok: false, error: 'Please enter a valid email address.' };
-  }
-  if (!/^[a-zA-Z0-9_.-]{3,30}$/.test(input.username)) {
+/** Password policy: at least 8 characters with a letter and a digit. */
+export function validatePassword(password: string): string | null {
+  if (password.length < 8) return 'Password must be at least 8 characters long.';
+  if (!/[A-Za-z]/.test(password)) return 'Password must include at least one letter.';
+  if (!/[0-9]/.test(password)) return 'Password must include at least one number.';
+  if (password.length > 200) return 'Password is too long.';
+  return null;
+}
+
+export function normalisePhone(value: string): string | null {
+  const digits = value.replace(/\D/g, '');
+  const national = digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : digits;
+  return /^[6-9]\d{9}$/.test(national) ? national : null;
+}
+
+export async function registerCustomer(
+  input: RegisterInput,
+): Promise<{ ok: true; userId: number } | { ok: false; error: string }> {
+  const name = input.name.trim();
+  const username = input.username.trim();
+  const email = input.email.trim().toLowerCase();
+
+  if (name.length < 2) return { ok: false, error: 'Please enter your full name.' };
+  if (!username) return { ok: false, error: 'Please choose a username.' };
+  if (!/^[a-zA-Z0-9_.-]{3,30}$/.test(username)) {
     return { ok: false, error: 'Username must be 3–30 characters (letters, numbers, dot, dash, underscore).' };
   }
+  if (!isEmail(email)) return { ok: false, error: 'Please enter a valid email address.' };
 
-  const usernameTaken = one<{ id: number }>('SELECT id FROM users WHERE username = ? COLLATE NOCASE', [
-    input.username,
-  ]);
-  if (usernameTaken) return { ok: false, error: 'That username is already taken.' };
+  const phone = normalisePhone(input.phone);
+  if (!phone) return { ok: false, error: 'Enter a valid 10-digit Indian mobile number.' };
 
-  if (input.email) {
-    const emailTaken = one<{ id: number }>('SELECT id FROM users WHERE email = ? COLLATE NOCASE', [input.email]);
-    if (emailTaken) return { ok: false, error: 'That email address is already registered.' };
+  const passwordError = validatePassword(input.password);
+  if (passwordError) return { ok: false, error: passwordError };
+  if (input.password !== input.confirmPassword) return { ok: false, error: 'Passwords do not match.' };
+
+  const result = await registerCustomerAccount({
+    username,
+    email,
+    passwordHash: hashPassword(input.password),
+    firstName: name.split(' ')[0] || username,
+    name,
+    phone,
+    linkByPhone: true,
+  });
+
+  if (!result.ok) {
+    return {
+      ok: false,
+      error:
+        result.error === 'username_taken'
+          ? 'That username is already taken.'
+          : 'That email address is already registered.',
+    };
   }
 
-  return tx(() => {
-    const userId = run(
-      'INSERT INTO users (username, email, password_hash, first_name, role) VALUES (?, ?, ?, ?, ?)',
-      [input.username, input.email || null, hashPassword(input.password), input.name.split(' ')[0] ?? input.username, 'customer'],
-    ).lastId;
-
-    const existingCustomer = input.phone
-      ? one<CustomerRow>('SELECT * FROM customers WHERE phone = ? AND user_id IS NULL', [input.phone])
-      : undefined;
-
-    if (existingCustomer) {
-      run('UPDATE customers SET user_id = ?, name = ?, email = ? WHERE id = ?', [
-        userId,
-        input.name,
-        input.email,
-        existingCustomer.id,
-      ]);
-    } else {
-      run('INSERT INTO customers (user_id, name, phone, email) VALUES (?, ?, ?, ?)', [
-        userId,
-        input.name,
-        input.phone || `pending-${userId}`,
-        input.email,
-      ]);
-    }
-
-    return { ok: true as const, userId };
-  });
+  return { ok: true, userId: result.userId };
 }
 
 export async function authenticate(login: string, password: string): Promise<UserRow | null> {
@@ -117,10 +120,29 @@ export async function changePassword(userId: number, currentPassword: string, ne
   if (!verifyPassword(currentPassword, user.password_hash)) {
     return { ok: false as const, error: 'Your current password is incorrect.' };
   }
-  if (newPassword.length < 6) return { ok: false as const, error: 'New password must be at least 6 characters.' };
+  const policyError = validatePassword(newPassword);
+  if (policyError) return { ok: false as const, error: policyError };
   if (newPassword !== confirmPassword) return { ok: false as const, error: 'New passwords do not match.' };
 
   const hash = hashPassword(newPassword);
   await neonUpdateUserPassword(userId, hash);
   return { ok: true as const, passwordHash: hash };
+}
+
+/** Updates the signed-in customer's own record. Never trusts a browser id. */
+export async function updateOwnProfile(
+  userId: number,
+  data: { name: string; email: string; phone: string; address: string },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const name = data.name.trim();
+  const email = data.email.trim().toLowerCase();
+  const phone = normalisePhone(data.phone);
+
+  if (name.length < 2) return { ok: false, error: 'Please enter your full name.' };
+  if (email && !isEmail(email)) return { ok: false, error: 'Please enter a valid email address.' };
+  if (!phone) return { ok: false, error: 'Enter a valid 10-digit Indian mobile number.' };
+
+  const updated = await updateCustomerProfile(userId, { name, email, phone, address: data.address.trim() });
+  if (!updated) return { ok: false, error: 'We could not update your profile. Please contact support.' };
+  return { ok: true };
 }
