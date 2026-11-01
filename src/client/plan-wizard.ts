@@ -210,20 +210,30 @@ const DRAFT_FLUSH_DELAY_MS = 250;
 let draftSaveTimer: number | null = null;
 let planRenderQueued = false;
 
+// Browser storage is best-effort: private browsing modes and full quotas throw
+// on write, and an exception here must never break navigation or rendering.
+function writeDraft(draft: PlanDraft): void {
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  } catch (error) {
+    console.warn('[plan-wizard] draft could not be saved to local storage.', error);
+  }
+}
+
 function flushDraft(): void {
   if (!state) return;
   if (draftSaveTimer !== null) {
     window.clearTimeout(draftSaveTimer);
     draftSaveTimer = null;
   }
-  localStorage.setItem(DRAFT_KEY, JSON.stringify(state.draft));
+  writeDraft(state.draft);
 }
 
 function scheduleDraftFlush(): void {
   if (draftSaveTimer !== null) return;
   draftSaveTimer = window.setTimeout(() => {
     draftSaveTimer = null;
-    if (state) localStorage.setItem(DRAFT_KEY, JSON.stringify(state.draft));
+    if (state) writeDraft(state.draft);
   }, DRAFT_FLUSH_DELAY_MS);
 }
 
@@ -293,6 +303,9 @@ function showError(message: string): void {
   if (!errorBox) return;
   errorBox.textContent = message;
   errorBox.hidden = false;
+  // Announced through role="alert" and focused for assistive technology. The
+  // deliberate scroll target is the offending field (see fail()), so there is
+  // exactly one scroll and it always lands on something the visitor can fix.
   errorBox.focus({ preventScroll: true });
 }
 
@@ -484,7 +497,10 @@ function fail(message: string, fieldName?: string): false {
     }
     if (targetEl) {
       setFieldError(targetEl, message);
-      targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // 'instant' rather than 'auto': the stylesheet sets scroll-behavior:
+      // smooth globally, which would make 'auto' animate and leave a window
+      // where a blocked step looks like a button that did nothing.
+      targetEl.scrollIntoView({ behavior: 'instant', block: 'center' });
       targetEl.focus({ preventScroll: true });
     }
   }
@@ -1164,28 +1180,35 @@ if (state && form) {
   state.draft = readDraft();
   state.activeEquipmentCategory = state.catalogue.equipment[0]?.slug ?? '';
 
-  applyDraft(state.draft);
-  syncSelectionInputs('mandap');
-  syncSelectionInputs('stage');
-  syncMandapCardSelection();
-  syncStageCardSelection();
-  syncStylingSwatches();
+  // The listeners below must always be attached. A failure while painting the
+  // restored draft must never leave the wizard inert.
+  try {
+    applyDraft(state.draft);
+    syncSelectionInputs('mandap');
+    syncSelectionInputs('stage');
+    syncMandapCardSelection();
+    syncStageCardSelection();
+    syncStylingSwatches();
 
-  if (!fieldValue('mandapNotes')) {
-    const note = field<HTMLTextAreaElement>('mandapNotes');
-    if (note && selectionFor('mandap')?.note) note.value = selectionFor('mandap')?.note ?? '';
+    if (!fieldValue('mandapNotes')) {
+      const note = field<HTMLTextAreaElement>('mandapNotes');
+      if (note && selectionFor('mandap')?.note) note.value = selectionFor('mandap')?.note ?? '';
+    }
+    if (!fieldValue('stageNotes')) {
+      const note = field<HTMLTextAreaElement>('stageNotes');
+      if (note && selectionFor('stage')?.note) note.value = selectionFor('stage')?.note ?? '';
+    }
+
+    renderEquipmentTabs();
+    renderEquipmentGrid();
+    renderLiveSummary();
+
+    const initialStep = Math.min(Math.max(Number(state.draft.step) || 1, 1), 4);
+    goToStep(initialStep, false);
+  } catch (error) {
+    console.error('[plan-wizard] restored draft could not be rendered; navigation stays active.', error);
+    goToStep(1, false);
   }
-  if (!fieldValue('stageNotes')) {
-    const note = field<HTMLTextAreaElement>('stageNotes');
-    if (note && selectionFor('stage')?.note) note.value = selectionFor('stage')?.note ?? '';
-  }
-
-  renderEquipmentTabs();
-  renderEquipmentGrid();
-  renderLiveSummary();
-
-  const initialStep = Math.min(Math.max(Number(state.draft.step) || 1, 1), 4);
-  goToStep(initialStep, false);
 
   form.addEventListener('input', (event) => {
     if (event.target instanceof HTMLElement) clearFieldError(event.target);

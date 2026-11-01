@@ -6,6 +6,7 @@ import {
   findUserByLogin as neonFindUserByLogin,
   authenticate as neonAuthenticate,
   findUserById as neonFindUserById,
+  ensureCustomerForUser as neonEnsureCustomerForUser,
   updateUserPassword as neonUpdateUserPassword,
 } from '../../core/operational/service';
 
@@ -33,22 +34,10 @@ export interface CustomerRow {
   address: string | null;
 }
 
-export function ensureCustomerForUser(userId: number, defaults: Partial<CustomerRow> = {}): CustomerRow {
-  const existing = one<CustomerRow>('SELECT * FROM customers WHERE user_id = ?', [userId]);
-  if (existing) return existing;
-
-  const id = run(
-    'INSERT INTO customers (user_id, name, phone, email, address) VALUES (?, ?, ?, ?, ?)',
-    [
-      userId,
-      defaults.name ?? 'Guest',
-      defaults.phone ?? `pending-${userId}`,
-      defaults.email ?? '',
-      defaults.address ?? '',
-    ],
-  ).lastId;
-
-  return one<CustomerRow>('SELECT * FROM customers WHERE id = ?', [id]) as CustomerRow;
+export async function ensureCustomerForUser(userId: number, defaults: Partial<CustomerRow> = {}): Promise<CustomerRow> {
+  // Customers are operational records and live in Neon, alongside bookings.
+  const customer = await neonEnsureCustomerForUser(userId, defaults);
+  return customer as unknown as CustomerRow;
 }
 
 export interface RegisterInput {

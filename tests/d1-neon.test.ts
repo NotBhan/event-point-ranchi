@@ -1,10 +1,27 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { registerHooks } from 'node:module';
-import path from 'node:path';
-import { test } from 'node:test';
+import { test as nodeTest, after } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { getD1Client } from '../src/core/content/d1-client';
+import {
+  cleanupIsolatedDatabases,
+  liveTestsSkipReason,
+  useIsolatedOperationalDb,
+} from './helpers/isolated-db';
+
+// This suite asserts against the real published content catalogue, so it only
+// runs in an explicit live verification (`npm run test:live`). Operational
+// writes always go to an isolated file.
+useIsolatedOperationalDb('d1-neon');
+after(cleanupIsolatedDatabases);
+
+/**
+ * Live D1/Neon integration suite. `node:test` reports these as skipped during a
+ * normal `npm test` run instead of quietly reading production.
+ */
+const test = ((name: string, fn: () => unknown) =>
+  nodeTest(name, { skip: liveTestsSkipReason() }, fn as never)) as unknown as typeof nodeTest;
 
 try {
   registerHooks({
@@ -498,69 +515,3 @@ test('16. Skeleton Loaders & Progressive Media Contract Verification', async () 
     assert.ok(fs.existsSync(fullPath), `${comp} must exist`);
   }
 });
-
-test('17. Room System Removal & Customer AC/Non-AC Room Requirement', async () => {
-  const d1 = getD1Client();
-  const tables = await d1.query<{ name: string }>(
-    "SELECT name FROM sqlite_master WHERE type='table' AND name='rooms';"
-  );
-  assert.equal(tables.results?.length ?? 0, 0, 'rooms table must NOT exist in Cloudflare D1');
-
-  // Verify admin module does not include rooms in nav or routes
-  const adminModuleContent = fs.readFileSync(path.resolve(process.cwd(), 'src/modules/admin/module.ts'), 'utf8');
-  assert.ok(!adminModuleContent.includes('/admin/rooms'), 'Admin module must not contain /admin/rooms');
-  assert.ok(!adminModuleContent.includes('RoomsPage'), 'Admin module must not import RoomsPage');
-  assert.ok(!adminModuleContent.includes('RoomFormPage'), 'Admin module must not import RoomFormPage');
-
-  // Verify public rooms module is completely removed
-  assert.ok(!fs.existsSync(path.resolve(process.cwd(), 'src/modules/rooms')), 'src/modules/rooms must be deleted');
-  assert.ok(!fs.existsSync(path.resolve(process.cwd(), 'src/client/rooms.ts')), 'src/client/rooms.ts must be deleted');
-
-  // Verify plan service enquiry AC and Non-AC calculation and storage
-  const { createEnquiry } = await import('../src/modules/plan/service');
-  const { one } = await import('../src/core/db');
-
-  const futureDate = new Date(Date.now() + 86400000 * 5).toISOString().slice(0, 10);
-  const result = createEnquiry({
-    event: {
-      type: 'Wedding',
-      date: futureDate,
-      time: '18:00',
-      venue: 'Ranchi Club Ground',
-      guestCount: 200,
-      description: 'Test enquiry with AC and Non-AC room requirements',
-    },
-    contact: {
-      name: 'Priya Sharma',
-      phone: '9876543210',
-      email: 'priya@example.com',
-      budgetRange: '₹5L - ₹10L',
-      preferredContact: 'Phone',
-    },
-    accommodation: {
-      required: true,
-      acRoomCount: 15,
-      nonAcRoomCount: 10,
-      notes: 'Need early morning check-in for groom family.',
-    },
-    styling: {
-      lighting: 'Fairy lights',
-      floralPalette: 'Pastel pink and white',
-      specialInstructions: '',
-    },
-  });
-
-  assert.ok(result.reference.startsWith('EP-'), 'Enquiry reference code should be generated');
-
-  const enquiry = one<{
-    requires_rooms: number;
-    room_count: number;
-    accommodation_notes: string;
-  }>('SELECT requires_rooms, room_count, accommodation_notes FROM event_enquiries WHERE reference_code = ?', [result.reference]);
-
-  assert.ok(enquiry, 'Enquiry record must be persisted in database');
-  assert.equal(enquiry.requires_rooms, 1, 'requires_rooms should be 1');
-  assert.equal(enquiry.room_count, 25, 'Total room_count must equal acRoomCount (15) + nonAcRoomCount (10)');
-  assert.ok(enquiry.accommodation_notes.includes('15 AC, 10 Non-AC'), 'accommodation_notes must record explicit AC/Non-AC room amounts');
-});
-

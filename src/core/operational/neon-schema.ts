@@ -54,7 +54,9 @@ CREATE TABLE IF NOT EXISTS bookings (
   advance_amount      BIGINT NOT NULL DEFAULT 0,
   amount_paid         BIGINT NOT NULL DEFAULT 0,
   outstanding_balance BIGINT NOT NULL DEFAULT 0,
-  payment_status      VARCHAR(30) NOT NULL DEFAULT 'unpaid' CHECK (payment_status IN ('unpaid', 'partially_paid', 'paid', 'refunded'))
+  payment_status      VARCHAR(30) NOT NULL DEFAULT 'unpaid' CHECK (payment_status IN ('unpaid', 'partially_paid', 'paid', 'refunded')),
+  deposit_type        VARCHAR(20) NOT NULL DEFAULT 'percentage',
+  deposit_value       BIGINT NOT NULL DEFAULT 25
 );
 
 CREATE INDEX IF NOT EXISTS idx_bookings_customer ON bookings(customer_id);

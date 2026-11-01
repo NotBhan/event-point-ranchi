@@ -30,12 +30,14 @@ npm run db:reset     # delete the SQLite file; it is reseeded on the next reques
 
 ### Seeded accounts
 
-| Role | Username | Password |
-| --- | --- | --- |
-| Developer (full admin) | `admin` | `Admin@Royal2026!` |
-| Superadmin | `superadmin` | `Super@Royal2026!` |
-| Admin (operations) | `event_manager` | `Manager@Royal2026!` |
-| Customers | `rohit_sharma`, `priya_patel`, `vikram_mehta`, `ananya_singh`, `kavita_reddy`, `arjun_kapoor` | `Client@2026!` |
+
+| Role                   | Username                                                                                      | Password             |
+| ---------------------- | --------------------------------------------------------------------------------------------- | -------------------- |
+| Developer (full admin) | `admin`                                                                                       | `Admin@Royal2026!`   |
+| Superadmin             | `superadmin`                                                                                  | `Super@Royal2026!`   |
+| Admin (operations)     | `event_manager`                                                                               | `Manager@Royal2026!` |
+| Customers              | `rohit_sharma`, `priya_patel`, `vikram_mehta`, `ananya_singh`, `kavita_reddy`, `arjun_kapoor` | `Client@2026!`       |
+
 
 Admin console: `/admin`. Customer account pages: `/profile`, `/my-bookings`.
 
@@ -170,30 +172,80 @@ handle: async (ctx) => {
 
 ## Data layer
 
-- **`node:sqlite`** (built into Node ≥ 22.5) — no native build step, no ORM.
-- Money is stored as **integer paise**; `formatMoney`/`parseMoneyToPaise` handle presentation and parsing,
-  so no float rounding errors.
-- `getDb()` creates `data/event-point.db`, applies `schema.sql`, and seeds demo content only when the
-  `users` table is empty. `npm run db:reset` forces a fresh seed.
-- The enquiry workflow writes `event_enquiries` and `enquiry_line_items` inside one transaction. Prices
-  and catalogue details are resolved from the database on the server; browser payloads only propose
-  selections and quantities.
-- Furniture and room inventory is never exposed as a public catalogue. Accommodation is captured as a
-  yes/no requirement, a requested room count and notes, then handled by the operations team.
-- Uploaded images go to `data/uploads/<folder>/` and are served by the `media` module; the DB stores
-  `/uploads/...` paths. Seed images live in `data/archive/` (kept out of the
-  built `public/` directory so deploys stay small).
+Two stores, with a hard boundary between them:
+
+- **Neon PostgreSQL — the operational database.** Users, sessions, customers,
+  enquiries, bookings, booking line items, payments, refunds, invoices, audit
+  logs, traffic events, the storage ledger and content publications. Anything a
+  customer or an administrator *changes* lives here.
+- **The published catalogue (Cloudflare D1 today, versioned object storage
+  next) — public content.** Mandaps, stages, equipment, catering packages, page
+  copy and SEO metadata. Anything the site *displays* lives here, and it is also
+  the only source of booking prices.
+
+`node:sqlite` remains in two narrow roles and nothing else:
+
+- the local-development copy of the catalogue content (`data/event-point-d1.db`);
+- the explicitly-forced fallback used by tests (`OPERATIONAL_DB_LOCAL_PATH`).
+
+Production operational writes never touch SQLite. If Neon is unreachable the
+request fails with a real error instead of silently storing the record locally.
+
+- Money is stored as **integer paise**; `formatMoney`/`parseMoneyToPaise` handle
+  presentation and parsing, so no float rounding errors.
+- Booking prices are resolved from the published catalogue on the server by
+  `src/modules/bookings/pricing.ts`. The browser only says *what* was selected;
+  it never sends an amount. A catalogue item without a configured price is
+  treated as "price on request" and cannot be booked at ₹0.
+- The enquiry workflow writes `event_enquiries` and `enquiry_line_items` in one
+  Neon transaction. The booking workflow writes `bookings` and `booking_items`
+  in one Neon transaction. A receipt or confirmation is only returned after the
+  commit succeeds.
+- Each booking stores the deposit policy that produced its advance
+  (`deposit_type`, `deposit_value`), so changing a policy never rewrites a
+  booking that was already quoted or paid.
+- The catalogue tables in the local SQLite file (`halls`, `furniture_items`, …)
+  are legacy demo data for the retired `/halls` routes; they are not a pricing
+  source.
+- Uploaded images go to Filebase (or the mock driver); the DB stores the object
+  key and public URL.
+
+## Testing
+
+```bash
+npm test            # unit + integration, isolated databases only
+npm run test:live   # explicitly includes the live D1/Neon integration suite
+npm run check       # astro check
+```
+
+`npm test` runs with `TEST_MODE=1`. In that mode both database clients **refuse
+to open a remote connection**: a suite must call `useIsolatedOperationalDb()` /
+`useIsolatedContentDb()` from `tests/helpers/isolated-db.ts`, which points them
+at a throwaway per-process SQLite file. Nothing a test writes can reach
+production, and a suite that forgets to isolate fails loudly instead of quietly
+reading the live database.
+
+Live end-to-end verification is separate and opt-in:
+
+```bash
+npm run build && npm start &
+npm run verify:e2e       # enquiry → Neon → receipt → QR → admin
+npm run verify:booking   # catalogue price → booking → Neon → quotation
+```
+
+Both create real records, assert against the database directly, and delete only
+the rows they created.
 
 ## Security model (what the port enforces)
 
 - Passwords: `scrypt` hashes (`scrypt$salt$hash`), verified with `timingSafeEqual`.
 - Sessions: HMAC-signed, `httpOnly`, `SameSite=Lax` cookies. The payload fingerprints the password hash,
-  so **changing a password invalidates every existing session** for that user.
+so **changing a password invalidates every existing session** for that user.
 - CSRF: double-submit token cookie (`rp_csrf`) checked on every non-GET request — form field `_csrf` or
-  `x-csrf-token` header. Enforced centrally in `src/middleware.ts`, so a new module cannot forget it.
+`x-csrf-token` header. Enforced centrally in `src/middleware.ts`, so a new module cannot forget it.
 - Guards: `requireCustomer()` / `requireAdmin()` / `requireDeveloper()` from `core/auth.ts`.
 - Uploads: MIME/extension allow-list, 8 MB cap, random filenames, SVG script rejection, traversal-proof
-  path handling in the media module.
+path handling in the media module.
 - The admin console is `noindex` and never renders the public cart.
 
 ## Corrections carried over from the Django build
@@ -201,41 +253,43 @@ handle: async (ctx) => {
 Bugs in the original that were fixed while porting:
 
 1. **Quotation relations** — the invoice template read `booking.hall` / `booking.stage` although the
-   models expose `hall_booking` / `stage`; line items silently rendered empty. The invoice now joins each
-   line item explicitly.
+ models expose `hall_booking` / `stage`; line items silently rendered empty. The invoice now joins each
+ line item explicitly.
 2. **Guest pricing tiers were dead data** — `GuestPricing.price_per_plate` was stored but never used;
-   bookings always charged the package base price. Tiers (and the custom plate count) now price the booking.
+ bookings always charged the package base price. Tiers (and the custom plate count) now price the booking.
 3. **Server-side authority** — prices, quantities, tier rates and totals are recomputed from the database
-   on submit; the browser cart is only a proposal.
+ on submit; the browser cart is only a proposal.
 4. **Double bookings** — the same hall could be booked twice for one date. Hall/date conflicts are rejected
-   with a clear message before anything is written.
+ with a clear message before anything is written.
 5. **Room inventory** — quantities above `total_rooms` were accepted. Now validated.
 6. **Contact form never persisted anything** — inquiries are now stored and appear in the admin console.
 7. **Invoice IDOR** — any visitor could open `/booking/<id>/quotation/`. Access is now limited to the owner,
-   an admin, or a per-booking access token issued at checkout.
+ an admin, or a per-booking access token issued at checkout.
 8. **Client-side XSS surface** — the cart/summary rendered localStorage values into `innerHTML` unescaped;
-   everything interpolated in the port is escaped.
+ everything interpolated in the port is escaped.
 9. **Session invalidation** — password changes now revoke existing sessions (password-hash fingerprint).
 10. **Money as floats** — Django `Decimal` values are stored as integer paise here, with one formatter used
-    by server-rendered pages and client scripts alike.
+ by server-rendered pages and client scripts alike.
 11. **Alias route sprawl** (`/caterings/`, `.../alias/`, `furniture/<id>/edit` vs `furniture/edit/<id>`, …)
-    is replaced by canonical paths; a couple of legacy URLs (`/room`, `/cms`) still resolve.
+ is replaced by canonical paths; a couple of legacy URLs (`/room`, `/cms`) still resolve.
 
 ## Route map
 
-| Public | Admin |
-| --- | --- |
-| `/` homepage | `/admin` dashboard |
-| `/mandaps`, `/mandaps/:slug` | `/admin/enquiries`, `/admin/enquiries/:id` |
-| `/stages`, `/stages/:slug` | `/admin/bookings`, `/admin/bookings/:id` |
-| `/equipment` | `/admin/halls`, `/admin/halls/new`, `/admin/halls/:id` |
-| `/plan` requirements wizard | `/admin/rooms`, `/admin/rooms/:id` |
-| `/gallery` | `/admin/catering`, `/admin/catering/:id` (menu builder) |
-| `/contact`, `/policies` | `/admin/gallery` (upload/manage) |
-| `/login`, `/register`, `/logout` | `/admin/customers`, `/admin/customers/:id` |
-| `/profile`, `/my-bookings` | `/admin/inquiries` |
-| `/booking/:id/quotation` invoice | `/admin/content` (heroes, feature tiles, contact) |
-| `/halls`, `/rooms`, `/cart`, `/booking/overview` redirect | `/admin/login`, `/admin/logout` |
+
+| Public                                                    | Admin                                                   |
+| --------------------------------------------------------- | ------------------------------------------------------- |
+| `/` homepage                                              | `/admin` dashboard                                      |
+| `/mandaps`, `/mandaps/:slug`                              | `/admin/enquiries`, `/admin/enquiries/:id`              |
+| `/stages`, `/stages/:slug`                                | `/admin/bookings`, `/admin/bookings/:id`                |
+| `/equipment`                                              | `/admin/halls`, `/admin/halls/new`, `/admin/halls/:id`  |
+| `/plan` requirements wizard                               | `/admin/rooms`, `/admin/rooms/:id`                      |
+| `/gallery`                                                | `/admin/catering`, `/admin/catering/:id` (menu builder) |
+| `/contact`, `/policies`                                   | `/admin/gallery` (upload/manage)                        |
+| `/login`, `/register`, `/logout`                          | `/admin/customers`, `/admin/customers/:id`              |
+| `/profile`, `/my-bookings`                                | `/admin/inquiries`                                      |
+| `/booking/:id/quotation` invoice                          | `/admin/content` (heroes, feature tiles, contact)       |
+| `/halls`, `/rooms`, `/cart`, `/booking/overview` redirect | `/admin/login`, `/admin/logout`                         |
+
 
 JSON APIs: `POST /api/enquiries` (validated quotation enquiry) and `POST /api/bookings` (legacy
 booking creation).
@@ -244,14 +298,16 @@ booking creation).
 
 Copy `.env.example` to `.env`:
 
-| Variable | Purpose |
-| --- | --- |
-| `APP_SECRET` | HMAC key for session cookies — set this in production |
-| `DATA_DIR` | SQLite + uploads directory (default `./data`) |
-| `DISABLED_MODULES` | Comma-separated module ids to switch off, e.g. `gallery,about` |
-| `COOKIE_SECURE` | `true` to mark session cookies `Secure` (HTTPS deployments) |
 
-## Content snapshots & publishing
+| Variable           | Purpose                                                        |
+| ------------------ | -------------------------------------------------------------- |
+| `APP_SECRET`       | HMAC key for session cookies — set this in production          |
+| `DATA_DIR`         | SQLite + uploads directory (default `./data`)                  |
+| `DISABLED_MODULES` | Comma-separated module ids to switch off, e.g. `gallery,about` |
+| `COOKIE_SECURE`    | `true` to mark session cookies `Secure` (HTTPS deployments)    |
+
+
+## Content snapshots &amp; publishing
 
 Public pages never query Cloudflare D1 at request time. Instead, the production build
 fetches every published public row in **one batched D1 request**, validates it, and writes
@@ -265,20 +321,22 @@ npm run build:vercel
 ```
 
 - `src/core/content/snapshot-builder.ts` builds and validates the snapshot (published/visible
-  rows only, explicit field allowlists — no customer, booking or payment data can leak).
+rows only, explicit field allowlists — no customer, booking or payment data can leak).
 - `src/core/content/snapshot.ts` serves it to the content service; `preview: true` reads
-  (admin CMS, editor preview) always go live to D1.
+(admin CMS, editor preview) always go live to D1.
 - Failing D1 or validation fails the build **before** anything is written, so the previously
-  deployed site keeps serving.
+deployed site keeps serving.
 
 ### Local development
 
-| Command | Content source | Use it for |
-| --- | --- | --- |
-| `npm run dev` | live D1 (fallback: local DB) | day-to-day CMS editing — saves appear immediately |
-| `npm run sync:content` | writes `content-snapshot/` from D1 | refreshing the local snapshot |
-| `npm run dev:snapshot` | the generated snapshot | testing public pages without hitting D1 per request |
-| `CONTENT_SOURCE=d1 npm run dev` | live D1 | forcing the live path if `CONTENT_SOURCE` was left set |
+
+| Command                         | Content source                     | Use it for                                             |
+| ------------------------------- | ---------------------------------- | ------------------------------------------------------ |
+| `npm run dev`                   | live D1 (fallback: local DB)       | day-to-day CMS editing — saves appear immediately      |
+| `npm run sync:content`          | writes `content-snapshot/` from D1 | refreshing the local snapshot                          |
+| `npm run dev:snapshot`          | the generated snapshot             | testing public pages without hitting D1 per request    |
+| `CONTENT_SOURCE=d1 npm run dev` | live D1                            | forcing the live path if `CONTENT_SOURCE` was left set |
+
 
 `dev:snapshot` never touches D1 for public pages (admin preview tabs still read live D1). It is
 not silent about staleness: the server logs the snapshot version/age at startup, the public pages
@@ -298,12 +356,12 @@ Content Studio → **Publish Changes** (administrators only):
 
 1. Live D1 content is validated with the exact rules the build uses.
 2. A `content_publications` row is inserted in Neon (a single conditional INSERT prevents
-   two concurrent publications).
+ two concurrent publications).
 3. The server POSTs the Deploy Hook; Vercel runs `npm run build:vercel`.
 4. After a successful build the post-build step reports the built content version back.
 5. The CMS polls `/api/admin/publish/status` and only shows **Published** once Vercel reports
-   the deployment as `READY` (requires `VERCEL_API_TOKEN` + `VERCEL_PROJECT_ID`). Without
-   those credentials a finished build is shown as “Build complete”, never as published.
+ the deployment as `READY` (requires `VERCEL_API_TOKEN` + `VERCEL_PROJECT_ID`). Without
+ those credentials a finished build is shown as “Build complete”, never as published.
 
 A failed build never replaces the live deployment — Vercel keeps the previous one serving.
 To roll back, promote a previous deployment in the Vercel dashboard; the live content version
@@ -314,3 +372,5 @@ Server-only variables (never `PUBLIC_`-prefixed): `VERCEL_DEPLOY_HOOK_URL`, `VER
 `PUBLISH_REPORT_SECRET`. See `.env.example`. Create the Neon table with
 `npm run db:migrate:publications` (it is also created automatically on first publish).
 
+  
+command-code --resume 6f37bfe8-72ae-4064-96aa-9f0609271b71

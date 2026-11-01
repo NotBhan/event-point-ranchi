@@ -2,8 +2,14 @@ import assert from 'node:assert/strict';
 import { createHash, randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import { registerHooks } from 'node:module';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { cleanupIsolatedDatabases, useIsolatedOperationalDb } from './helpers/isolated-db';
+
+// The QR service reads and writes operational rows; keep them out of the live
+// database.
+useIsolatedOperationalDb('qr-scanner');
+after(cleanupIsolatedDatabases);
 
 try {
   registerHooks({

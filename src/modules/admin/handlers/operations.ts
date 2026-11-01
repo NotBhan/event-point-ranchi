@@ -78,7 +78,7 @@ export async function dashboard(ctx: PageContext) {
   return { props: { ...(await loadDashboard()), storage: loadStorageDashboard() } };
 }
 
-export function bookingsList(ctx: PageContext) {
+export async function bookingsList(ctx: PageContext) {
   const denied = requireAdmin(ctx);
   if (denied) return denied;
 
@@ -88,14 +88,14 @@ export function bookingsList(ctx: PageContext) {
 
   return {
     props: {
-      ...listBookings({ status, query }, { page, perPage }),
+      ...(await listBookings({ status, query }, { page, perPage })),
       status,
       query,
     },
   };
 }
 
-export function bookingDetail(ctx: PageContext) {
+export async function bookingDetail(ctx: PageContext) {
   const denied = requireAdmin(ctx);
   if (denied) return denied;
 
@@ -123,25 +123,25 @@ export function bookingDetail(ctx: PageContext) {
     );
   }
 
-  const data = loadBookingForViewer(id, ctx.auth, null);
+  const data = await loadBookingForViewer(id, ctx.auth, null);
   if (data === 'not-found' || data === 'forbidden') return { props: { notFound: true }, status: 404 };
   return { props: { data } };
 }
 
-export function customersList(ctx: PageContext) {
+export async function customersList(ctx: PageContext) {
   const denied = requireAdmin(ctx);
   if (denied) return denied;
 
   const query = ctx.url.searchParams.get('q') ?? '';
   const { page, perPage } = parsePageParams(ctx.url, { defaultPerPage: 25 });
-  return { props: { ...listCustomers(query, { page, perPage }), query } };
+  return { props: { ...(await listCustomers(query, { page, perPage })), query } };
 }
 
-export function customerDetail(ctx: PageContext) {
+export async function customerDetail(ctx: PageContext) {
   const denied = requireAdmin(ctx);
   if (denied) return denied;
 
-  const data = loadCustomerAdmin(Number(ctx.params.id));
+  const data = await loadCustomerAdmin(Number(ctx.params.id));
   if (!data) return { props: { notFound: true }, status: 404 };
   return { props: { data } };
 }
@@ -167,7 +167,7 @@ export function inquiriesList(ctx: PageContext) {
   return { props: { ...listInquiries(status, { page, perPage }), status } };
 }
 
-export function eventEnquiriesList(ctx: PageContext) {
+export async function eventEnquiriesList(ctx: PageContext) {
   const denied = requireAdmin(ctx);
   if (denied) return denied;
 
@@ -177,14 +177,14 @@ export function eventEnquiriesList(ctx: PageContext) {
 
   return {
     props: {
-      ...listEventEnquiries({ status, query }, { page, perPage }),
+      ...(await listEventEnquiries({ status, query }, { page, perPage })),
       status,
       query,
     },
   };
 }
 
-export function eventEnquiryDetail(ctx: PageContext) {
+export async function eventEnquiryDetail(ctx: PageContext) {
   const denied = requireAdmin(ctx);
   if (denied) return denied;
 
@@ -201,7 +201,7 @@ export function eventEnquiryDetail(ctx: PageContext) {
     );
   }
 
-  const data = loadEventEnquiry(id);
+  const data = await loadEventEnquiry(id);
   if (!data) return { props: { notFound: true }, status: 404 };
 
   return { props: { data } };

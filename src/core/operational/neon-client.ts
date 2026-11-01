@@ -3,6 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { recordDb } from '../perf';
+import { assertRemoteDatabaseAllowed } from '../db-guard';
 
 export interface OperationalQueryResult<T = Record<string, unknown>> {
   rows: T[];
@@ -30,7 +31,14 @@ export class NeonOperationalClient {
         : (process.env.DATABASE_URL ||
           (typeof import.meta !== 'undefined' && import.meta.env?.DATABASE_URL));
 
-    if (this.databaseUrl) {
+    // Test isolation: OPERATIONAL_DB_LOCAL_PATH forces the local SQLite file so
+    // a test run never writes operational rows into the live database.
+    const forcedLocalPath = config?.localDbPath ?? process.env.OPERATIONAL_DB_LOCAL_PATH;
+
+    // Safety net: a test run must never reach the live database by accident.
+    assertRemoteDatabaseAllowed('Neon PostgreSQL', Boolean(forcedLocalPath));
+
+    if (this.databaseUrl && !forcedLocalPath) {
       this.isRemote = true;
     } else {
       const isProduction = Boolean(
@@ -38,13 +46,13 @@ export class NeonOperationalClient {
         process.env.VERCEL_ENV ||
         (process.env.NODE_ENV === 'production' && !process.env.TEST && !process.env.VITEST)
       );
-      if (isProduction && !config?.localDbPath) {
+      if (isProduction && !forcedLocalPath) {
         throw new Error(
           '[Neon PostgreSQL] Missing required DATABASE_URL in production environment. Silent fallback to local SQLite is disabled in production.'
         );
       }
       this.isRemote = false;
-      this.initLocalDb(config?.localDbPath);
+      this.initLocalDb(forcedLocalPath);
     }
   }
 
@@ -64,6 +72,9 @@ export class NeonOperationalClient {
     mkdirSync(dbDir, { recursive: true });
     const filePath = customPath || join(dbDir, 'event-point-neon-fallback.db');
     this.localDb = new DatabaseSync(filePath);
+    // SQLite has no NOW(); the Postgres statements above use it for audit
+    // timestamps, so the fallback provides the same function.
+    this.localDb.function('NOW', () => new Date().toISOString());
     this.initSqliteFallbackSchema();
   }
 
@@ -108,7 +119,9 @@ export class NeonOperationalClient {
         advance_amount      INTEGER NOT NULL DEFAULT 0,
         amount_paid         INTEGER NOT NULL DEFAULT 0,
         outstanding_balance INTEGER NOT NULL DEFAULT 0,
-        payment_status      TEXT NOT NULL DEFAULT 'unpaid'
+        payment_status      TEXT NOT NULL DEFAULT 'unpaid',
+        deposit_type        TEXT NOT NULL DEFAULT 'percentage',
+        deposit_value       INTEGER NOT NULL DEFAULT 25
       );
 
       CREATE TABLE IF NOT EXISTS booking_items (
@@ -309,6 +322,48 @@ export class NeonOperationalClient {
         customer_address     TEXT,
         created_at           TEXT NOT NULL DEFAULT (datetime('now'))
       );
+
+      CREATE TABLE IF NOT EXISTS payment_receipts (
+        id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+        payment_id              INTEGER NOT NULL REFERENCES payments(id) ON DELETE CASCADE,
+        booking_id              INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+        receipt_number          TEXT NOT NULL UNIQUE,
+        verification_token      TEXT NOT NULL UNIQUE,
+        verification_token_hash TEXT NOT NULL UNIQUE,
+        amount_paise            INTEGER NOT NULL,
+        status                  TEXT NOT NULL DEFAULT 'issued',
+        pdf_storage_key         TEXT,
+        issued_at               TEXT NOT NULL DEFAULT (datetime('now')),
+        created_at              TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE TABLE IF NOT EXISTS enquiry_qr_tokens (
+        id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+        enquiry_id         INTEGER REFERENCES event_enquiries(id) ON DELETE CASCADE,
+        contact_inquiry_id INTEGER REFERENCES contact_inquiries(id) ON DELETE CASCADE,
+        reference_code     TEXT NOT NULL,
+        token              TEXT NOT NULL UNIQUE,
+        token_hash         TEXT NOT NULL UNIQUE,
+        created_at         TEXT NOT NULL DEFAULT (datetime('now')),
+        revoked_at         TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS content_publications (
+        id                 TEXT PRIMARY KEY,
+        requested_by       INTEGER,
+        requested_by_name  TEXT NOT NULL DEFAULT '',
+        status             TEXT NOT NULL DEFAULT 'requested',
+        requested_version  TEXT NOT NULL DEFAULT '',
+        built_version      TEXT NOT NULL DEFAULT '',
+        published_version  TEXT NOT NULL DEFAULT '',
+        deploy_hook_status INTEGER,
+        deployment_id      TEXT NOT NULL DEFAULT '',
+        deployment_url     TEXT NOT NULL DEFAULT '',
+        error              TEXT NOT NULL DEFAULT '',
+        requested_at       TEXT NOT NULL,
+        built_at           TEXT,
+        completed_at       TEXT
+      );
     `);
   }
 
@@ -349,21 +404,36 @@ export class NeonOperationalClient {
     if (!this.localDb) {
       this.initLocalDb();
     }
-    // Convert $1, $2, ... to ? for SQLite compatibility if needed
-    const sqliteSql = sql.replace(/\$(\d+)/g, '?');
-    const cleanParams = params.map((p) => (p === undefined ? null : p));
+
+    // node:sqlite rejects JS booleans; Postgres accepts them for BOOLEAN columns.
+    const cleanParams = params.map((p) =>
+      p === undefined ? null : typeof p === 'boolean' ? (p ? 1 : 0) : p,
+    );
+
+    // SQLite uses positional `?`, so a placeholder that Postgres allows to be
+    // repeated (`$8` twice) has to be expanded into one bind per occurrence —
+    // otherwise every later parameter shifts and the last column reads NULL.
+    const expanded: unknown[] = [];
+    const sqliteSql = sql.replace(/\$(\d+)/g, (_match, index: string) => {
+      expanded.push(cleanParams[Number(index) - 1] ?? null);
+      return '?';
+    });
 
     const trimmed = sqliteSql.trim().toUpperCase();
     const stmt = this.localDb!.prepare(sqliteSql);
 
-    if (trimmed.startsWith('SELECT') || trimmed.startsWith('WITH') || trimmed.startsWith('PRAGMA')) {
-      const rows = stmt.all(...(cleanParams as never[])) as T[];
+    // Postgres `INSERT/UPDATE ... RETURNING` returns rows; `run()` would discard
+    // them and silently break callers that read the inserted row back.
+    const returnsRows = /\bRETURNING\b/.test(trimmed);
+
+    if (trimmed.startsWith('SELECT') || trimmed.startsWith('WITH') || trimmed.startsWith('PRAGMA') || returnsRows) {
+      const rows = stmt.all(...(expanded as never[])) as T[];
       return {
         rows,
         rowCount: rows.length,
       };
     } else {
-      const result = stmt.run(...(cleanParams as never[]));
+      const result = stmt.run(...(expanded as never[]));
       return {
         rows: [],
         rowCount: Number(result.changes),

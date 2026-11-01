@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { getNeonClient } from './neon-client';
+import { getNeonClient, type NeonOperationalClient } from './neon-client';
 import { verifyPassword, hashPassword } from '../password';
 import type { Role } from '../types';
 
@@ -76,6 +76,9 @@ export interface BookingRow {
   amount_paid: number;
   outstanding_balance: number;
   payment_status: 'unpaid' | 'partially_paid' | 'paid' | 'refunded';
+  /** Snapshot of the deposit policy that produced `advance_amount`. */
+  deposit_type?: DepositType;
+  deposit_value?: number;
 }
 
 export type BookingFinancialsRow = BookingRow;
@@ -351,6 +354,256 @@ export async function updateEventEnquiryStatus(id: number, status: string): Prom
   return res.rowCount > 0;
 }
 
+export interface NewEventEnquiryInput {
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string | null;
+  eventType: string;
+  eventDate: string;
+  endDate: string | null;
+  eventTime: string | null;
+  venueLocation: string;
+  guestCount: number;
+  budgetRange: string;
+  requiresRooms: boolean;
+  roomCount: number;
+  accommodationNotes: string;
+  decorationNotes: string;
+  preferredContact: string;
+}
+
+export interface NewEnquiryLineItemInput {
+  itemType: string;
+  catalogueItemId: number | null;
+  name: string;
+  quantity: number;
+  dimensions: string;
+  requestedLength: number | null;
+  requestedWidth: number | null;
+  requestedHeight: number | null;
+  specifications: string;
+  notes: string;
+}
+
+export interface EnquiryLineItemRecord {
+  id: number;
+  enquiry_id: number;
+  item_type: string;
+  catalogue_item_id: number | null;
+  item_name_snapshot: string;
+  quantity: number;
+  standard_dimensions_snapshot: string;
+  requested_length_ft: number | null;
+  requested_width_ft: number | null;
+  requested_height_ft: number | null;
+  specifications: string;
+  notes: string;
+}
+
+/** Postgres raises 23505 on a unique violation; the SQLite fallback has its own message. */
+export function isUniqueConstraintError(error: unknown): boolean {
+  const candidate = error as { code?: string; message?: string };
+  if (candidate?.code === '23505') return true;
+  return typeof candidate?.message === 'string' && /UNIQUE constraint failed|duplicate key value/i.test(candidate.message);
+}
+
+function optionalNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/**
+ * Persists an enquiry and its line items in one transaction.
+ *
+ * The reference code is generated per attempt so a collision (two submissions
+ * racing on the same random code) is retried instead of surfacing as a failed
+ * submission. `event_enquiries.reference_code` is UNIQUE, so the database — not
+ * a prior SELECT — is what guarantees uniqueness.
+ */
+export async function insertEventEnquiry(
+  enquiry: NewEventEnquiryInput,
+  lines: NewEnquiryLineItemInput[],
+  referenceFactory: (attempt: number) => string,
+  maxAttempts = 12,
+): Promise<{ id: number; referenceCode: string }> {
+  const neon = getNeonClient();
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const referenceCode = referenceFactory(attempt);
+    try {
+      return await neon.tx(async (client) => {
+        const inserted = await client.query<{ id: number }>(
+          `INSERT INTO event_enquiries
+             (reference_code, customer_name, customer_phone, customer_email, event_type, event_date,
+              end_date, event_time, venue_location, guest_count, budget_range, requires_rooms,
+              room_count, accommodation_notes, decoration_notes, preferred_contact, status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'new')
+           RETURNING id`,
+          [
+            referenceCode,
+            enquiry.customerName,
+            enquiry.customerPhone,
+            enquiry.customerEmail,
+            enquiry.eventType,
+            enquiry.eventDate,
+            enquiry.endDate,
+            enquiry.eventTime,
+            enquiry.venueLocation,
+            enquiry.guestCount,
+            enquiry.budgetRange,
+            enquiry.requiresRooms,
+            enquiry.roomCount,
+            enquiry.accommodationNotes,
+            enquiry.decorationNotes,
+            enquiry.preferredContact,
+          ],
+        );
+
+        let id = Number(inserted.rows[0]?.id ?? 0);
+        if (!id) {
+          // The SQLite fallback runs INSERT ... RETURNING through `run()`, which
+          // discards returned rows, so read the row back by its unique reference.
+          const lookup = await client.query<{ id: number }>(
+            'SELECT id FROM event_enquiries WHERE reference_code = $1 LIMIT 1',
+            [referenceCode],
+          );
+          id = Number(lookup.rows[0]?.id ?? 0);
+        }
+        if (!id) throw new Error('The enquiry was written but its id could not be read back.');
+
+        for (const line of lines) {
+          await client.query(
+            `INSERT INTO enquiry_line_items
+               (enquiry_id, item_type, catalogue_item_id, item_name_snapshot, quantity,
+                standard_dimensions_snapshot, requested_length_ft, requested_width_ft, requested_height_ft,
+                specifications, notes)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+            [
+              id,
+              line.itemType,
+              line.catalogueItemId,
+              line.name,
+              line.quantity,
+              line.dimensions,
+              line.requestedLength,
+              line.requestedWidth,
+              line.requestedHeight,
+              line.specifications,
+              line.notes,
+            ],
+          );
+        }
+
+        return { id, referenceCode };
+      });
+    } catch (error) {
+      lastError = error;
+      if (!isUniqueConstraintError(error)) throw error;
+    }
+  }
+
+  throw new Error(
+    `Could not persist the enquiry with a unique reference after ${maxAttempts} attempts: ${
+      lastError instanceof Error ? lastError.message : 'unknown error'
+    }`,
+  );
+}
+
+export async function listEventEnquiriesPage(
+  filters: { status?: string; query?: string } = {},
+  paging: { limit?: number; offset?: number } = {},
+): Promise<{ items: EventEnquiryRow[]; totalCount: number }> {
+  const neon = getNeonClient();
+  const { where, params } = buildEnquiryFilter(filters);
+  const limit = Math.max(1, Math.min(100, paging.limit ?? 25));
+  const offset = Math.max(0, paging.offset ?? 0);
+
+  const totalRes = await neon.query<{ count: number | string }>(
+    `SELECT COUNT(*) AS count FROM event_enquiries ${where}`,
+    params,
+  );
+  const totalCount = Number(totalRes.rows[0]?.count ?? 0);
+
+  const rows = await neon.query<EventEnquiryRow>(
+    `SELECT * FROM event_enquiries ${where} ORDER BY id DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+    [...params, limit, offset],
+  );
+
+  return { items: rows.rows.map(normaliseEnquiryRow), totalCount };
+}
+
+export async function countEventEnquiries(
+  filters: { status?: string; query?: string } = {},
+): Promise<number> {
+  const neon = getNeonClient();
+  const { where, params } = buildEnquiryFilter(filters);
+  const res = await neon.query<{ count: number | string }>(
+    `SELECT COUNT(*) AS count FROM event_enquiries ${where}`,
+    params,
+  );
+  return Number(res.rows[0]?.count ?? 0);
+}
+
+function buildEnquiryFilter(filters: { status?: string; query?: string }): { where: string; params: unknown[] } {
+  const clauses: string[] = [];
+  const params: unknown[] = [];
+
+  if (filters.status && filters.status !== 'all') {
+    params.push(filters.status);
+    clauses.push(`status = $${params.length}`);
+  }
+
+  if (filters.query) {
+    const like = `%${filters.query.toLowerCase()}%`;
+    const columns = ['reference_code', 'customer_name', 'customer_phone', 'event_type', 'venue_location'];
+    const placeholders = columns.map((column) => {
+      params.push(like);
+      return `LOWER(${column}) LIKE $${params.length}`;
+    });
+    clauses.push(`(${placeholders.join(' OR ')})`);
+  }
+
+  return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', params };
+}
+
+export async function getEventEnquiryWithItems(
+  id: number,
+): Promise<{ enquiry: EventEnquiryRow; lines: EnquiryLineItemRecord[] } | null> {
+  const neon = getNeonClient();
+  const enquiryRes = await neon.query<EventEnquiryRow>('SELECT * FROM event_enquiries WHERE id = $1 LIMIT 1', [id]);
+  const enquiry = enquiryRes.rows[0];
+  if (!enquiry) return null;
+
+  const itemsRes = await neon.query<EnquiryLineItemRecord>(
+    'SELECT * FROM enquiry_line_items WHERE enquiry_id = $1 ORDER BY id ASC',
+    [id],
+  );
+
+  return {
+    enquiry: normaliseEnquiryRow(enquiry),
+    lines: itemsRes.rows.map((line) => ({
+      ...line,
+      requested_length_ft: optionalNumber(line.requested_length_ft),
+      requested_width_ft: optionalNumber(line.requested_width_ft),
+      requested_height_ft: optionalNumber(line.requested_height_ft),
+      quantity: Number(line.quantity ?? 0),
+      catalogue_item_id: line.catalogue_item_id === null ? null : Number(line.catalogue_item_id),
+    })),
+  };
+}
+
+/** `requires_rooms` is BOOLEAN in Postgres and INTEGER in the SQLite fallback. */
+function normaliseEnquiryRow(row: EventEnquiryRow): EventEnquiryRow {
+  return {
+    ...row,
+    requires_rooms: Boolean(row.requires_rooms),
+    room_count: Number(row.room_count ?? 0),
+    guest_count: Number(row.guest_count ?? 0),
+  };
+}
+
 /* ============================ Contact Inquiries (Neon) ============================ */
 
 export async function getContactInquiries(): Promise<ContactInquiryRow[]> {
@@ -483,8 +736,11 @@ export async function createBooking(data: {
   amount_paid?: number;
   outstanding_balance?: number;
   payment_status?: 'unpaid' | 'partially_paid' | 'paid' | 'refunded';
+  deposit_type?: DepositType;
+  deposit_value?: number;
 }): Promise<BookingRow> {
   const neon = getNeonClient();
+  await ensureBookingDepositColumns();
   const token = randomBytes(24).toString('hex');
   const totalAmount = data.total_amount;
   const advanceAmount = data.advance_amount ?? Math.round((totalAmount * 25) / 100);
@@ -496,8 +752,8 @@ export async function createBooking(data: {
     `INSERT INTO bookings (
        customer_id, access_token, event_type, event_date, event_time,
        total_guest, special_request, status, total_amount, advance_amount,
-       amount_paid, outstanding_balance, payment_status
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       amount_paid, outstanding_balance, payment_status, deposit_type, deposit_value
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
      RETURNING *`,
     [
       data.customer_id,
@@ -513,6 +769,8 @@ export async function createBooking(data: {
       amountPaid,
       outstandingBalance,
       paymentStatus,
+      data.deposit_type ?? 'percentage',
+      data.deposit_value ?? (totalAmount > 0 ? Math.round((advanceAmount / totalAmount) * 100) : 25),
     ]
   );
   return res.rows[0];
@@ -544,6 +802,473 @@ export async function updateBookingFinancials(
   return res.rowCount > 0;
 }
 
+/* ============================ Booking items & customers (Neon) ============================ */
+
+export interface BookingItemRow {
+  id: number;
+  booking_id: number;
+  category: string;
+  item_id: string;
+  item_name: string;
+  quantity: number;
+  unit_price: number;
+  subtotal: number;
+  metadata_json: string;
+}
+
+export interface BookingItemInput {
+  category: string;
+  itemId: string;
+  name: string;
+  quantity: number;
+  unitPricePaise: number;
+  subtotalPaise: number;
+  metadata?: Record<string, unknown>;
+}
+
+export async function getBookingItems(bookingId: number): Promise<BookingItemRow[]> {
+  const neon = getNeonClient();
+  const res = await neon.query<BookingItemRow>(
+    'SELECT * FROM booking_items WHERE booking_id = $1 ORDER BY id ASC',
+    [bookingId],
+  );
+  return res.rows.map((row) => ({
+    ...row,
+    quantity: Number(row.quantity ?? 0),
+    unit_price: Number(row.unit_price ?? 0),
+    subtotal: Number(row.subtotal ?? 0),
+  }));
+}
+
+/**
+ * Resolves (or creates) the customer row that owns a booking.
+ *
+ * Registered users are matched on `user_id` (unique), guests on phone. The
+ * lookup and the write happen through the same client so a caller inside a
+ * transaction keeps its connection.
+ */
+export async function findOrCreateCustomer(params: {
+  userId?: number | null;
+  name: string;
+  phone: string;
+  email: string;
+  address: string;
+  client?: Pick<NeonOperationalClient, 'query'>;
+}): Promise<number> {
+  const neon = params.client ?? getNeonClient();
+
+  if (params.userId) {
+    const res = await neon.query<{ id: number }>(
+      `INSERT INTO customers (user_id, name, phone, email, address)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (user_id) DO UPDATE SET
+         name = EXCLUDED.name,
+         phone = EXCLUDED.phone,
+         email = EXCLUDED.email,
+         address = EXCLUDED.address
+       RETURNING id`,
+      [params.userId, params.name, params.phone, params.email, params.address],
+    );
+    const id = Number(res.rows[0]?.id ?? 0);
+    if (!id) throw new Error('The customer record could not be saved.');
+    return id;
+  }
+
+  const existing = await neon.query<{ id: number }>(
+    'SELECT id FROM customers WHERE phone = $1 ORDER BY id ASC LIMIT 1',
+    [params.phone],
+  );
+  if (existing.rows[0]) {
+    const id = Number(existing.rows[0].id);
+    await neon.query('UPDATE customers SET name = $1, email = $2, address = $3 WHERE id = $4', [
+      params.name,
+      params.email,
+      params.address,
+      id,
+    ]);
+    return id;
+  }
+
+  const inserted = await neon.query<{ id: number }>(
+    `INSERT INTO customers (name, phone, email, address) VALUES ($1, $2, $3, $4) RETURNING id`,
+    [params.name, params.phone, params.email, params.address],
+  );
+  const id = Number(inserted.rows[0]?.id ?? 0);
+  if (!id) throw new Error('The customer record could not be saved.');
+  return id;
+}
+
+export interface BookingListFilters {
+  status?: string;
+  query?: string;
+}
+
+function buildBookingFilter(filters: BookingListFilters): { where: string; params: unknown[] } {
+  const clauses: string[] = [];
+  const params: unknown[] = [];
+
+  if (filters.status && filters.status !== 'all') {
+    params.push(filters.status);
+    clauses.push(`b.status = $${params.length}`);
+  }
+
+  if (filters.query) {
+    const like = `%${filters.query.toLowerCase()}%`;
+    for (const expression of ['c.name', 'c.phone', 'CAST(b.id AS TEXT)', 'b.event_type']) {
+      params.push(like);
+      clauses.push(`LOWER(${expression}) LIKE $${params.length}`);
+    }
+    // The four predicates above belong to one OR group.
+    const orGroup = clauses.splice(clauses.length - 4, 4);
+    clauses.push(`(${orGroup.join(' OR ')})`);
+  }
+
+  return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', params };
+}
+
+export async function countBookings(filters: BookingListFilters = {}): Promise<number> {
+  const neon = getNeonClient();
+  const { where, params } = buildBookingFilter(filters);
+  const res = await neon.query<{ count: number | string }>(
+    `SELECT COUNT(*) AS count FROM bookings b JOIN customers c ON c.id = b.customer_id ${where}`,
+    params,
+  );
+  return Number(res.rows[0]?.count ?? 0);
+}
+
+export interface BookingListRow {
+  id: number;
+  customer: string;
+  phone: string;
+  event_date: string | null;
+  event_type: string;
+  total_guest: number;
+  total_amount: number;
+  status: string;
+  created_at: string;
+}
+
+export async function listBookingsPage(
+  filters: BookingListFilters = {},
+  paging: { limit?: number; offset?: number } = {},
+): Promise<BookingListRow[]> {
+  const neon = getNeonClient();
+  const { where, params } = buildBookingFilter(filters);
+  const limit = Math.max(1, Math.min(100, paging.limit ?? 25));
+  const offset = Math.max(0, paging.offset ?? 0);
+
+  const res = await neon.query<BookingListRow>(
+    `SELECT b.id, c.name AS customer, c.phone AS phone, b.event_date, b.event_type,
+            b.total_guest, b.total_amount, b.status, b.created_at
+       FROM bookings b JOIN customers c ON c.id = b.customer_id
+       ${where}
+      ORDER BY b.id DESC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+    [...params, limit, offset],
+  );
+
+  return res.rows.map((row) => ({
+    ...row,
+    total_guest: Number(row.total_guest ?? 0),
+    total_amount: Number(row.total_amount ?? 0),
+  }));
+}
+
+export async function getBookingStats(): Promise<{
+  bookings: number;
+  pending: number;
+  confirmed: number;
+  revenue: number;
+}> {
+  const neon = getNeonClient();
+  const res = await neon.query<{ bookings: number | string; pending: number | string; confirmed: number | string; revenue: number | string }>(
+    `SELECT
+       COUNT(*) AS bookings,
+       COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END), 0) AS pending,
+       COALESCE(SUM(CASE WHEN status = 'confirmed' THEN 1 ELSE 0 END), 0) AS confirmed,
+       COALESCE(SUM(CASE WHEN status IN ('pending','confirmed') THEN total_amount ELSE 0 END), 0) AS revenue
+     FROM bookings`,
+  );
+  const row = res.rows[0];
+  return {
+    bookings: Number(row?.bookings ?? 0),
+    pending: Number(row?.pending ?? 0),
+    confirmed: Number(row?.confirmed ?? 0),
+    revenue: Number(row?.revenue ?? 0),
+  };
+}
+
+export async function getRecentBookings(limit = 8): Promise<Array<{
+  id: number;
+  customer: string;
+  event_date: string | null;
+  event_type: string;
+  total_amount: number;
+  status: string;
+  created_at: string;
+}>> {
+  const neon = getNeonClient();
+  const res = await neon.query<{
+    id: number;
+    customer: string;
+    event_date: string | null;
+    event_type: string;
+    total_amount: number;
+    status: string;
+    created_at: string;
+  }>(
+    `SELECT b.id, c.name AS customer, b.event_date, b.event_type, b.total_amount, b.status, b.created_at
+       FROM bookings b JOIN customers c ON c.id = b.customer_id
+      ORDER BY b.id DESC LIMIT $1`,
+    [limit],
+  );
+  return res.rows.map((row) => ({ ...row, total_amount: Number(row.total_amount ?? 0) }));
+}
+
+export async function getUpcomingBookings(limit = 6): Promise<Array<{
+  id: number;
+  customer: string;
+  event_date: string;
+  event_type: string;
+  total_guest: number;
+  status: string;
+}>> {
+  const neon = getNeonClient();
+  const today = new Date().toISOString().slice(0, 10);
+  const res = await neon.query<{
+    id: number;
+    customer: string;
+    event_date: string;
+    event_type: string;
+    total_guest: number;
+    status: string;
+  }>(
+    `SELECT b.id, c.name AS customer, b.event_date, b.event_type, b.total_guest, b.status
+       FROM bookings b JOIN customers c ON c.id = b.customer_id
+      WHERE b.event_date >= $1 AND b.status IN ('pending','confirmed')
+      ORDER BY b.event_date ASC LIMIT $2`,
+    [today, limit],
+  );
+  return res.rows.map((row) => ({ ...row, total_guest: Number(row.total_guest ?? 0) }));
+}
+
+/** Hall usage derived from the booking items, newest bookings first. */
+export async function getHallBookingActivity(): Promise<Array<{ hallId: number; bookings: number; revenue: number }>> {
+  const neon = getNeonClient();
+  const res = await neon.query<{ hall_id: string; bookings: number | string; revenue: number | string }>(
+    `SELECT bi.item_id AS hall_id,
+            COUNT(*) AS bookings,
+            COALESCE(SUM(b.total_amount), 0) AS revenue
+       FROM booking_items bi
+       JOIN bookings b ON b.id = bi.booking_id
+      WHERE bi.category = 'hall' AND b.status IN ('pending','confirmed')
+      GROUP BY bi.item_id`,
+  );
+  return res.rows.map((row) => ({
+    hallId: Number(row.hall_id),
+    bookings: Number(row.bookings ?? 0),
+    revenue: Number(row.revenue ?? 0),
+  }));
+}
+
+export async function setBookingStatus(id: number, status: string): Promise<boolean> {
+  const neon = getNeonClient();
+  const res = await neon.query('UPDATE bookings SET status = $1 WHERE id = $2', [status, id]);
+  return res.rowCount > 0;
+}
+
+export async function deleteBookingRecord(id: number): Promise<boolean> {
+  const neon = getNeonClient();
+  const res = await neon.query('DELETE FROM bookings WHERE id = $1', [id]);
+  return res.rowCount > 0;
+}
+
+export async function getCustomerBookingsForUser(userId: number): Promise<Array<{
+  id: number;
+  event_date: string | null;
+  event_type: string;
+  total_guest: number;
+  total_amount: number;
+  advance_amount: number;
+  amount_paid: number;
+  outstanding_balance: number;
+  payment_status: string;
+  status: string;
+  created_at: string;
+}>> {
+  const neon = getNeonClient();
+  const res = await neon.query<{
+    id: number;
+    event_date: string | null;
+    event_type: string;
+    total_guest: number;
+    total_amount: number;
+    advance_amount: number;
+    amount_paid: number;
+    outstanding_balance: number;
+    payment_status: string;
+    status: string;
+    created_at: string;
+  }>(
+    `SELECT b.id, b.event_date, b.event_type, b.total_guest, b.total_amount,
+            b.advance_amount, b.amount_paid, b.outstanding_balance, b.payment_status,
+            b.status, b.created_at
+       FROM bookings b
+       JOIN customers c ON c.id = b.customer_id
+      WHERE c.user_id = $1
+      ORDER BY b.id DESC`,
+    [userId],
+  );
+  return res.rows.map((row) => ({
+    ...row,
+    total_guest: Number(row.total_guest ?? 0),
+    total_amount: Number(row.total_amount ?? 0),
+    advance_amount: Number(row.advance_amount ?? 0),
+    amount_paid: Number(row.amount_paid ?? 0),
+    outstanding_balance: Number(row.outstanding_balance ?? 0),
+  }));
+}
+
+export async function getBookingsForCustomer(customerId: number): Promise<Array<{
+  id: number;
+  event_date: string | null;
+  event_type: string;
+  total_amount: number;
+  status: string;
+  created_at: string;
+}>> {
+  const neon = getNeonClient();
+  const res = await neon.query<{
+    id: number;
+    event_date: string | null;
+    event_type: string;
+    total_amount: number;
+    status: string;
+    created_at: string;
+  }>(
+    'SELECT id, event_date, event_type, total_amount, status, created_at FROM bookings WHERE customer_id = $1 ORDER BY id DESC',
+    [customerId],
+  );
+  return res.rows.map((row) => ({ ...row, total_amount: Number(row.total_amount ?? 0) }));
+}
+
+function customerSearchClause(query?: string): { where: string; params: unknown[] } {
+  if (!query) return { where: '', params: [] };
+  const like = `%${query.toLowerCase()}%`;
+  const params: unknown[] = [];
+  const clauses = ['c.name', 'c.phone', 'c.email'].map((column) => {
+    params.push(like);
+    return `LOWER(${column}) LIKE $${params.length}`;
+  });
+  return { where: `WHERE (${clauses.join(' OR ')})`, params };
+}
+
+export async function countCustomers(query?: string): Promise<number> {
+  const neon = getNeonClient();
+  const { where, params } = customerSearchClause(query);
+  const res = await neon.query<{ count: number | string }>(
+    `SELECT COUNT(*) AS count FROM customers c ${where}`,
+    params,
+  );
+  return Number(res.rows[0]?.count ?? 0);
+}
+
+export async function listCustomersPage(
+  query: string | undefined,
+  paging: { limit?: number; offset?: number } = {},
+): Promise<Array<{
+  id: number;
+  name: string;
+  phone: string;
+  email: string | null;
+  created_at: string;
+  booking_count: number;
+  total_spend: number;
+}>> {
+  const neon = getNeonClient();
+  const { where, params } = customerSearchClause(query);
+  const limit = Math.max(1, Math.min(100, paging.limit ?? 25));
+  const offset = Math.max(0, paging.offset ?? 0);
+
+  const res = await neon.query<{
+    id: number;
+    name: string;
+    phone: string;
+    email: string | null;
+    created_at: string;
+    booking_count: number | string;
+    total_spend: number | string;
+  }>(
+    `SELECT c.id, c.name, c.phone, c.email, c.created_at,
+            COALESCE(b.booking_count, 0) AS booking_count,
+            COALESCE(b.total_spend, 0) AS total_spend
+       FROM customers c
+       LEFT JOIN (
+         SELECT customer_id,
+                COUNT(*) AS booking_count,
+                COALESCE(SUM(CASE WHEN status IN ('pending','confirmed') THEN total_amount ELSE 0 END), 0) AS total_spend
+           FROM bookings
+          GROUP BY customer_id
+       ) b ON b.customer_id = c.id
+       ${where}
+      ORDER BY c.id DESC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+    [...params, limit, offset],
+  );
+
+  return res.rows.map((row) => ({
+    ...row,
+    booking_count: Number(row.booking_count ?? 0),
+    total_spend: Number(row.total_spend ?? 0),
+  }));
+}
+
+export async function getCustomerWithUsername(id: number): Promise<{
+  id: number;
+  name: string;
+  phone: string;
+  email: string | null;
+  address: string | null;
+  created_at: string;
+  username: string | null;
+} | null> {
+  const neon = getNeonClient();
+  const res = await neon.query<{
+    id: number;
+    name: string;
+    phone: string;
+    email: string | null;
+    address: string | null;
+    created_at: string;
+    username: string | null;
+  }>(
+    `SELECT c.*, u.username AS username
+       FROM customers c
+       LEFT JOIN users u ON u.id = c.user_id
+      WHERE c.id = $1 LIMIT 1`,
+    [id],
+  );
+  return res.rows[0] ?? null;
+}
+
+/** Upcoming booked dates per hall, derived from Neon booking items. */
+export async function getUpcomingHallBookings(): Promise<Array<{ hallId: number; eventDate: string }>> {
+  const neon = getNeonClient();
+  const today = new Date().toISOString().slice(0, 10);
+  const res = await neon.query<{ hall_id: string; event_date: string }>(
+    `SELECT bi.item_id AS hall_id, b.event_date AS event_date
+       FROM booking_items bi
+       JOIN bookings b ON b.id = bi.booking_id
+      WHERE bi.category = 'hall'
+        AND b.status IN ('pending', 'confirmed')
+        AND b.event_date IS NOT NULL
+        AND b.event_date >= $1
+      ORDER BY b.event_date`,
+    [today],
+  );
+  return res.rows.map((row) => ({ hallId: Number(row.hall_id), eventDate: row.event_date }));
+}
+
 export type DepositType = 'full' | 'percentage' | 'fixed' | 'custom';
 
 export function calculateAdvanceRequired(
@@ -567,66 +1292,72 @@ export function calculateAdvanceRequired(
   return Math.round((total * 25) / 100);
 }
 
+/**
+ * Applies the deposit policy to one booking.
+ *
+ * The booking row is the single owner of its deposit: `deposit_type` and
+ * `deposit_value` record the policy that produced `advance_amount`, so a later
+ * policy change can never rewrite a booking that was already quoted or paid.
+ * There is no second database and no swallowed failure — if the UPDATE does not
+ * touch a row, the caller sees an error.
+ */
 export async function updateBookingDepositConfig(params: {
   bookingId: number;
   depositType: DepositType;
   depositValue?: number;
   adminUserId?: number;
-}): Promise<{ advanceAmount: number; totalAmount: number }> {
-  let total = 0;
-  let previousAdvance = 0;
+}): Promise<{ advanceAmount: number; totalAmount: number; depositType: DepositType; depositValue: number }> {
+  const neon = getNeonClient();
+  await ensureBookingDepositColumns();
 
-  // Try Neon PostgreSQL first
-  try {
-    const neon = getNeonClient();
-    const bRes = await neon.query<BookingRow>('SELECT * FROM bookings WHERE id = $1 LIMIT 1', [params.bookingId]);
-    if (bRes.rows[0]) {
-      total = Number(bRes.rows[0].total_amount);
-      previousAdvance = Number(bRes.rows[0].advance_amount);
-    }
-  } catch (err) {
-    console.warn('[Neon query warning in updateBookingDepositConfig]:', err);
+  const current = await neon.query<BookingRow>(
+    'SELECT * FROM bookings WHERE id = $1 LIMIT 1',
+    [params.bookingId],
+  );
+  const booking = current.rows[0];
+  if (!booking) {
+    throw new Error(`Booking #${params.bookingId} was not found.`);
   }
 
-  // Fallback to SQLite if not found in Neon or offline
-  if (total <= 0) {
-    try {
-      const { one } = await import('../db');
-      const bRow = one<{ total_amount: number; advance_amount: number }>(
-        'SELECT total_amount, advance_amount FROM bookings WHERE id = ?',
-        [params.bookingId]
-      );
-      if (bRow) {
-        total = Number(bRow.total_amount);
-        previousAdvance = Number(bRow.advance_amount);
-      }
-    } catch {
-      // Ignore
-    }
+  const total = Number(booking.total_amount);
+  if (!Number.isFinite(total) || total <= 0) {
+    throw new Error(`Booking #${params.bookingId} has no total amount to apply a deposit to.`);
   }
 
-  if (total <= 0) {
-    throw new Error(`Booking #${params.bookingId} not found or total amount is zero.`);
-  }
-
+  const amountPaid = Number(booking.amount_paid ?? 0);
   const newAdvance = calculateAdvanceRequired(total, params.depositType, params.depositValue);
 
-  // Update in Neon
-  try {
-    const neon = getNeonClient();
-    await neon.query('UPDATE bookings SET advance_amount = $1 WHERE id = $2', [newAdvance, params.bookingId]);
-  } catch (err) {
-    console.warn('[Neon advance update warning]:', err);
+  // A deposit requirement cannot be reduced below money already received; that
+  // would silently misstate what the customer still owes.
+  if (amountPaid > 0 && newAdvance < amountPaid) {
+    throw new Error(
+      `Booking #${params.bookingId} already has ₹${(amountPaid / 100).toLocaleString('en-IN')} recorded. ` +
+        `The deposit cannot be set below the amount already paid.`,
+    );
   }
 
-  // Update in SQLite
-  try {
-    const { run } = await import('../db');
-    run('UPDATE bookings SET advance_amount = ? WHERE id = ?', [newAdvance, params.bookingId]);
-  } catch (err) {
-    console.warn('[SQLite advance update warning]:', err);
+  const normalisedValue =
+    params.depositType === 'percentage'
+      ? Math.max(1, Math.min(100, Number(params.depositValue) || 25))
+      : params.depositType === 'fixed' || params.depositType === 'custom'
+        ? Math.round(calculateAdvanceRequired(total, params.depositType, params.depositValue))
+        : newAdvance > 0
+          ? newAdvance
+          : total;
+
+  const updated = await neon.query(
+    `UPDATE bookings
+        SET advance_amount = $1, deposit_type = $2, deposit_value = $3
+      WHERE id = $4`,
+    [newAdvance, params.depositType, normalisedValue, params.bookingId],
+  );
+
+  if (updated.rowCount < 1) {
+    throw new Error(`Booking #${params.bookingId} could not be updated.`);
   }
 
+  // Audit is secondary: a failing audit write must not roll back a committed
+  // configuration change, but it must be visible rather than swallowed.
   try {
     await logAuditEvent(
       'BOOKING_DEPOSIT_CONFIGURED',
@@ -634,18 +1365,51 @@ export async function updateBookingDepositConfig(params: {
       String(params.bookingId),
       {
         depositType: params.depositType,
-        depositValue: params.depositValue,
-        previousAdvance,
+        depositValue: normalisedValue,
+        previousAdvance: Number(booking.advance_amount ?? 0),
         newAdvance,
         totalAmount: total,
       },
-      params.adminUserId
+      params.adminUserId,
     );
-  } catch (err) {
-    console.warn('[Audit log warning]:', err);
+  } catch (error) {
+    console.error('[booking] deposit change committed but the audit entry failed:', error);
   }
 
-  return { advanceAmount: newAdvance, totalAmount: total };
+  return {
+    advanceAmount: newAdvance,
+    totalAmount: total,
+    depositType: params.depositType,
+    depositValue: normalisedValue,
+  };
+}
+
+/**
+ * Adds the deposit-policy snapshot columns to an existing `bookings` table.
+ * Idempotent and memoised per process.
+ */
+const bookingSchemaEnsured = new WeakSet<object>();
+
+export async function ensureBookingDepositColumns(): Promise<void> {
+  const neon = getNeonClient();
+  if (bookingSchemaEnsured.has(neon)) return;
+
+  if (neon.isUsingRemote()) {
+    await neon.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS deposit_type VARCHAR(20) NOT NULL DEFAULT 'percentage'`);
+    await neon.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS deposit_value BIGINT NOT NULL DEFAULT 25`);
+  } else {
+    // SQLite has no ADD COLUMN IF NOT EXISTS; inspect the table first.
+    const columns = await neon.query<{ name: string }>('PRAGMA table_info(bookings)');
+    const existing = new Set(columns.rows.map((column) => column.name));
+    if (!existing.has('deposit_type')) {
+      await neon.query(`ALTER TABLE bookings ADD COLUMN deposit_type TEXT NOT NULL DEFAULT 'percentage'`);
+    }
+    if (!existing.has('deposit_value')) {
+      await neon.query('ALTER TABLE bookings ADD COLUMN deposit_value INTEGER NOT NULL DEFAULT 25');
+    }
+  }
+
+  bookingSchemaEnsured.add(neon);
 }
 
 /* ============================ Payments (Neon) ============================ */

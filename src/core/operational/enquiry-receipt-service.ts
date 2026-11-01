@@ -92,13 +92,27 @@ export class EnquiryReceiptService {
     const qrService = getEnquiryQrService(host);
 
     let lookup: EnquiryLookupResult;
+    let lookupFailure: unknown = null;
     try {
       lookup = await qrService.lookupEnquiry(refOrToken);
-    } catch {
+    } catch (error) {
       lookup = { found: false };
+      lookupFailure = error;
     }
 
-    // Fallback: If not found in Neon (e.g. offline dev or SQLite fallback), check local SQLite
+    // A database that could not be reached is not the same as a reference that
+    // does not exist. Surface the failure instead of reporting "not found".
+    if (lookupFailure) {
+      throw new Error(
+        `Enquiry verification could not reach the operational database: ${
+          lookupFailure instanceof Error ? lookupFailure.message : String(lookupFailure)
+        }`,
+      );
+    }
+
+    // Legacy fallback: enquiries written to local SQLite before the operational
+    // store moved to Neon PostgreSQL. Only reached when the live lookup
+    // responded normally and genuinely had no matching record.
     if (!lookup.found || !lookup.enquiry) {
       try {
         const trimmed = refOrToken.trim();

@@ -1629,11 +1629,19 @@
 /* Navigation Buttons */
 .plan-nav {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  gap: 14px;
   margin-top: 30px;
   padding-top: 22px;
   border-top: 1px solid var(--line);
+}
+.plan-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.plan-nav .plan-error {
+  margin-bottom: 0;
 }
 .plan-nav-spacer {
   flex: 1;

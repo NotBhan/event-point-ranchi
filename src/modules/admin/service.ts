@@ -1,4 +1,22 @@
 import { all, one, run } from '../../core/db';
+import {
+  countBookings,
+  countCustomers,
+  countEventEnquiries,
+  deleteBookingRecord,
+  getBookingStats,
+  getBookingsForCustomer,
+  getCustomerWithUsername,
+  getEventEnquiryWithItems,
+  getHallBookingActivity,
+  getRecentBookings,
+  getUpcomingBookings,
+  listBookingsPage,
+  listCustomersPage,
+  listEventEnquiriesPage,
+  setBookingStatus,
+  updateEventEnquiryStatus as updateEventEnquiryStatusNeon,
+} from '../../core/operational/service';
 import { buildPagination, getBoolean, getInt, getString, parseMoneyToPaise, uniqueSlug, uniqueSlugAsync } from '../../core/http';
 import * as catalog from '../../core/content/catalog-store';
 import { formatBytes } from '../../core/storage/config';
@@ -67,146 +85,92 @@ async function visibleCateringPackageCount(): Promise<number> {
   return value;
 }
 
+/**
+ * Booking aggregates for the dashboard. Bookings are operational records, so
+ * they are read from Neon — the same store the booking API writes to.
+ */
 export async function loadDashboard() {
-  const counts =
-    one<{
-      bookings: number;
-      pending: number;
-      confirmed: number;
-      revenue: number;
-      halls: number;
-      packages: number;
-      customers: number;
-      inquiries: number;
-    }>(
-      `SELECT
-      (SELECT COUNT(*) FROM bookings) AS bookings,
-      (SELECT COUNT(*) FROM bookings WHERE status = 'pending') AS pending,
-      (SELECT COUNT(*) FROM bookings WHERE status = 'confirmed') AS confirmed,
-      (SELECT COALESCE(SUM(total_amount), 0) FROM bookings WHERE status IN ('pending','confirmed')) AS revenue,
+  const localCounts = one<{
+    halls: number;
+    inquiries: number;
+  }>(
+    `SELECT
       (SELECT COUNT(*) FROM halls WHERE is_active = 1) AS halls,
-      0 AS packages,
-      (SELECT COUNT(*) FROM customers) AS customers,
       (SELECT COUNT(*) FROM contact_inquiries WHERE status = 'new') AS inquiries`,
-    ) ?? {
-      bookings: 0,
-      pending: 0,
-      confirmed: 0,
-      revenue: 0,
-      halls: 0,
-      packages: 0,
-      customers: 0,
-      inquiries: 0,
-    };
+  ) ?? { halls: 0, inquiries: 0 };
+
+  const bookingStats = await getBookingStats();
+  const counts = {
+    bookings: bookingStats.bookings,
+    pending: bookingStats.pending,
+    confirmed: bookingStats.confirmed,
+    revenue: bookingStats.revenue,
+    halls: Number(localCounts.halls ?? 0),
+    packages: 0,
+    customers: await countCustomers(),
+    inquiries: Number(localCounts.inquiries ?? 0),
+  };
 
   // The catering catalogue lives in D1 (publishable), not in the local SQLite copy.
   counts.packages = await visibleCateringPackageCount();
 
-  const recentBookings = all<{
-    id: number;
-    customer: string;
-    event_date: string | null;
-    event_type: string;
-    total_amount: number;
-    status: string;
-    created_at: string;
-  }>(
-    `SELECT b.id, c.name AS customer, b.event_date, b.event_type, b.total_amount, b.status, b.created_at
-     FROM bookings b JOIN customers c ON c.id = b.customer_id
-     ORDER BY b.id DESC LIMIT 8`,
-  );
+  const recentBookings = await getRecentBookings(8);
+  const upcoming = await getUpcomingBookings(6);
 
-  const upcoming = all<{
-    id: number;
-    customer: string;
-    event_date: string;
-    event_type: string;
-    total_guest: number;
-    status: string;
-  }>(
-    `SELECT b.id, c.name AS customer, b.event_date, b.event_type, b.total_guest, b.status
-     FROM bookings b JOIN customers c ON c.id = b.customer_id
-     WHERE b.event_date >= date('now') AND b.status IN ('pending','confirmed')
-     ORDER BY b.event_date ASC LIMIT 6`,
+  // Hall usage comes from booking_items in Neon; hall names stay in the
+  // catalogue copy, so they are joined in memory.
+  const hallActivity = await getHallBookingActivity();
+  const hallNames = new Map(
+    all<{ id: number; name: string }>('SELECT id, name FROM halls').map((hall) => [Number(hall.id), hall.name]),
   );
-
-  const topHalls = all<{ name: string; bookings: number; revenue: number }>(
-    `SELECT h.name,
-            COUNT(b.id) AS bookings,
-            COALESCE(SUM(b.total_amount), 0) AS revenue
-     FROM halls h
-     LEFT JOIN booking_halls bh ON bh.hall_id = h.id
-     LEFT JOIN bookings b ON b.id = bh.booking_id AND b.status IN ('pending','confirmed')
-     GROUP BY h.id ORDER BY revenue DESC LIMIT 5`,
-  );
+  const topHalls = hallActivity
+    .map((entry) => ({
+      name: hallNames.get(entry.hallId) ?? `Hall #${entry.hallId}`,
+      bookings: entry.bookings,
+      revenue: entry.revenue,
+    }))
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 5);
 
   return { counts, recentBookings, upcoming, topHalls };
 }
 
 /* ============================ Bookings ============================ */
 
-export function listBookings(
+/**
+ * Admin booking list, read from the authoritative operational database.
+ */
+export async function listBookings(
   filters: { status?: string; query?: string } = {},
   paging: { page?: number; perPage?: number } = {},
 ) {
-  const clauses: string[] = [];
-  const params: unknown[] = [];
-
-  if (filters.status && filters.status !== 'all') {
-    clauses.push('b.status = ?');
-    params.push(filters.status);
-  }
-  if (filters.query) {
-    clauses.push('(c.name LIKE ? OR c.phone LIKE ? OR CAST(b.id AS TEXT) LIKE ? OR b.event_type LIKE ?)');
-    const like = `%${filters.query}%`;
-    params.push(like, like, like, like);
-  }
-
-  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
   const perPage = Math.max(1, Math.min(100, paging.perPage ?? 25));
   const requestedPage = Math.max(1, paging.page ?? 1);
 
-  const totalRow = one<{ count: number }>(
-    `SELECT COUNT(*) AS count FROM bookings b JOIN customers c ON c.id = b.customer_id ${where}`,
-    params,
-  );
-  const totalCount = Number(totalRow?.count ?? 0);
+  const totalCount = await countBookings(filters);
   const offset = buildPagination(requestedPage, perPage, totalCount, 0).offset;
-
-  const items = all<{
-    id: number;
-    customer: string;
-    phone: string;
-    event_date: string | null;
-    event_type: string;
-    total_guest: number;
-    total_amount: number;
-    status: string;
-    created_at: string;
-  }>(
-    `SELECT b.id, c.name AS customer, c.phone AS phone, b.event_date, b.event_type,
-            b.total_guest, b.total_amount, b.status, b.created_at
-     FROM bookings b JOIN customers c ON c.id = b.customer_id
-     ${where}
-     ORDER BY b.id DESC LIMIT ? OFFSET ?`,
-    [...params, perPage, offset],
-  );
+  const items = await listBookingsPage(filters, { limit: perPage, offset });
 
   return { items, pagination: buildPagination(requestedPage, perPage, totalCount, items.length) };
 }
 
-export function updateBookingStatus(id: number, status: string): void {
-  if (!['draft', 'pending', 'confirmed', 'cancelled'].includes(status)) return;
-  run('UPDATE bookings SET status = ? WHERE id = ?', [status, id]);
+export async function updateBookingStatus(id: number, status: string): Promise<void> {
+  if (!['draft', 'pending', 'confirmed', 'cancelled'].includes(status)) {
+    throw new Error('Invalid booking status.');
+  }
+
+  const updated = await setBookingStatus(id, status);
+  if (!updated) throw new Error(`Booking #${id} was not found.`);
 }
 
-export function deleteBooking(id: number): void {
-  run('DELETE FROM bookings WHERE id = ?', [id]);
+export async function deleteBooking(id: number): Promise<void> {
+  const deleted = await deleteBookingRecord(id);
+  if (!deleted) throw new Error(`Booking #${id} was not found.`);
 }
 
 /* ============================ Halls ============================ */
 
-export function listHallsAdmin(paging: { page?: number; perPage?: number } = {}) {
+export async function listHallsAdmin(paging: { page?: number; perPage?: number } = {}) {
   const perPage = Math.max(1, Math.min(100, paging.perPage ?? 25));
   const requestedPage = Math.max(1, paging.page ?? 1);
 
@@ -214,7 +178,11 @@ export function listHallsAdmin(paging: { page?: number; perPage?: number } = {})
   const totalCount = Number(totalRow?.count ?? 0);
   const offset = buildPagination(requestedPage, perPage, totalCount, 0).offset;
 
-  const items = all<{
+  // Booking counts come from the operational store; hall records stay in the
+  // catalogue copy, so the two are merged in memory.
+  const hallActivity = new Map((await getHallBookingActivity()).map((entry) => [entry.hallId, entry.bookings]));
+
+  const rows = all<{
     id: number;
     name: string;
     slug: string;
@@ -224,18 +192,15 @@ export function listHallsAdmin(paging: { page?: number; perPage?: number } = {})
     location: string;
     is_active: number;
     is_featured: number;
-    booking_count: number;
   }>(
-    `SELECT h.id, h.name, h.slug, h.image, h.price_paise, h.capacity, h.location, h.is_active, h.is_featured,
-            COALESCE(bh.booking_count, 0) AS booking_count
+    `SELECT h.id, h.name, h.slug, h.image, h.price_paise, h.capacity, h.location, h.is_active, h.is_featured
      FROM halls h
-     LEFT JOIN (
-       SELECT hall_id, COUNT(*) AS booking_count FROM booking_halls GROUP BY hall_id
-     ) bh ON bh.hall_id = h.id
      ORDER BY h.is_active DESC, h.id
      LIMIT ? OFFSET ?`,
     [perPage, offset],
   );
+
+  const items = rows.map((hall) => ({ ...hall, booking_count: hallActivity.get(Number(hall.id)) ?? 0 }));
 
   return { items, pagination: buildPagination(requestedPage, perPage, totalCount, items.length) };
 }
@@ -814,71 +779,22 @@ export async function retryCleanupAdmin(limit?: number): Promise<RetryPendingDel
 
 /* ============================ Customers ============================ */
 
-export function listCustomers(query?: string, paging: { page?: number; perPage?: number } = {}) {
-  const like = `%${query ?? ''}%`;
-  const where = query ? 'WHERE c.name LIKE ? OR c.phone LIKE ? OR c.email LIKE ?' : '';
-  const params = query ? [like, like, like] : [];
-
+export async function listCustomers(query?: string, paging: { page?: number; perPage?: number } = {}) {
   const perPage = Math.max(1, Math.min(100, paging.perPage ?? 25));
   const requestedPage = Math.max(1, paging.page ?? 1);
 
-  const totalRow = one<{ count: number }>(`SELECT COUNT(*) AS count FROM customers c ${where}`, params);
-  const totalCount = Number(totalRow?.count ?? 0);
+  const totalCount = await countCustomers(query);
   const offset = buildPagination(requestedPage, perPage, totalCount, 0).offset;
-
-  const items = all<{
-    id: number;
-    name: string;
-    phone: string;
-    email: string | null;
-    created_at: string;
-    booking_count: number;
-    total_spend: number;
-  }>(
-    `SELECT c.id, c.name, c.phone, c.email, c.created_at,
-            COALESCE(b.booking_count, 0) AS booking_count,
-            COALESCE(b.total_spend, 0) AS total_spend
-     FROM customers c
-     LEFT JOIN (
-       SELECT customer_id,
-              COUNT(*) AS booking_count,
-              COALESCE(SUM(CASE WHEN status IN ('pending','confirmed') THEN total_amount ELSE 0 END), 0) AS total_spend
-       FROM bookings
-       GROUP BY customer_id
-     ) b ON b.customer_id = c.id
-     ${where} ORDER BY c.id DESC LIMIT ? OFFSET ?`,
-    [...params, perPage, offset],
-  );
+  const items = await listCustomersPage(query, { limit: perPage, offset });
 
   return { items, pagination: buildPagination(requestedPage, perPage, totalCount, items.length) };
 }
 
-export function loadCustomerAdmin(id: number) {
-  const customer = one<{
-    id: number;
-    name: string;
-    phone: string;
-    email: string | null;
-    address: string | null;
-    created_at: string;
-    username: string | null;
-  }>(
-    `SELECT c.*, u.username AS username FROM customers c LEFT JOIN users u ON u.id = c.user_id WHERE c.id = ?`,
-    [id],
-  );
+export async function loadCustomerAdmin(id: number) {
+  const customer = await getCustomerWithUsername(id);
   if (!customer) return null;
 
-  const bookings = all<{
-    id: number;
-    event_date: string | null;
-    event_type: string;
-    total_amount: number;
-    status: string;
-    created_at: string;
-  }>(
-    'SELECT id, event_date, event_type, total_amount, status, created_at FROM bookings WHERE customer_id = ? ORDER BY id DESC',
-    [id],
-  );
+  const bookings = await getBookingsForCustomer(id);
 
   return { customer, bookings };
 }
@@ -1332,13 +1248,15 @@ export interface EventEnquiryRow {
   venue_location: string;
   guest_count: number;
   budget_range: string;
-  requires_rooms: number;
+  // BOOLEAN in Neon PostgreSQL, INTEGER in the local SQLite fallback.
+  requires_rooms: boolean | number;
   room_count: number;
   accommodation_notes: string;
   decoration_notes: string;
   preferred_contact: string;
   status: string;
-  created_at: string;
+  // TIMESTAMPTZ from Neon arrives as a Date; the fallback returns a string.
+  created_at: string | Date;
 }
 
 export interface EnquiryLineItemRow {
@@ -1356,65 +1274,46 @@ export interface EnquiryLineItemRow {
   notes: string;
 }
 
-export function listEventEnquiries(
+/**
+ * Admin enquiry list. Enquiries are operational records, so they are read from
+ * the authoritative Neon PostgreSQL store — the same store the public enquiry
+ * form writes to and the QR/receipt verification reads.
+ */
+export async function listEventEnquiries(
   filters: { status?: string; query?: string } = {},
   paging: { page?: number; perPage?: number } = {},
 ) {
-  const clauses: string[] = [];
-  const params: unknown[] = [];
-
-  if (filters.status && filters.status !== 'all') {
-    clauses.push('status = ?');
-    params.push(filters.status);
-  }
-
-  if (filters.query) {
-    const like = `%${filters.query}%`;
-    clauses.push(
-      '(reference_code LIKE ? OR customer_name LIKE ? OR customer_phone LIKE ? OR event_type LIKE ? OR venue_location LIKE ?)',
-    );
-    params.push(like, like, like, like, like);
-  }
-
-  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
   const perPage = Math.max(1, Math.min(100, paging.perPage ?? 25));
   const requestedPage = Math.max(1, paging.page ?? 1);
 
-  const totalRow = one<{ count: number }>(`SELECT COUNT(*) AS count FROM event_enquiries ${where}`, params);
-  const totalCount = Number(totalRow?.count ?? 0);
+  const totalCount = await countEventEnquiries(filters);
   const offset = buildPagination(requestedPage, perPage, totalCount, 0).offset;
 
-  const items = all<EventEnquiryRow>(
-    `SELECT id, reference_code, customer_name, customer_phone, customer_email, event_type,
-            event_date, end_date, event_time, venue_location, guest_count, budget_range,
-            requires_rooms, room_count, accommodation_notes, decoration_notes, preferred_contact,
-            status, created_at
-     FROM event_enquiries
-     ${where}
-     ORDER BY id DESC LIMIT ? OFFSET ?`,
-    [...params, perPage, offset],
-  );
+  const { items } = await listEventEnquiriesPage(filters, { limit: perPage, offset });
+  const enquiries = items as unknown as EventEnquiryRow[];
 
-  return { items, pagination: buildPagination(requestedPage, perPage, totalCount, items.length) };
+  return { items: enquiries, pagination: buildPagination(requestedPage, perPage, totalCount, enquiries.length) };
 }
 
-export function loadEventEnquiry(id: number): { enquiry: EventEnquiryRow; lines: EnquiryLineItemRow[] } | null {
-  const enquiry = one<EventEnquiryRow>('SELECT * FROM event_enquiries WHERE id = ?', [id]);
-  if (!enquiry) return null;
+export async function loadEventEnquiry(
+  id: number,
+): Promise<{ enquiry: EventEnquiryRow; lines: EnquiryLineItemRow[] } | null> {
+  const result = await getEventEnquiryWithItems(id);
+  if (!result) return null;
 
-  const lines = all<EnquiryLineItemRow>(
-    'SELECT * FROM enquiry_line_items WHERE enquiry_id = ? ORDER BY id',
-    [id],
-  );
-
-  return { enquiry, lines };
+  return {
+    enquiry: result.enquiry as unknown as EventEnquiryRow,
+    lines: result.lines as unknown as EnquiryLineItemRow[],
+  };
 }
 
-export function updateEventEnquiryStatus(id: number, status: string): void {
+export async function updateEventEnquiryStatus(id: number, status: string): Promise<void> {
   if (!['new', 'reviewing', 'quoted', 'confirmed', 'archived'].includes(status)) {
     throw new Error('Invalid enquiry status.');
   }
-  run('UPDATE event_enquiries SET status = ? WHERE id = ?', [status, id]);
+
+  const updated = await updateEventEnquiryStatusNeon(id, status);
+  if (!updated) throw new Error('Enquiry not found.');
 }
 
 /* ============================ Payments & Refunds Admin ============================ */

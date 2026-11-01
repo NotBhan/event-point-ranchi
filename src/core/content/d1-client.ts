@@ -3,6 +3,7 @@ import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { d1SchemaSql } from './d1-schema';
 import { recordDb } from '../perf';
+import { assertRemoteDatabaseAllowed } from '../db-guard';
 
 export interface D1QueryResult<T = Record<string, unknown>> {
   results: T[];
@@ -75,7 +76,13 @@ export class D1Client {
     // requested without an explicit localDbPath there.
     const forceLocal = (process.env.D1_LOCAL ?? '') === '1';
 
-    if (!forceLocal && this.accountId && this.databaseId && this.apiToken) {
+    const hasCredentials = Boolean(this.accountId && this.databaseId && this.apiToken);
+    if (hasCredentials) {
+      // A test run must never read or write the live content database.
+      assertRemoteDatabaseAllowed('Cloudflare D1', forceLocal || Boolean(config?.localDbPath));
+    }
+
+    if (!forceLocal && hasCredentials) {
       this.isRemote = true;
     } else {
       const isProduction = Boolean(

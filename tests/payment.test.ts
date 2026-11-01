@@ -2,8 +2,14 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { registerHooks } from 'node:module';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { cleanupIsolatedDatabases, useIsolatedOperationalDb } from './helpers/isolated-db';
+
+// Booking and payment records are operational data; keep them out of the live
+// database. This must run before the first client is created.
+useIsolatedOperationalDb('payments');
+after(cleanupIsolatedDatabases);
 
 try {
   registerHooks({
@@ -35,6 +41,20 @@ const {
   updateWebhookEventStatus,
 } = await import('../src/core/operational/service');
 const { paymentsList, paymentDetail } = await import('../src/modules/admin/handlers/operations');
+
+const { getNeonClient } = await import('../src/core/operational/neon-client');
+
+/**
+ * Each test creates its own customer/booking inside the isolated database
+ * instead of assuming rows left behind by an earlier run.
+ */
+async function createTestCustomer(label: string): Promise<number> {
+  const res = await getNeonClient().query<{ id: number }>(
+    `INSERT INTO customers (name, phone, email) VALUES ($1, $2, $3) RETURNING id`,
+    [`${label} Customer`, '9876500999', `${label.toLowerCase().replace(/\W+/g, '-')}@example.test`],
+  );
+  return Number(res.rows[0].id);
+}
 
 
 test('1. PhonePe Provider - SHA-256 Checksum Calculation & Webhook Decoding', async () => {
@@ -121,8 +141,9 @@ test('1. PhonePe Provider - SHA-256 Checksum Calculation & Webhook Decoding', as
 test('2. Booking Financial Lifecycle - Advances, Partials, Balance & Overpayment Prevention', async () => {
   // Step 1: Create a test booking with total amount of ₹100,000 (10,000,000 paise)
   const totalAmountPaise = 10000000;
+  const customerId = await createTestCustomer('Lifecycle');
   const booking = await createBooking({
-    customer_id: 1,
+    customer_id: customerId,
     event_type: 'Wedding Gala',
     event_date: '2026-12-15',
     total_guest: 250,
@@ -140,7 +161,7 @@ test('2. Booking Financial Lifecycle - Advances, Partials, Balance & Overpayment
   // Step 2: Simulate Payment 1 - Advance payment of ₹25,000 (2,500,000 paise) via PhonePe
   const payment1 = await createPaymentRecord({
     bookingId: booking.id,
-    customerId: 1,
+    customerId,
     provider: 'phonepe',
     providerOrderId: 'TX_PHONEPE_ADV_1',
     internalTransactionReference: `EP_ADV_${booking.id}_${Date.now()}`,
@@ -165,7 +186,7 @@ test('2. Booking Financial Lifecycle - Advances, Partials, Balance & Overpayment
   // Step 3: Simulate Payment 2 - Partial milestone payment of ₹25,000 (2,500,000 paise) via PhonePe
   const payment2 = await createPaymentRecord({
     bookingId: booking.id,
-    customerId: 1,
+    customerId,
     provider: 'phonepe',
     providerOrderId: 'TX_PHONEPE_PART_2',
     internalTransactionReference: `EP_PART_${booking.id}_${Date.now()}`,
@@ -207,7 +228,7 @@ test('2. Booking Financial Lifecycle - Advances, Partials, Balance & Overpayment
   // Step 5: Simulate Payment 3 - Full balance settlement of remaining ₹50,000 (5,000,000 paise) via PhonePe
   const payment3 = await createPaymentRecord({
     bookingId: booking.id,
-    customerId: 1,
+    customerId,
     provider: 'phonepe',
     providerOrderId: 'TX_PHONEPE_BAL_3',
     internalTransactionReference: `EP_BAL_${booking.id}_${Date.now()}`,
@@ -260,10 +281,22 @@ test('3. Webhook Idempotency & Deduplication Protection', async () => {
 });
 
 test('4. Refund Accounting & Over-Refund Prevention', async () => {
+  // This test owns its customer and booking; it must not depend on rows left by
+  // another test or by an earlier run against the live database.
+  const refundCustomerId = await createTestCustomer('Refund');
+  const refundBooking = await createBooking({
+    customer_id: refundCustomerId,
+    event_type: 'Refund Verification',
+    event_date: '2027-02-10',
+    total_guest: 80,
+    total_amount: 2000000,
+    status: 'confirmed',
+  });
+
   // Create a payment of ₹20,000 (2,000,000 paise) via PhonePe
   const payment = await createPaymentRecord({
-    bookingId: 1,
-    customerId: 1,
+    bookingId: refundBooking.id,
+    customerId: refundCustomerId,
     provider: 'phonepe',
     providerOrderId: 'TX_REFUND_TEST',
     internalTransactionReference: `EP_REFTEST_${Date.now()}`,
@@ -281,7 +314,7 @@ test('4. Refund Accounting & Over-Refund Prevention', async () => {
   // Partial refund 1: ₹5,000 (500,000 paise)
   const refund1 = await createRefundRecord({
     paymentId: payment.id,
-    bookingId: 1,
+    bookingId: refundBooking.id,
     providerRefundId: 'rfnd_phonepe_01',
     amountPaise: 500000,
     reason: 'Guest count reduction',
@@ -292,7 +325,7 @@ test('4. Refund Accounting & Over-Refund Prevention', async () => {
   // Partial refund 2: ₹10,000 (1,000,000 paise)
   const refund2 = await createRefundRecord({
     paymentId: payment.id,
-    bookingId: 1,
+    bookingId: refundBooking.id,
     providerRefundId: 'rfnd_phonepe_02',
     amountPaise: 1000000,
     reason: 'Service item cancellation',

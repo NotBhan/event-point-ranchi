@@ -99,8 +99,6 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
 
       <div class="plan-layout">
         <form class="plan-form panel" id="planForm" data-csrf={csrf} data-today={today} novalidate>
-          <div class="plan-error" data-plan-error role="alert" tabindex="-1" hidden></div>
-          
           <div class="plan-form-header">
             <span class="form-required-legend">
               <span class="required-indicator" aria-hidden="true">*</span> Mandatory details for accurate quotation
@@ -764,13 +762,18 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
 
           <!-- Navigation Footer -->
           <div class="plan-nav">
-            <button type="button" class="btn btn-secondary" data-plan-prev hidden>
-              ← Back
-            </button>
-            <span class="plan-nav-spacer"></span>
-            <button type="button" class="btn btn-primary" data-plan-next>
-              Continue →
-            </button>
+            <!-- Validation feedback sits next to the control the visitor just
+                 pressed, so a blocked step is never silent. -->
+            <div class="plan-error" data-plan-error role="alert" tabindex="-1" hidden></div>
+            <div class="plan-nav-actions">
+              <button type="button" class="btn btn-secondary" data-plan-prev hidden>
+                ← Back
+              </button>
+              <span class="plan-nav-spacer"></span>
+              <button type="button" class="btn btn-primary" data-plan-next>
+                Continue →
+              </button>
+            </div>
           </div>
         </form>
 

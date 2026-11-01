@@ -1,8 +1,16 @@
 import { randomBytes } from 'node:crypto';
-import { all, one, run, tx } from '../../core/db';
 import { isEmail } from '../../core/http';
+import { getNeonClient } from '../../core/operational/neon-client';
+import {
+  ensureBookingDepositColumns,
+  findOrCreateCustomer,
+  getBookingItems,
+  getCustomerBookingsForUser,
+  type BookingItemRow,
+} from '../../core/operational/service';
 import type { AuthState } from '../../core/types';
 import type { CartPayload } from './types';
+import { PricingError, priceBookingSelection } from './pricing';
 
 export class BookingError extends Error {}
 
@@ -12,6 +20,9 @@ export interface CreatedBooking {
   quotationUrl: string;
   total: number;
 }
+
+/** Default deposit policy applied to a new booking, as a percentage of total. */
+export const DEFAULT_DEPOSIT_PERCENT = 25;
 
 function fail(message: string): never {
   throw new BookingError(message);
@@ -44,199 +55,50 @@ function requireCustomerDetails(payload: CartPayload) {
   };
 }
 
-export function createBooking(auth: AuthState, payload: CartPayload): CreatedBooking {
+/**
+ * Creates a booking in the operational database.
+ *
+ * Everything happens in one transaction: the customer, the booking and its line
+ * items. A confirmation is only returned after the commit succeeds, and every
+ * amount is priced server-side from the published catalogue.
+ */
+export async function createBooking(auth: AuthState, payload: CartPayload): Promise<CreatedBooking> {
   const customer = requireCustomerDetails(payload);
 
-  return tx(() => {
-    let hallId: number | null = null;
-    let hallPrice = 0;
+  let priced;
+  try {
+    priced = await priceBookingSelection(payload);
+  } catch (error) {
+    if (error instanceof PricingError) fail(error.message);
+    throw error;
+  }
 
-    if (payload.hall?.id) {
-      const hall = one<{ id: number; name: string; price_paise: number }>(
-        'SELECT id, name, price_paise FROM halls WHERE id = ? AND is_active = 1',
-        [Number(payload.hall.id)],
-      );
-      if (!hall) fail('The selected hall is no longer available.');
+  if (priced.totalPaise <= 0) {
+    fail('Your selection is empty — choose a mandap, stage, equipment or catering package before booking.');
+  }
 
-      const clash = one<{ id: number }>(
-        `SELECT b.id FROM bookings b
-         JOIN booking_halls bh ON bh.booking_id = b.id
-         WHERE bh.hall_id = ? AND b.event_date = ? AND b.status IN ('pending', 'confirmed')`,
-        [hall.id, customer.eventDate],
-      );
-      if (clash) fail('This hall is already reserved on the selected date. Please choose another date or venue.');
+  const neon = getNeonClient();
+  await ensureBookingDepositColumns();
+  const accessToken = randomBytes(18).toString('base64url');
+  const advanceAmount = Math.round((priced.totalPaise * DEFAULT_DEPOSIT_PERCENT) / 100);
 
-      hallId = hall.id;
-      hallPrice = Number(hall.price_paise);
-    }
+  const bookingId = await neon.tx(async (client) => {
+    const customerId = await findOrCreateCustomer({
+      userId: auth.user?.id ?? null,
+      name: customer.name,
+      phone: customer.phone,
+      email: customer.email,
+      address: customer.address,
+      client,
+    });
 
-    const furniture: Array<{ id: number; price: number; quantity: number; subtotal: number }> = [];
-    for (const item of payload.furniture ?? []) {
-      const row = one<{ id: number; price_paise: number; max_quantity: number; hall_id: number }>(
-        `SELECT fi.id, fi.price_paise, fi.max_quantity, fc.hall_id
-         FROM furniture_items fi
-         JOIN furniture_categories fc ON fc.id = fi.category_id
-         WHERE fi.id = ?`,
-        [Number(item.id)],
-      );
-      if (!row) fail('One of the selected furniture items is no longer available.');
-      if (hallId && Number(row.hall_id) !== hallId) fail('Selected furniture does not belong to the chosen hall.');
-
-      const quantity = Math.floor(Number(item.quantity) || 0);
-      if (quantity <= 0) continue;
-      if (quantity > Number(row.max_quantity)) {
-        fail(`Furniture quantity exceeds the available stock (${row.max_quantity}).`);
-      }
-
-      furniture.push({
-        id: row.id,
-        price: Number(row.price_paise),
-        quantity,
-        subtotal: Number(row.price_paise) * quantity,
-      });
-    }
-
-    let stageId: number | null = null;
-    let stagePrice = 0;
-    if (payload.stage?.id) {
-      const stage = one<{ id: number; price_paise: number; hall_id: number }>(
-        `SELECT sd.id, sd.price_paise, sc.hall_id
-         FROM stage_designs sd
-         JOIN stage_categories sc ON sc.id = sd.category_id
-         WHERE sd.id = ?`,
-        [Number(payload.stage.id)],
-      );
-      if (!stage) fail('The selected stage design is no longer available.');
-      if (hallId && Number(stage.hall_id) !== hallId) fail('Selected stage does not belong to the chosen hall.');
-      stageId = stage.id;
-      stagePrice = Number(stage.price_paise);
-    }
-
-    const services: Array<{ id: number; price: number }> = [];
-    const seenServices = new Set<number>();
-    for (const item of payload.services ?? []) {
-      const service = one<{ id: number; price_paise: number; hall_id: number }>(
-        `SELECT s.id, s.price_paise, sc.hall_id
-         FROM services s
-         JOIN service_categories sc ON sc.id = s.category_id
-         WHERE s.id = ?`,
-        [Number(item.id)],
-      );
-      if (!service || seenServices.has(service.id)) continue;
-      if (hallId && Number(service.hall_id) !== hallId) fail('Selected service does not belong to the chosen hall.');
-      seenServices.add(service.id);
-      services.push({ id: service.id, price: Number(service.price_paise) });
-    }
-
-    let catering: { id: number; guestCount: number; pricePerPlate: number; total: number } | null = null;
-    let menuItems: Array<{ section: string; item: string }> = [];
-
-    if (payload.catering?.id) {
-      const packageRow = one<{ id: number; name: string; price_paise: number; is_active: number }>(
-        'SELECT id, name, price_paise, is_active FROM catering_packages WHERE id = ?',
-        [Number(payload.catering.id)],
-      );
-      if (!packageRow || !packageRow.is_active) fail('The selected catering package is no longer available.');
-
-      const guestCount = Math.max(1, Math.floor(Number(payload.catering.guestCount) || 0));
-      const tier = one<{ price_per_plate_paise: number }>(
-        'SELECT price_per_plate_paise FROM guest_pricing WHERE package_id = ? AND guest_count = ?',
-        [packageRow.id, guestCount],
-      );
-      const pricePerPlate = Number(tier?.price_per_plate_paise ?? packageRow.price_paise);
-
-      const allowedSections = all<{ title: string; max_selection: number }>(
-        'SELECT title, max_selection FROM menu_sections WHERE package_id = ?',
-        [packageRow.id],
-      );
-      const allowedItems = new Set(
-        all<{ name: string }>(
-          `SELECT mi.name FROM menu_items mi
-           JOIN menu_categories mc ON mc.id = mi.category_id
-           JOIN menu_sections ms ON ms.id = mc.section_id
-           WHERE ms.package_id = ? AND mi.is_available = 1`,
-          [packageRow.id],
-        ).map((item) => item.name),
-      );
-
-      const counts = new Map<string, number>();
-      for (const selection of payload.catering.selectedItems ?? []) {
-        const section = String(selection.section ?? 'Menu');
-        const item = String(selection.item ?? '');
-        if (!item || !allowedItems.has(item)) continue;
-        const count = (counts.get(section) ?? 0) + 1;
-        counts.set(section, count);
-        menuItems.push({ section, item });
-      }
-
-      for (const section of allowedSections) {
-        const max = Number(section.max_selection) || 0;
-        if (max > 0 && (counts.get(section.title) ?? 0) > max) {
-          fail(`You selected more than ${max} items from "${section.title}".`);
-        }
-      }
-
-      catering = {
-        id: packageRow.id,
-        guestCount,
-        pricePerPlate,
-        total: guestCount * pricePerPlate,
-      };
-    }
-
-    const total =
-      hallPrice +
-      furniture.reduce((sum, item) => sum + item.subtotal, 0) +
-      stagePrice +
-      services.reduce((sum, service) => sum + service.price, 0) +
-      (catering?.total ?? 0);
-
-    if (total <= 0) fail('Your cart is empty — add a hall, catering package or service before booking.');
-
-    // ---------- Customer ----------
-    let customerId: number;
-    if (auth.user) {
-      const existing = one<{ id: number }>('SELECT id FROM customers WHERE user_id = ?', [auth.user.id]);
-      if (existing) {
-        customerId = existing.id;
-        run('UPDATE customers SET name = ?, phone = ?, email = ?, address = ? WHERE id = ?', [
-          customer.name,
-          customer.phone,
-          customer.email,
-          customer.address,
-          customerId,
-        ]);
-      } else {
-        customerId = run(
-          'INSERT INTO customers (user_id, name, phone, email, address) VALUES (?, ?, ?, ?, ?)',
-          [auth.user.id, customer.name, customer.phone, customer.email, customer.address],
-        ).lastId;
-      }
-    } else {
-      const existing = one<{ id: number }>('SELECT id FROM customers WHERE phone = ?', [customer.phone]);
-      if (existing) {
-        customerId = existing.id;
-        run('UPDATE customers SET name = ?, email = ?, address = ? WHERE id = ?', [
-          customer.name,
-          customer.email,
-          customer.address,
-          customerId,
-        ]);
-      } else {
-        customerId = run(
-          'INSERT INTO customers (name, phone, email, address) VALUES (?, ?, ?, ?)',
-          [customer.name, customer.phone, customer.email, customer.address],
-        ).lastId;
-      }
-    }
-
-    // ---------- Booking ----------
-    const accessToken = randomBytes(18).toString('base64url');
-    const advanceAmount = Math.round(total * 0.25);
-
-    const bookingId = run(
-      `INSERT INTO bookings (customer_id, access_token, event_date, event_time, event_type, total_guest, special_request, status, total_amount, advance_amount, amount_paid, outstanding_balance, payment_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, 0, ?, 'unpaid')`,
+    const inserted = await client.query<{ id: number }>(
+      `INSERT INTO bookings (
+         customer_id, access_token, event_date, event_time, event_type, total_guest,
+         special_request, status, total_amount, advance_amount, amount_paid,
+         outstanding_balance, payment_status, deposit_type, deposit_value
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $9, 0, $8, 'unpaid', 'percentage', $10)
+       RETURNING id`,
       [
         customerId,
         accessToken,
@@ -245,65 +107,42 @@ export function createBooking(auth: AuthState, payload: CartPayload): CreatedBoo
         customer.eventType,
         customer.guests,
         customer.specialRequest,
-        total,
+        priced.totalPaise,
         advanceAmount,
-        total,
+        DEFAULT_DEPOSIT_PERCENT,
       ],
-    ).lastId;
+    );
 
-    if (hallId) {
-      run('INSERT INTO booking_halls (booking_id, hall_id, price) VALUES (?, ?, ?)', [
-        bookingId,
-        hallId,
-        hallPrice,
-      ]);
-    }
+    const id = Number(inserted.rows[0]?.id ?? 0);
+    if (!id) throw new Error('The booking was written but its id could not be read back.');
 
-    for (const item of furniture) {
-      run(
-        'INSERT INTO booking_furniture (booking_id, furniture_id, quantity, price, subtotal) VALUES (?, ?, ?, ?, ?)',
-        [bookingId, item.id, item.quantity, item.price, item.subtotal],
+    for (const item of priced.items) {
+      await client.query(
+        `INSERT INTO booking_items
+           (booking_id, category, item_id, item_name, quantity, unit_price, subtotal, metadata_json)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          id,
+          item.category,
+          item.itemId,
+          item.name,
+          item.quantity,
+          item.unitPricePaise,
+          item.subtotalPaise,
+          JSON.stringify(item.metadata ?? {}),
+        ],
       );
     }
 
-    if (stageId) {
-      run('INSERT INTO booking_stages (booking_id, stage_id, price) VALUES (?, ?, ?)', [
-        bookingId,
-        stageId,
-        stagePrice,
-      ]);
-    }
-
-    for (const service of services) {
-      run('INSERT INTO booking_services (booking_id, service_id, price) VALUES (?, ?, ?)', [
-        bookingId,
-        service.id,
-        service.price,
-      ]);
-    }
-
-    if (catering) {
-      const bookingCateringId = run(
-        `INSERT INTO booking_catering (booking_id, package_id, guest_count, price_per_plate, total_price)
-         VALUES (?, ?, ?, ?, ?)`,
-        [bookingId, catering.id, catering.guestCount, catering.pricePerPlate, catering.total],
-      ).lastId;
-
-      for (const item of menuItems) {
-        run(
-          'INSERT INTO booking_menu_items (booking_catering_id, section, item_name) VALUES (?, ?, ?)',
-          [bookingCateringId, item.section, item.item],
-        );
-      }
-    }
-
-    return {
-      bookingId,
-      accessToken,
-      total,
-      quotationUrl: `/booking/${bookingId}/quotation?token=${encodeURIComponent(accessToken)}`,
-    };
+    return id;
   });
+
+  return {
+    bookingId,
+    accessToken,
+    total: priced.totalPaise,
+    quotationUrl: `/booking/${bookingId}/quotation?token=${encodeURIComponent(accessToken)}`,
+  };
 }
 
 export interface BookingLine {
@@ -333,12 +172,69 @@ export interface QuotationData {
   lines: BookingLine[];
 }
 
-export function loadBookingForViewer(
+const LINE_LABELS: Record<string, string> = {
+  hall: 'Hall venue',
+  mandap: 'Mandap design',
+  stage: 'Stage decoration',
+  furniture: 'Furniture & seating',
+  service: 'Additional service',
+  catering: 'Catering package',
+};
+
+function metadataFor(item: BookingItemRow): Record<string, any> {
+  try {
+    const parsed = JSON.parse(item.metadata_json || '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function describeBookingLine(item: BookingItemRow): BookingLine {
+  const meta = metadataFor(item);
+  const label = LINE_LABELS[item.category] ?? item.category;
+  const unitInr = (Number(item.unit_price) / 100).toLocaleString('en-IN');
+
+  if (item.category === 'furniture') {
+    return { label, detail: `${item.item_name} × ${item.quantity}`, amount: Number(item.subtotal) };
+  }
+
+  if (item.category === 'catering') {
+    const guestCount = Number(meta.guestCount ?? item.quantity);
+    const menuItems = Array.isArray(meta.menuItems) ? meta.menuItems : [];
+    const grouped = new Map<string, string[]>();
+    for (const entry of menuItems) {
+      const section = String(entry?.section ?? 'Menu');
+      const list = grouped.get(section) ?? [];
+      list.push(String(entry?.item ?? ''));
+      grouped.set(section, list);
+    }
+    const menu = Array.from(grouped.entries())
+      .map(([section, entries]) => `${section}: ${entries.join(', ')}`)
+      .join(' · ');
+
+    return {
+      label,
+      detail: `${item.item_name} · ${guestCount} plates × ₹${unitInr}${menu ? ` — ${menu}` : ''}`,
+      amount: Number(item.subtotal),
+    };
+  }
+
+  const dimensions = typeof meta.dimensions === 'string' && meta.dimensions ? ` · ${meta.dimensions}` : '';
+  return { label, detail: `${item.item_name}${dimensions}`, amount: Number(item.subtotal) };
+}
+
+/**
+ * Loads a quotation for a customer, an administrator, or a holder of the
+ * booking access token.
+ */
+export async function loadBookingForViewer(
   bookingId: number,
   auth: AuthState,
   token: string | null,
-): QuotationData | 'not-found' | 'forbidden' {
-  const booking = one<{
+): Promise<QuotationData | 'not-found' | 'forbidden'> {
+  const neon = getNeonClient();
+  const bookingRes = await neon.query<{
     id: number;
     created_at: string;
     event_date: string | null;
@@ -348,161 +244,55 @@ export function loadBookingForViewer(
     special_request: string;
     status: string;
     total_amount: number;
+    advance_amount: number;
+    amount_paid: number;
+    outstanding_balance: number;
+    payment_status: string;
     access_token: string;
     customer_id: number;
     user_id: number | null;
   }>(
     `SELECT b.*, c.user_id AS user_id
-     FROM bookings b
-     JOIN customers c ON c.id = b.customer_id
-     WHERE b.id = ?`,
+       FROM bookings b
+       JOIN customers c ON c.id = b.customer_id
+      WHERE b.id = $1 LIMIT 1`,
     [bookingId],
   );
 
+  const booking = bookingRes.rows[0];
   if (!booking) return 'not-found';
 
-  const isOwner = Boolean(auth.user && booking.user_id === auth.user.id);
+  const isOwner = Boolean(auth.user && Number(booking.user_id) === auth.user.id);
   const tokenMatches = Boolean(token && token === booking.access_token);
   if (!auth.isAdmin && !isOwner && !tokenMatches) return 'forbidden';
 
-  const customer = one<{ name: string; phone: string; email: string; address: string }>(
-    'SELECT name, phone, email, address FROM customers WHERE id = ?',
+  const customerRes = await neon.query<{ name: string; phone: string; email: string | null; address: string | null }>(
+    'SELECT name, phone, email, address FROM customers WHERE id = $1 LIMIT 1',
     [booking.customer_id],
   );
+  const customerRow = customerRes.rows[0];
 
-  const lines: BookingLine[] = [];
-
-  const hall = one<{ name: string; price: number; capacity: number }>(
-    `SELECT h.name AS name, bh.price AS price, h.capacity AS capacity
-     FROM booking_halls bh JOIN halls h ON h.id = bh.hall_id
-     WHERE bh.booking_id = ?`,
-    [bookingId],
-  );
-  if (hall) {
-    lines.push({ label: 'Hall venue', detail: `${hall.name} · up to ${hall.capacity} guests`, amount: Number(hall.price) });
-  }
-
-  for (const item of all<{ name: string; quantity: number; subtotal: number }>(
-    `SELECT fi.name AS name, bf.quantity AS quantity, bf.subtotal AS subtotal
-     FROM booking_furniture bf JOIN furniture_items fi ON fi.id = bf.furniture_id
-     WHERE bf.booking_id = ?`,
-    [bookingId],
-  )) {
-    lines.push({ label: 'Furniture & seating', detail: `${item.name} × ${item.quantity}`, amount: Number(item.subtotal) });
-  }
-
-  const stage = one<{ name: string; price: number }>(
-    `SELECT sd.name AS name, bs.price AS price
-     FROM booking_stages bs JOIN stage_designs sd ON sd.id = bs.stage_id
-     WHERE bs.booking_id = ?`,
-    [bookingId],
-  );
-  if (stage) lines.push({ label: 'Stage decoration', detail: stage.name, amount: Number(stage.price) });
-
-  for (const service of all<{ name: string; price: number }>(
-    `SELECT s.name AS name, bsrv.price AS price
-     FROM booking_services bsrv JOIN services s ON s.id = bsrv.service_id
-     WHERE bsrv.booking_id = ?`,
-    [bookingId],
-  )) {
-    lines.push({ label: 'Additional service', detail: service.name, amount: Number(service.price) });
-  }
-
-  const catering = one<{
-    id: number;
-    name: string;
-    guest_count: number;
-    price_per_plate: number;
-    total_price: number;
-  }>(
-    `SELECT bc.id AS id, cp.name AS name, bc.guest_count AS guest_count,
-            bc.price_per_plate AS price_per_plate, bc.total_price AS total_price
-     FROM booking_catering bc JOIN catering_packages cp ON cp.id = bc.package_id
-     WHERE bc.booking_id = ?`,
-    [bookingId],
-  );
-
-  if (catering) {
-    const items = all<{ section: string; item_name: string }>(
-      'SELECT section, item_name FROM booking_menu_items WHERE booking_catering_id = ? ORDER BY id',
-      [catering.id],
-    );
-    const grouped = new Map<string, string[]>();
-    for (const item of items) {
-      const list = grouped.get(item.section) ?? [];
-      list.push(item.item_name);
-      grouped.set(item.section, list);
-    }
-    const menu = Array.from(grouped.entries())
-      .map(([section, entries]) => `${section}: ${entries.join(', ')}`)
-      .join(' · ');
-
-    lines.push({
-      label: 'Catering package',
-      detail: `${catering.name} · ${catering.guest_count} plates × ₹${(Number(catering.price_per_plate) / 100).toLocaleString('en-IN')}${menu ? ` — ${menu}` : ''}`,
-      amount: Number(catering.total_price),
-    });
-  }
+  const items = await getBookingItems(bookingId);
 
   return {
-    booking,
-    customer: customer ?? { name: 'Valued customer', phone: '', email: '', address: '' },
-    lines,
+    booking: {
+      ...booking,
+      total_guest: Number(booking.total_guest ?? 0),
+      total_amount: Number(booking.total_amount ?? 0),
+      advance_amount: Number(booking.advance_amount ?? 0),
+      amount_paid: Number(booking.amount_paid ?? 0),
+      outstanding_balance: Number(booking.outstanding_balance ?? 0),
+    },
+    customer: {
+      name: customerRow?.name ?? 'Valued customer',
+      phone: customerRow?.phone ?? '',
+      email: customerRow?.email ?? '',
+      address: customerRow?.address ?? '',
+    },
+    lines: items.map(describeBookingLine),
   };
 }
 
-export function loadCustomerBookings(userId: number) {
-  try {
-    return all<{
-      id: number;
-      event_date: string | null;
-      event_type: string;
-      total_guest: number;
-      total_amount: number;
-      advance_amount: number;
-      amount_paid: number;
-      outstanding_balance: number;
-      payment_status: string;
-      status: string;
-      created_at: string;
-    }>(
-      `SELECT b.id, b.event_date, b.event_type, b.total_guest, b.total_amount,
-              COALESCE(b.advance_amount, 0) as advance_amount,
-              COALESCE(b.amount_paid, 0) as amount_paid,
-              COALESCE(b.outstanding_balance, b.total_amount) as outstanding_balance,
-              COALESCE(b.payment_status, 'unpaid') as payment_status,
-              b.status, b.created_at
-       FROM bookings b
-       JOIN customers c ON c.id = b.customer_id
-       WHERE c.user_id = ?
-       ORDER BY b.id DESC`,
-      [userId],
-    );
-  } catch (error) {
-    console.warn('[loadCustomerBookings fallback triggered]:', error);
-    const fallbackRows = all<{
-      id: number;
-      event_date: string | null;
-      event_type: string;
-      total_guest: number;
-      total_amount: number;
-      status: string;
-      created_at: string;
-    }>(
-      `SELECT b.id, b.event_date, b.event_type, b.total_guest, b.total_amount,
-              b.status, b.created_at
-       FROM bookings b
-       JOIN customers c ON c.id = b.customer_id
-       WHERE c.user_id = ?
-       ORDER BY b.id DESC`,
-      [userId],
-    );
-    return fallbackRows.map((r) => ({
-      ...r,
-      advance_amount: Math.round(Number(r.total_amount) * 0.25),
-      amount_paid: 0,
-      outstanding_balance: Number(r.total_amount),
-      payment_status: 'unpaid',
-    }));
-  }
+export async function loadCustomerBookings(userId: number) {
+  return getCustomerBookingsForUser(userId);
 }

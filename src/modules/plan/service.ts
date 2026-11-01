@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
-import { all, one, run, tx } from '../../core/db';
+import { all, one } from '../../core/db';
 import { isEmail } from '../../core/http';
+import { insertEventEnquiry } from '../../core/operational/service';
 
 export interface PlanMandap {
   id: number;
@@ -330,20 +331,18 @@ function selectedEquipmentLines(value: unknown): LineInput[] {
   });
 }
 
+/**
+ * Reference codes are unique by database constraint; this only proposes a
+ * candidate. `insertEventEnquiry` retries with another candidate when the
+ * constraint rejects one, so no pre-flight SELECT is needed.
+ */
 function makeReferenceCode(): string {
   const now = new Date();
   const stamp = `${String(now.getFullYear()).slice(2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-
-  for (let attempt = 0; attempt < 12; attempt += 1) {
-    const reference = `EP-${stamp}-${randomBytes(2).toString('hex').toUpperCase()}`;
-    const existing = one<{ id: number }>('SELECT id FROM event_enquiries WHERE reference_code = ?', [reference]);
-    if (!existing) return reference;
-  }
-
-  throw new Error('Could not generate a unique enquiry reference.');
+  return `EP-${stamp}-${randomBytes(2).toString('hex').toUpperCase()}`;
 }
 
-export function createEnquiry(payload: EnquiryPayload): { reference: string; id: number } {
+export async function createEnquiry(payload: EnquiryPayload): Promise<{ reference: string; id: number }> {
   if (!payload || typeof payload !== 'object') {
     throw new EnquiryError('We could not read the enquiry details. Please refresh and try again.');
   }
@@ -426,58 +425,41 @@ export function createEnquiry(payload: EnquiryPayload): { reference: string; id:
 
   const reference = makeReferenceCode();
 
-  const result = tx(() => {
-    const enquiry = run(
-      `INSERT INTO event_enquiries
-         (reference_code, customer_name, customer_phone, customer_email, event_type, event_date, end_date,
-          event_time, venue_location, guest_count, budget_range, requires_rooms, room_count,
-          accommodation_notes, decoration_notes, preferred_contact, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new')`,
-      [
-        reference,
-        customerName,
-        customerPhone,
-        customerEmail || null,
-        eventType,
-        eventDate,
-        endDate,
-        text(event.time, 20) || null,
-        venueLocation,
-        guestCount,
-        budgetRange,
-        requiresRooms ? 1 : 0,
-        roomCount,
-        accommodationNotes,
-        decorationParts.join('\n'),
-        preferredContact,
-      ],
-    );
+  // Operational records live in Neon PostgreSQL (the authoritative store). The
+  // enquiry, its line items and the reference code are committed together, so a
+  // receipt is only ever issued for a committed enquiry.
+  const saved = await insertEventEnquiry(
+    {
+      customerName,
+      customerPhone,
+      customerEmail: customerEmail || null,
+      eventType,
+      eventDate,
+      endDate,
+      eventTime: text(event.time, 20) || null,
+      venueLocation,
+      guestCount,
+      budgetRange,
+      requiresRooms,
+      roomCount,
+      accommodationNotes,
+      decorationNotes: decorationParts.join('\n'),
+      preferredContact,
+    },
+    lines.map((line) => ({
+      itemType: line.itemType,
+      catalogueItemId: line.catalogueItemId,
+      name: line.name,
+      quantity: line.quantity,
+      dimensions: line.dimensions,
+      requestedLength: line.requestedLength,
+      requestedWidth: line.requestedWidth,
+      requestedHeight: line.requestedHeight,
+      specifications: line.specifications,
+      notes: line.notes,
+    })),
+    (attempt) => (attempt === 0 ? reference : makeReferenceCode()),
+  );
 
-    for (const line of lines) {
-      run(
-        `INSERT INTO enquiry_line_items
-           (enquiry_id, item_type, catalogue_item_id, item_name_snapshot, quantity,
-            standard_dimensions_snapshot, requested_length_ft, requested_width_ft, requested_height_ft,
-            specifications, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          enquiry.lastId,
-          line.itemType,
-          line.catalogueItemId,
-          line.name,
-          line.quantity,
-          line.dimensions,
-          line.requestedLength,
-          line.requestedWidth,
-          line.requestedHeight,
-          line.specifications,
-          line.notes,
-        ],
-      );
-    }
-
-    return { reference, id: enquiry.lastId };
-  });
-
-  return result;
+  return { reference: saved.referenceCode, id: saved.id };
 }

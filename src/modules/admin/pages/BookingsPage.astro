@@ -5,8 +5,8 @@ import { formatDate, formatMoney } from '../../../core/http';
 import type { listBookings } from '../service';
 
 interface Props {
-  items: ReturnType<typeof listBookings>['items'];
-  pagination: ReturnType<typeof listBookings>['pagination'];
+  items: Awaited<ReturnType<typeof listBookings>>['items'];
+  pagination: Awaited<ReturnType<typeof listBookings>>['pagination'];
   status: string;
   query: string;
 }

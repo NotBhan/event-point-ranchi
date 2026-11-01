@@ -13,6 +13,7 @@ const tokenParam = Astro.url.searchParams.get('token') || '';
 const receiptService = getEnquiryReceiptService(Astro.url.origin);
 let receiptData = null;
 let notFound = false;
+let serviceError = false;
 
 const lookupKey = tokenParam || ref || '';
 if (lookupKey) {
@@ -22,8 +23,8 @@ if (lookupKey) {
       notFound = true;
     }
   } catch (err) {
-    console.warn('[Enquiry Receipt Lookup Error]:', err);
-    notFound = true;
+    console.error('[Enquiry Receipt Lookup Error]:', err);
+    serviceError = true;
   }
 } else {
   notFound = true;
@@ -48,12 +49,14 @@ const pdfDownloadUrl = enquiry
     <div class="container">
       <span class="eyebrow">Customer Service Desk</span>
       <h1>
-        {notFound ? 'Enquiry Record Not Found' : 'Official Enquiry Acknowledgement'}
+        {serviceError ? 'Verification Temporarily Unavailable' : notFound ? 'Enquiry Record Not Found' : 'Official Enquiry Acknowledgement'}
       </h1>
       <p>
-        {notFound
-          ? 'We could not locate an event enquiry matching this reference or token in our live system.'
-          : 'Thank you for choosing Event Point Ranchi. Below is your official blueprint acknowledgement and instant coordinator check-in slip.'}
+        {serviceError
+          ? 'Our verification service could not be reached just now. Your enquiry is safe — please retry in a moment.'
+          : notFound
+            ? 'We could not locate an event enquiry matching this reference or token in our live system.'
+            : 'Thank you for choosing Event Point Ranchi. Below is your official blueprint acknowledgement and instant coordinator check-in slip.'}
       </p>
     </div>
   </section>
@@ -65,9 +68,11 @@ const pdfDownloadUrl = enquiry
           <div style="width:56px;height:56px;border-radius:50%;background:rgba(211,47,47,0.1);color:#d32f2f;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
             <Icon name="x" size={32} />
           </div>
-          <h2 style="font-size:1.4rem;margin:0 0 8px;">Enquiry Reference Not Found</h2>
+          <h2 style="font-size:1.4rem;margin:0 0 8px;">{serviceError ? 'Verification Temporarily Unavailable' : 'Enquiry Reference Not Found'}</h2>
           <p style="color:var(--muted);font-size:14px;max-width:460px;margin:0 auto 20px;">
-            The enquiry code or token “{lookupKey}” could not be verified. Please check the link sent to your phone or contact our team directly.
+            {serviceError
+              ? 'We could not reach our enquiry verification service, so we cannot confirm this reference right now. Please refresh this page in a few moments.'
+              : `The enquiry code or token “${lookupKey}” could not be verified. Please check the link sent to your phone or contact our team directly.`}
           </p>
           <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
             <a href="/plan" class="btn btn-primary">Create New Blueprint</a>

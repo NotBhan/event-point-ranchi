@@ -110,7 +110,7 @@ export default defineModule({
             return redirect('/profile');
           }
 
-          const customer = ensureCustomerForUser(user.id, { name: user.firstName, email: user.email });
+          const customer = await ensureCustomerForUser(user.id, { name: user.firstName, email: user.email });
           run('UPDATE customers SET name = ?, email = ?, phone = ?, address = ? WHERE id = ?', [
             name,
             email,
@@ -124,8 +124,8 @@ export default defineModule({
           return redirect('/profile');
         }
 
-        const customer = ensureCustomerForUser(user.id, { name: user.firstName, email: user.email });
-        const recentBookings = loadCustomerBookings(user.id).slice(0, 5);
+        const customer = await ensureCustomerForUser(user.id, { name: user.firstName, email: user.email });
+        const recentBookings = (await loadCustomerBookings(user.id)).slice(0, 5);
 
         return { props: { customer, recentBookings, user } };
       },
@@ -159,10 +159,10 @@ export default defineModule({
     {
       path: '/my-bookings',
       component: MyBookingsPage,
-      handle: (ctx) => {
+      handle: async (ctx) => {
         const denied = requireCustomer(ctx);
         if (denied) return denied;
-        return { props: { bookings: loadCustomerBookings(ctx.auth.user!.id) } };
+        return { props: { bookings: await loadCustomerBookings(ctx.auth.user!.id) } };
       },
     },
     // Legacy Django paths kept alive so old links and bookmarks keep working.

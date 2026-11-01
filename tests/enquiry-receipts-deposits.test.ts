@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { cleanupIsolatedDatabases, useIsolatedOperationalDb } from './helpers/isolated-db';
+
+// Receipts, QR tokens and deposit configuration are operational data; keep
+// them out of the live database.
+useIsolatedOperationalDb('enquiry-deposits');
+after(cleanupIsolatedDatabases);
 
 // Load services dynamically
 const {

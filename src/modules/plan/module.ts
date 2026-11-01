@@ -21,7 +21,7 @@ async function createEnquiryApi(ctx: PageContext): Promise<Response> {
   }
 
   try {
-    const result = createEnquiry(payload);
+    const result = await createEnquiry(payload);
     let qrDataUrl = '';
     let scanUrl = '';
     let token = '';
