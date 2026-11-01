@@ -195,3 +195,22 @@ store is the remaining Phase 11 work (see the plan).
 - Booking prices, deposit snapshots, historical quotations.
 - The existing snapshot/deploy-hook publishing flow (still present, still works).
 - Public HTML rendering, routing, SEO output.
+
+---
+
+## 10. Test-object cleanup (Phase C)
+
+| Step | Result |
+| --- | --- |
+| Prefix inspected | `site-content-test/` |
+| Objects inspected | **8** — 1 manifest and 7 page documents (`v000001`) |
+| Ownership check | all keys matched the documented test prefix; the script aborts if a listing returns anything else |
+| Objects deleted | **8** |
+| Objects remaining | **0** |
+| `site-content/` before / after | **0 / 0** — production content was never activated |
+| `assets/` before / after | **83 / 83** — media untouched |
+
+The cleanup ran once at the start of the phase and again after the final parity
+run (which re-uploads the same eight objects), so the bucket is back to its
+pre-test state. No object outside `site-content-test/` was listed for deletion or
+deleted.
