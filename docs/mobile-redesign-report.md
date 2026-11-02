@@ -257,7 +257,7 @@ Follow-up fix commit: **`de3304c`** (`fix(plan): stop the mobile summary coverin
 
 Enquiry-slip redesign commit: **`f777e5a`** (`feat(plan): redesign the mobile enquiry slip QR card`)
 
-Validation fix commit: **`<pending-validation>`** (`fix(plan): reveal blocked custom dimensions before scrolling`)
+Validation fix commit: **`7e17899`** (`fix(plan): reveal blocked custom dimensions before scrolling`)
 
 ---
 
