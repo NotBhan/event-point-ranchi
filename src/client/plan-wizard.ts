@@ -496,6 +496,12 @@ function fail(message: string, fieldName?: string): false {
       targetEl = document.querySelector<HTMLElement>(`[name="${fieldName}"]`);
     }
     if (targetEl) {
+      // A blocked field can live inside a closed <details> accordion (custom
+      // mandap/stage dimensions). Without opening it, the error is added to an
+      // invisible field and Continue looks unresponsive.
+      const details = targetEl.closest('details');
+      if (details) details.open = true;
+
       setFieldError(targetEl, message);
       // 'instant' rather than 'auto': the stylesheet sets scroll-behavior:
       // smooth globally, which would make 'auto' animate and leave a window

@@ -164,7 +164,7 @@ Automated Chromium/CDP audit over **19 routes × 6 viewports** (320×640, 360×8
 
 ### 8.3 Interaction checks
 
-**24/24 passed:**
+**25/25 passed:**
 
 - Drawer opens, modal semantics, focus to close, scroll lock
 - Escape closes, inert state restored, focus returns to trigger
@@ -172,6 +172,7 @@ Automated Chromium/CDP audit over **19 routes × 6 viewports** (320×640, 360×8
 - Plan step 1 validates and advances
 - Mobile summary expands and reports quotation status
 - Mandap selection and equipment quantities update the summary
+- Blocked custom dimensions open the closed accordion and show the error
 - Step 3 equipment rail scrolls without widening the form
 - Draft persists and restores step/selections after reload
 - Sticky summary clears the submit button
@@ -198,6 +199,12 @@ The summary is now in the form flow **before** the navigation row and uses `posi
 The post-submission QR slip was a dense row of small actions on phones. It is now a vertical receipt panel: official-slip badge, concise check-in copy, a 156px QR tile (144px at 320px), a full-width primary receipt action, a two-up secondary row (stacked below 360px), and a screenshot hint. It fits 320–1440px without overflow and all three actions are at least 44px tall.
 
 Screenshots: `docs/mobile-redesign/screenshots/receipt/`.
+
+### 8.7 Follow-up: blocked Continue with hidden custom dimensions
+
+A second Continue report traced to step 2. If one custom mandap/stage dimension was entered while its accordion was closed, validation correctly blocked the step, but the field error was rendered inside the closed `<details>` and the target input was invisible. The step appeared to ignore Continue.
+
+The wizard now opens the containing accordion before adding the error, scrolling and focusing the input. The regression test enters one dimension, closes the accordion, presses Continue and asserts that the accordion opens, the error is visible and `mandapLength` is focused on screen.
 
 ---
 
@@ -249,6 +256,8 @@ Implementation commit: **`cdd192e`** (`feat(mobile): redesign public, account an
 Follow-up fix commit: **`de3304c`** (`fix(plan): stop the mobile summary covering Continue`)
 
 Enquiry-slip redesign commit: **`f777e5a`** (`feat(plan): redesign the mobile enquiry slip QR card`)
+
+Validation fix commit: **`<pending-validation>`** (`fix(plan): reveal blocked custom dimensions before scrolling`)
 
 ---
 
