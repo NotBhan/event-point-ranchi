@@ -76,13 +76,73 @@ function copyCampaignLink(button: HTMLElement): void {
   }
 }
 
+const ADMIN_BREAKPOINT = 1024;
+
+function adminMenuIsOpen(): boolean {
+  return Boolean(document.getElementById('adminShell')?.classList.contains('sidebar-open'));
+}
+
+function setAdminMenu(open: boolean, restoreFocus = false): void {
+  const shell = document.getElementById('adminShell');
+  const toggle = document.querySelector<HTMLButtonElement>('[data-admin-toggle]');
+  if (!shell) return;
+
+  shell.classList.toggle('sidebar-open', open);
+  toggle?.setAttribute('aria-expanded', String(open));
+  toggle?.setAttribute('aria-label', open ? 'Close admin menu' : 'Open admin menu');
+  document.body.classList.toggle('no-scroll', open && window.innerWidth <= ADMIN_BREAKPOINT);
+
+  const sidebar = shell.querySelector<HTMLElement>('.admin-sidebar');
+  if (sidebar) {
+    if (window.innerWidth <= ADMIN_BREAKPOINT && !open) {
+      sidebar.setAttribute('inert', '');
+      sidebar.setAttribute('aria-hidden', 'true');
+    } else {
+      sidebar.removeAttribute('inert');
+      sidebar.removeAttribute('aria-hidden');
+    }
+  }
+
+  if (open) {
+    const close = shell.querySelector<HTMLButtonElement>('[data-admin-close]');
+    requestAnimationFrame(() => close?.focus({ preventScroll: true }));
+    return;
+  }
+
+  if (restoreFocus && window.innerWidth <= ADMIN_BREAKPOINT) {
+    toggle?.focus({ preventScroll: true });
+  }
+}
+
+function adminFocusables(root: HTMLElement): HTMLElement[] {
+  return Array.from(
+    root.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((element) => element.offsetParent !== null);
+}
+
+function revealActiveStudioTab(): void {
+  const active = document.querySelector<HTMLElement>('.studio-tab-btn.active');
+  if (!active) return;
+  const rail = active.closest<HTMLElement>('.studio-tab-bar');
+  if (!rail) return;
+  const target = active.offsetLeft - rail.clientWidth / 2 + active.clientWidth / 2;
+  rail.scrollTo({ left: Math.max(0, target), behavior: 'auto' });
+}
+
 document.addEventListener('click', (event) => {
   const target = event.target as HTMLElement | null;
   if (!target) return;
 
   const toggle = target.closest<HTMLElement>('[data-admin-toggle]');
   if (toggle) {
-    document.getElementById('adminShell')?.classList.toggle('sidebar-open');
+    setAdminMenu(!adminMenuIsOpen());
+    return;
+  }
+
+  if (target.closest('[data-admin-close]')) {
+    setAdminMenu(false, true);
     return;
   }
 
@@ -106,8 +166,8 @@ document.addEventListener('click', (event) => {
   }
 
   const navLink = target.closest<HTMLElement>('.admin-nav a');
-  if (navLink && window.innerWidth <= 860) {
-    document.getElementById('adminShell')?.classList.remove('sidebar-open');
+  if (navLink && window.innerWidth <= ADMIN_BREAKPOINT) {
+    setAdminMenu(false);
   }
 
   const confirmTarget = target.closest<HTMLElement>('[data-confirm]');
@@ -411,6 +471,49 @@ document.addEventListener('submit', async (event) => {
     }
   }
 });
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && adminMenuIsOpen()) {
+    setAdminMenu(false, true);
+    return;
+  }
+
+  if (event.key !== 'Tab' || !adminMenuIsOpen() || window.innerWidth > ADMIN_BREAKPOINT) return;
+  const sidebar = document.querySelector<HTMLElement>('.admin-sidebar');
+  if (!sidebar) return;
+  const items = adminFocusables(sidebar);
+  if (items.length === 0) return;
+
+  const first = items[0];
+  const last = items[items.length - 1];
+  const active = document.activeElement as HTMLElement | null;
+
+  if (event.shiftKey && (active === first || !sidebar.contains(active))) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && active === last) {
+    event.preventDefault();
+    first.focus();
+  }
+});
+
+window.addEventListener('resize', () => {
+  if (window.innerWidth > ADMIN_BREAKPOINT) {
+    setAdminMenu(false);
+  }
+});
+
+function initAdminShell(): void {
+  setAdminMenu(false);
+  revealActiveStudioTab();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initAdminShell, { once: true });
+} else {
+  initAdminShell();
+}
+document.addEventListener('astro:page-load', initAdminShell);
 
 document.addEventListener('change', (event) => {
   const target = event.target as HTMLElement | null;

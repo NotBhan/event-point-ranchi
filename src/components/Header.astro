@@ -50,10 +50,15 @@ const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWit
       </span>
     </a>
 
-    <nav class="nav-menu" id="primaryNav" aria-label="Primary navigation">
+    <nav
+      class="nav-menu"
+      id="primaryNav"
+      aria-label="Primary navigation"
+      data-primary-nav
+    >
       <div class="nav-drawer-head">
         <div class="nav-drawer-brand">
-          <img src={logoUrl} alt="" width="32" height="32" />
+          <img src={logoUrl} alt="" width="34" height="34" />
           <div class="nav-drawer-brand-text">
             <strong>{brandName}</strong>
             <span>Mandap · Stage · Equipment</span>
@@ -65,35 +70,76 @@ const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWit
       </div>
 
       <div class="nav-drawer-links">
+        <a href="/plan" class="nav-drawer-plan-cta">
+          <span class="nav-drawer-plan-icon"><Icon name="calendar" size={18} /></span>
+          <span class="nav-drawer-plan-copy">
+            <strong>Plan your event</strong>
+            <small>Build a blueprint and request a quotation</small>
+          </span>
+          <Icon name="arrow-right" size={16} />
+        </a>
+
+        <span class="nav-group-label">Explore</span>
         {nav.map((item) => (
           <a href={item.href} class:list={['nav-link', { active: isActive(item.href) }]}>
             <span>{item.label}</span>
             <Icon name="chevron-right" size={14} class="nav-link-arrow" />
           </a>
         ))}
-      </div>
 
-      <div class="nav-drawer-footer">
-        <a class="nav-drawer-phone" href={phoneHref}>
-          <Icon name="phone" size={14} />
-          <span>Call: {phone}</span>
-        </a>
-        <div class="nav-mobile-actions">
+        <div class="nav-drawer-group">
+          <span class="nav-group-label">Your account</span>
           {auth.user ? (
-            <a href="/account" class="btn btn-secondary btn-block">My account</a>
+            <>
+              <a href="/account" class:list={['nav-link', { active: isActive('/account') }]} aria-current={isActive('/account') ? 'page' : undefined}>
+                <span>My account</span>
+                <Icon name="chevron-right" size={14} class="nav-link-arrow" />
+              </a>
+              <a href="/my-bookings" class:list={['nav-link', { active: isActive('/my-bookings') }]} aria-current={isActive('/my-bookings') ? 'page' : undefined}>
+                <span>My bookings</span>
+                <Icon name="chevron-right" size={14} class="nav-link-arrow" />
+              </a>
+            </>
           ) : (
             <>
-              <a href="/login" class="btn btn-secondary btn-block">Login</a>
-              <a href="/register" class="btn btn-ghost btn-block">Create an account</a>
+              <a href="/login" class:list={['nav-link', { active: isActive('/login') }]}>
+                <span>Customer login</span>
+                <Icon name="chevron-right" size={14} class="nav-link-arrow" />
+              </a>
+              <a href="/register" class:list={['nav-link', { active: isActive('/register') }]}>
+                <span>Create an account</span>
+                <Icon name="chevron-right" size={14} class="nav-link-arrow" />
+              </a>
             </>
           )}
-          <a href="/plan" class="btn btn-primary btn-block">Plan Your Event</a>
-          <a href="/plan" class="btn btn-secondary btn-block nav-requirements-btn">
-            <Icon name="receipt" size={15} />
-            <span>View requirements</span>
+          <a href="/plan" class="nav-link nav-requirements-btn">
+            <span>Your requirements</span>
             <span class="requirements-count" data-requirements-count>0</span>
           </a>
         </div>
+
+        <div class="nav-drawer-group">
+          <span class="nav-group-label">Reach us</span>
+          <a href="/contact" class:list={['nav-link', { active: isActive('/contact') }]}>
+            <span>Contact &amp; studio visit</span>
+            <Icon name="chevron-right" size={14} class="nav-link-arrow" />
+          </a>
+          <a href={phoneHref} class="nav-link">
+            <span>Call {phone}</span>
+            <Icon name="phone" size={14} class="nav-link-arrow" />
+          </a>
+        </div>
+      </div>
+
+      <div class="nav-drawer-footer">
+        <a href="/plan" class="btn btn-primary btn-block btn-lg">Plan your event</a>
+        <a href={phoneHref} class="nav-drawer-phone">
+          <Icon name="phone" size={15} />
+          <span>Call the Ranchi studio · {phone}</span>
+        </a>
+        <a href="/admin/login" class="nav-drawer-staff">
+          <Icon name="shield" size={13} /> Staff console
+        </a>
       </div>
     </nav>
 
@@ -219,10 +265,19 @@ const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWit
         <Icon name="shield" size={15} />
       </a>
 
-      <button type="button" class="nav-toggle" data-nav-toggle aria-label="Open menu" aria-expanded="false">
+      <a href="/plan" class="mobile-plan-cta">Plan</a>
+
+      <button
+        type="button"
+        class="nav-toggle"
+        data-nav-toggle
+        aria-label="Open menu"
+        aria-expanded="false"
+        aria-controls="primaryNav"
+      >
         <Icon name="menu" size={20} />
       </button>
     </div>
   </div>
-  <div class="nav-backdrop" data-nav-close></div>
+  <div class="nav-backdrop" data-nav-close aria-hidden="true"></div>
 </header>

@@ -44,7 +44,7 @@ const tabs = [
         <div class="admin-empty">No inquiries in this view.</div>
       ) : (
         <div class="table-wrap">
-          <table class="table">
+          <table class="table table-stack">
             <thead>
               <tr>
                 <th>Received</th>
@@ -58,24 +58,24 @@ const tabs = [
             <tbody>
               {inquiries.map((inquiry) => (
                 <tr>
-                  <td class="text-xs">{formatDateTime(inquiry.created_at)}</td>
-                  <td>
+                  <td data-label="Received" class="text-xs">{formatDateTime(inquiry.created_at)}</td>
+                  <td data-label="Customer">
                     <strong>{inquiry.name}</strong>
                     <div class="text-xs text-muted">{inquiry.phone}</div>
                     <div class="text-xs text-muted">{inquiry.email}</div>
                   </td>
-                  <td>
+                  <td data-label="Event">
                     {inquiry.event_type || '—'}
                     <div class="text-xs text-muted">
                       {inquiry.event_date ? formatDate(inquiry.event_date) : 'No date'}
                       {inquiry.guest_count ? ` · ${inquiry.guest_count} guests` : ''}
                     </div>
                   </td>
-                  <td style="max-width:320px;">
+                  <td data-label="Message" style="max-width:320px;">
                     <span class="text-sm">{inquiry.message || '—'}</span>
                   </td>
-                  <td><span class:list={['badge', statusClass[inquiry.status] ?? 'badge-muted']}>{inquiry.status}</span></td>
-                  <td>
+                  <td data-label="Status"><span class:list={['badge', statusClass[inquiry.status] ?? 'badge-muted']}>{inquiry.status}</span></td>
+                  <td data-label="Actions">
                     <div class="admin-row-actions">
                       <form method="POST" action={`/admin/inquiries?status=${status}`}>
                         <input type="hidden" name="_csrf" value={csrf} />
@@ -91,8 +91,9 @@ const tabs = [
                         <input type="hidden" name="_csrf" value={csrf} />
                         <input type="hidden" name="action" value="delete" />
                         <input type="hidden" name="id" value={inquiry.id} />
-                        <button type="submit" class="icon-btn danger" data-confirm="Delete this inquiry?" aria-label="Delete inquiry">
+                        <button type="submit" class="icon-btn danger icon-btn-labeled" data-confirm="Delete this inquiry?" aria-label="Delete inquiry">
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                          <span class="action-label-mobile">Delete</span>
                         </button>
                       </form>
                     </div>

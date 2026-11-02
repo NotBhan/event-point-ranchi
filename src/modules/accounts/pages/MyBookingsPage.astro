@@ -43,19 +43,19 @@ const statusClass: Record<string, string> = {
           <div class="account-card">
             <div class="account-card-title">
               <span>All reservations ({bookings.length})</span>
-              <a href="/halls" class="btn btn-primary btn-sm">New booking</a>
+              <a href="/plan" class="btn btn-primary btn-sm">Plan an event</a>
             </div>
 
             {bookings.length === 0 ? (
               <div class="empty-state">
                 <div class="empty-icon"><Icon name="calendar" size={24} /></div>
                 <h3>No bookings yet</h3>
-                <p>Browse our banquet halls and build your first event.</p>
-                <a href="/halls" class="btn btn-primary mt-4">Explore venues</a>
+                <p>Build your first event brief and our team will respond with a quotation.</p>
+                <a href="/plan" class="btn btn-primary mt-4">Plan your event</a>
               </div>
             ) : (
               <div class="table-wrap">
-                <table class="table">
+                <table class="table table-stack">
                   <thead>
                     <tr>
                       <th>Booking</th>
@@ -70,14 +70,14 @@ const statusClass: Record<string, string> = {
                   <tbody>
                     {bookings.map((booking) => (
                       <tr>
-                        <td><strong>#{booking.id}</strong></td>
-                        <td>{formatDate(booking.event_date)}</td>
-                        <td>{booking.event_type}</td>
-                        <td>{booking.total_guest}</td>
-                        <td class="money">{formatMoney(booking.total_amount)}</td>
-                        <td><span class:list={['badge', statusClass[booking.status] ?? 'badge-muted']}>{booking.status}</span></td>
-                        <td style="text-align:right;">
-                          <a href={`/booking/${booking.id}/quotation`} class="btn btn-ghost btn-sm">View invoice</a>
+                        <td data-label="Booking"><strong>#{booking.id}</strong></td>
+                        <td data-label="Event date">{formatDate(booking.event_date)}</td>
+                        <td data-label="Type">{booking.event_type}</td>
+                        <td data-label="Guests">{booking.total_guest}</td>
+                        <td data-label="Total" class="money">{formatMoney(booking.total_amount)}</td>
+                        <td data-label="Status"><span class:list={['badge', statusClass[booking.status] ?? 'badge-muted']}>{booking.status}</span></td>
+                        <td data-label="Actions">
+                          <a href={`/booking/${booking.id}/quotation`} class="btn btn-secondary btn-sm">View invoice</a>
                         </td>
                       </tr>
                     ))}

@@ -1070,7 +1070,7 @@ const pageContentMap = new Map(pagesContent.map((p) => [p.page_key, p]));
                 <p class="text-sm text-muted">No object-storage publications yet.</p>
               ) : (
                 <div class="table-wrap">
-                  <table class="table">
+                  <table class="table table-stack">
                     <thead>
                       <tr>
                         <th>Version</th>
@@ -1083,8 +1083,8 @@ const pageContentMap = new Map(pagesContent.map((p) => [p.page_key, p]));
                     <tbody>
                       {objectStore.releases.map((release) => (
                         <tr>
-                          <td><code style="font-size:11.5px;">{release.siteVersion}</code></td>
-                          <td>
+                          <td data-label="Version"><code style="font-size:11.5px;">{release.siteVersion}</code></td>
+                          <td data-label="Status">
                             <span class:list={[
                               'badge',
                               release.status === 'published' ? 'badge-success'
@@ -1097,9 +1097,9 @@ const pageContentMap = new Map(pagesContent.map((p) => [p.page_key, p]));
                             )}
                             {release.error && <div class="text-xs" style="color:var(--danger);">{release.error}</div>}
                           </td>
-                          <td class="text-sm">{release.publishedByName || '—'}</td>
-                          <td class="text-xs">{release.createdAt ? formatStamp(release.createdAt) : '—'}</td>
-                          <td>
+                          <td data-label="Publisher" class="text-sm">{release.publishedByName || '—'}</td>
+                          <td data-label="Created" class="text-xs">{release.createdAt ? formatStamp(release.createdAt) : '—'}</td>
+                          <td data-label="Actions">
                             {release.status === 'published' && release.siteVersion !== objectStore.activeVersion && (
                               <form method="POST" action="/admin/content">
                                 <input type="hidden" name="_csrf" value={csrf} />

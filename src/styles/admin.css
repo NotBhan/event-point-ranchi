@@ -27,6 +27,11 @@
   border-bottom: 1px solid var(--line-dark);
 }
 .admin-brand img { height: 34px; width: auto; border-radius: var(--r-xs); }
+.admin-sidebar-close,
+.admin-backdrop {
+  display: none;
+}
+.admin-brand { position: relative; }
 .admin-brand strong { display: block; color: #fff; font-size: 13.5px; letter-spacing: 0.02em; }
 .admin-brand span { display: block; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: #8f8a80; margin-top: 3px; }
 
@@ -61,7 +66,16 @@
   gap: 10px;
 }
 .admin-user-chip { display: flex; align-items: center; gap: 10px; padding: 0 4px; }
-.admin-user-chip .avatar { background: var(--gold); }
+.admin-user-chip .avatar {
+  background: var(--gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 13px;
+  margin-top: 0;
+  word-break: normal;
+}
 .admin-user-chip strong { display: block; font-size: 13px; color: #fff; }
 .admin-user-chip span { display: block; font-size: 10.5px; color: #8f8a80; text-transform: capitalize; }
 .admin-user-actions { display: flex; flex-direction: column; gap: 4px; }
@@ -821,9 +835,40 @@
     width: 258px;
     transform: translateX(-105%);
     transition: transform 0.24s var(--ease);
+    box-shadow: 18px 0 48px rgba(10, 4, 6, 0.3);
   }
   .admin-shell.sidebar-open .admin-sidebar { transform: translateX(0); }
   .admin-toggle { display: inline-flex; }
   .admin-content { padding: 20px; }
   .admin-grid-2, .admin-grid-3 { grid-template-columns: 1fr; }
+
+  .admin-sidebar-close {
+    position: absolute;
+    top: -4px;
+    right: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--line-dark);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+  }
+  .admin-sidebar-close:hover { background: rgba(255, 255, 255, 0.14); }
+
+  .admin-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    display: block;
+    background: rgba(15, 8, 10, 0.5);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.22s var(--ease), visibility 0.22s;
+    border: 0;
+    padding: 0;
+  }
+  .admin-shell.sidebar-open .admin-backdrop { opacity: 1; visibility: visible; }
 }

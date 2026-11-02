@@ -1,3 +1,5 @@
+let previousFocus: HTMLElement | null = null;
+
 function getLightboxElements() {
   const root = document.querySelector<HTMLElement>('[data-lightbox-root]');
   const image = document.querySelector<HTMLImageElement>('[data-lightbox-image]');
@@ -5,16 +7,22 @@ function getLightboxElements() {
   return { root, image, caption };
 }
 
-export function openLightbox(src: string, text = ''): void {
+export function openLightbox(src: string, text = '', trigger?: HTMLElement | null): void {
   const { root, image, caption } = getLightboxElements();
   if (!root || !image) return;
 
+  previousFocus =
+    trigger ??
+    (document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+      ? document.activeElement
+      : null);
   image.src = src;
   image.alt = text || 'Event design preview';
   if (caption) caption.textContent = text;
   root.classList.add('open');
   root.setAttribute('aria-hidden', 'false');
   document.body.classList.add('no-scroll');
+  root.querySelector<HTMLButtonElement>('[data-lightbox-close]')?.focus({ preventScroll: true });
 }
 
 export function closeLightbox(): void {
@@ -25,6 +33,10 @@ export function closeLightbox(): void {
   root.setAttribute('aria-hidden', 'true');
   if (image) image.src = '';
   document.body.classList.remove('no-scroll');
+  if (previousFocus && document.contains(previousFocus)) {
+    previousFocus.focus({ preventScroll: true });
+  }
+  previousFocus = null;
 }
 
 // Global click listener for [data-lightbox] elements and dismissals
@@ -40,7 +52,7 @@ if (!(window as any).__lightbox_initialized) {
       event.preventDefault();
       const src = trigger.dataset.src ?? '';
       if (src) {
-        openLightbox(src, trigger.dataset.caption ?? '');
+        openLightbox(src, trigger.dataset.caption ?? '', trigger);
       }
       return;
     }
@@ -53,6 +65,17 @@ if (!(window as any).__lightbox_initialized) {
   });
 
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') closeLightbox();
+    if (event.key === 'Escape') {
+      closeLightbox();
+      return;
+    }
+
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const trigger = (event.target as Element | null)?.closest<HTMLElement>('[data-lightbox]');
+    if (!trigger || trigger.tagName === 'BUTTON') return;
+
+    event.preventDefault();
+    const src = trigger.dataset.src ?? '';
+    if (src) openLightbox(src, trigger.dataset.caption ?? '', trigger);
   });
 }

@@ -1,0 +1,32 @@
+---
+import Icon from './Icon.astro';
+
+const auth = Astro.locals.auth ?? { user: null, isAuthenticated: false };
+const path = Astro.url.pathname;
+
+const accountHref = auth.user ? '/account' : '/login';
+const accountLabel = auth.user ? 'Account' : 'Sign in';
+const accountIcon = 'user';
+
+const items = [
+  { label: 'Mandaps', href: '/mandaps', icon: 'archway', match: ['/mandaps', '/stages', '/equipment', '/catering'] },
+  { label: 'Gallery', href: '/gallery', icon: 'image', match: ['/gallery'] },
+  { label: 'Plan', href: '/plan', icon: 'calendar', match: ['/plan'], plan: true },
+  { label: accountLabel, href: accountHref, icon: accountIcon, match: ['/account', '/profile', '/my-bookings', '/login', '/register'] },
+];
+
+const isActive = (match: string[]) => match.some((href) => path === href || path.startsWith(`${href}/`));
+---
+
+<nav class="mobile-dock" aria-label="Mobile navigation">
+  {items.map((item) => (
+    <a
+      href={item.href}
+      class:list={{ 'dock-plan': item.plan }}
+      aria-current={isActive(item.match) ? 'page' : undefined}
+    >
+      <Icon name={item.icon} size={21} />
+      <span>{item.label}</span>
+    </a>
+  ))}
+</nav>

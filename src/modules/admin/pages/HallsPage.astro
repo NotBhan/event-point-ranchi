@@ -30,7 +30,7 @@ const pageHref = (page: number) => `/admin/halls?page=${page}`;
         <div class="admin-empty">No halls yet. <a href="/admin/halls/new" style="color:var(--gold-ink);font-weight:600;">Add the first venue</a>.</div>
       ) : (
         <div class="table-wrap">
-          <table class="table">
+          <table class="table table-stack">
             <thead>
               <tr>
                 <th>Hall</th>
@@ -44,7 +44,7 @@ const pageHref = (page: number) => `/admin/halls?page=${page}`;
             <tbody>
               {halls.map((hall) => (
                 <tr>
-                  <td>
+                  <td data-label="Hall">
                     <div style="display:flex;align-items:center;gap:12px;">
                       {hall.image ? (
                         <img class="admin-thumb" src={thumbnailUrl(hall.image, 96)} width="44" height="44" alt="" loading="lazy" decoding="async" />
@@ -57,16 +57,16 @@ const pageHref = (page: number) => `/admin/halls?page=${page}`;
                       </div>
                     </div>
                   </td>
-                  <td>{hall.capacity}</td>
-                  <td class="money">{formatMoney(hall.price_paise)}</td>
-                  <td>{hall.booking_count}</td>
-                  <td>
+                  <td data-label="Capacity">{hall.capacity}</td>
+                  <td data-label="Price" class="money">{formatMoney(hall.price_paise)}</td>
+                  <td data-label="Bookings">{hall.booking_count}</td>
+                  <td data-label="Visibility">
                     <div style="display:flex;gap:6px;flex-wrap:wrap;">
                       <span class:list={['badge', hall.is_active ? 'badge-success' : 'badge-muted']}>{hall.is_active ? 'live' : 'hidden'}</span>
                       {hall.is_featured === 1 && <span class="badge badge-gold">featured</span>}
                     </div>
                   </td>
-                  <td>
+                  <td data-label="Actions">
                     <div class="admin-row-actions">
                       <a href={`/admin/halls/${hall.id}`} class="btn btn-secondary btn-sm">Edit</a>
                       <form method="POST" action={`/admin/halls/${hall.id}/toggle`}>
@@ -77,11 +77,12 @@ const pageHref = (page: number) => `/admin/halls?page=${page}`;
                         <input type="hidden" name="_csrf" value={csrf} />
                         <button
                           type="submit"
-                          class="icon-btn danger"
+                          class="icon-btn danger icon-btn-labeled"
                           data-confirm={`Delete "${hall.name}" and all its booking links?`}
                           aria-label="Delete hall"
                         >
                           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                          <span class="action-label-mobile">Delete</span>
                         </button>
                       </form>
                     </div>

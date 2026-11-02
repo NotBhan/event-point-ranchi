@@ -15,7 +15,7 @@ const { initialToken = '' } = Astro.props;
     <span class="text-xs text-muted">Admin Quick Dispatch Desk</span>
   </div>
 
-  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:24px;align-items:start;">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(340px, 100%), 1fr));gap:24px;align-items:start;">
     
     <!-- Left Column: Camera Scanner & Inputs -->
     <div class="admin-panel">
@@ -462,7 +462,7 @@ const { initialToken = '' } = Astro.props;
             <!-- Customer Snapshot -->
             <div style="background:var(--canvas-warm);border:1px solid var(--line);border-radius:var(--r-md);padding:14px 16px;">
               <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Customer Information</div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-size:13px;">
+              <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(150px, 100%), 1fr));gap:8px 16px;font-size:13px;">
                 <div><strong>Name:</strong> ${esc(enq.customerName)}</div>
                 <div><strong>Phone:</strong> <a href="tel:${esc(cleanPhone)}" class="text-link">${esc(enq.customerPhone)}</a></div>
                 <div><strong>Email:</strong> ${esc(enq.customerEmail || '—')}</div>
@@ -473,7 +473,7 @@ const { initialToken = '' } = Astro.props;
             <!-- Event Details -->
             <div style="background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:14px 16px;">
               <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Event Requirements</div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-size:13px;">
+              <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(150px, 100%), 1fr));gap:8px 16px;font-size:13px;">
                 <div><strong>Event Type:</strong> ${esc(enq.eventType)}</div>
                 <div><strong>Event Date:</strong> ${esc(enq.eventDate)} ${enq.endDate ? 'to ' + esc(enq.endDate) : ''}</div>
                 <div><strong>Venue:</strong> ${esc(enq.venueLocation)}</div>

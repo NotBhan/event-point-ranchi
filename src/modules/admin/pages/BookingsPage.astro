@@ -56,7 +56,7 @@ const tabs = [
         <div class="admin-empty">No bookings match these filters.</div>
       ) : (
         <div class="table-wrap">
-          <table class="table">
+          <table class="table table-stack">
             <thead>
               <tr>
                 <th>#</th>
@@ -71,26 +71,27 @@ const tabs = [
             <tbody>
               {bookings.map((booking) => (
                 <tr>
-                  <td><strong>#{booking.id}</strong></td>
-                  <td>
+                  <td data-label="Booking"><strong>#{booking.id}</strong></td>
+                  <td data-label="Customer">
                     {booking.customer}
                     <div class="text-xs text-muted">{booking.phone}</div>
                   </td>
-                  <td>
+                  <td data-label="Event">
                     {booking.event_type}
                     <div class="text-xs text-muted">{formatDate(booking.event_date)}</div>
                   </td>
-                  <td>{booking.total_guest}</td>
-                  <td class="money">{formatMoney(booking.total_amount)}</td>
-                  <td><span class:list={['badge', statusClass[booking.status] ?? 'badge-muted']}>{booking.status}</span></td>
-                  <td>
+                  <td data-label="Guests">{booking.total_guest}</td>
+                  <td data-label="Total" class="money">{formatMoney(booking.total_amount)}</td>
+                  <td data-label="Status"><span class:list={['badge', statusClass[booking.status] ?? 'badge-muted']}>{booking.status}</span></td>
+                  <td data-label="Actions">
                     <div class="admin-row-actions">
                       <a href={`/admin/bookings/${booking.id}`} class="btn btn-secondary btn-sm">Open</a>
                       <form method="POST" action={`/admin/bookings/${booking.id}`}>
                         <input type="hidden" name="_csrf" value={csrf} />
                         <input type="hidden" name="action" value="delete" />
-                        <button type="submit" class="icon-btn danger" data-confirm={`Delete booking #${booking.id}? This cannot be undone.`} aria-label="Delete booking">
+                        <button type="submit" class="icon-btn danger icon-btn-labeled" data-confirm={`Delete booking #${booking.id}? This cannot be undone.`} aria-label="Delete booking">
                           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                          <span class="action-label-mobile">Delete</span>
                         </button>
                       </form>
                     </div>

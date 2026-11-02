@@ -69,6 +69,7 @@ const defaultGateway = paymentService.getDefaultProvider();
 <BaseLayout
   title={`Secure Checkout | Booking #${booking.id} | ${brandName}`}
   description="Complete your booking advance or balance payment securely via PhonePe with 256-bit encryption."
+  noDock
 >
   <section class="page-hero">
     <div class="container">
@@ -82,7 +83,7 @@ const defaultGateway = paymentService.getDefaultProvider();
 
   <section class="section">
     <div class="container" style="max-width:960px;">
-      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));gap:32px;align-items:start;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(320px, 100%), 1fr));gap:32px;align-items:start;">
         
         <!-- Left Column: Booking & Calculation Summary -->
         <div class="panel" style="padding:28px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);">

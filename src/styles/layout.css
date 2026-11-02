@@ -92,6 +92,14 @@
   display: contents;
 }
 
+/* Drawer-only blocks are hidden while the navigation is a desktop row. */
+.nav-drawer-plan-cta,
+.nav-drawer-group,
+.nav-drawer-staff,
+.nav-group-label {
+  display: none;
+}
+
 .nav-item { position: relative; }
 .nav-dropdown {
   position: absolute;
@@ -850,6 +858,17 @@
 }
 .account-user strong { display: block; font-size: 13.5px; color: var(--ink); }
 .account-user span { display: block; font-size: 11.5px; color: var(--muted); margin-top: 2px; word-break: break-all; }
+/* The metadata rule above also matches the avatar span; restore the avatar's
+   own flex centring and white initial. */
+.account-user .avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 13px;
+  margin-top: 0;
+  word-break: normal;
+}
 .account-nav { display: flex; flex-direction: column; gap: 2px; }
 .account-nav a {
   display: flex;

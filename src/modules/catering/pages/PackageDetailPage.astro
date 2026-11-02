@@ -19,7 +19,12 @@ const packageImage = heroImage(data?.package?.image);
 {notFound || !data ? (
   <NotFound />
 ) : (
-  <BaseLayout title={`${data.package.name} | Event Point Ranchi`} description={data.package.description}>
+  <BaseLayout
+    title={`${data.package.name} | Event Point Ranchi`}
+    description={data.package.description}
+    bodyClass="has-mobile-action"
+    noDock
+  >
     <div
       data-catering-detail
       data-id={data.package.id}
@@ -118,7 +123,7 @@ const packageImage = heroImage(data?.package?.image);
           ))}
         </div>
 
-        <aside class="detail-aside">
+        <aside class="detail-aside" id="eventSummary">
           <div class="summary-card" data-event-summary></div>
           <div class="muted-box mt-6">
             <Icon name="info" size={15} />
@@ -126,6 +131,13 @@ const packageImage = heroImage(data?.package?.image);
           </div>
         </aside>
       </div>
+    </div>
+
+    <div class="mobile-action-bar">
+      <a href="#eventSummary" class="btn btn-primary">View live summary</a>
+      <a href="/plan" class="btn btn-secondary" aria-label="Plan your event">
+        <Icon name="calendar" size={18} />
+      </a>
     </div>
 
     <script>

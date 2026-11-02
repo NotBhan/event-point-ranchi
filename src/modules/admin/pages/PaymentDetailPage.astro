@@ -84,7 +84,7 @@ const canRefund = payment && (payment.status === 'captured' || payment.status ==
       </div>
     )}
 
-    <div class="admin-grid-3" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1.5rem;margin-bottom:1.5rem;">
+    <div class="admin-grid-3" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px, 100%),1fr));gap:1.5rem;margin-bottom:1.5rem;">
       <!-- Payment Details -->
       <div class="admin-panel">
         <div class="admin-panel-head">
@@ -236,7 +236,7 @@ const canRefund = payment && (payment.status === 'captured' || payment.status ==
         </div>
         <div class="admin-panel-body flush">
           <div class="table-wrap">
-            <table class="table">
+            <table class="table table-stack">
               <thead>
                 <tr>
                   <th>Refund Ref</th>
@@ -250,16 +250,16 @@ const canRefund = payment && (payment.status === 'captured' || payment.status ==
               <tbody>
                 {refunds.map((r) => (
                   <tr>
-                    <td><strong>#{r.id}</strong></td>
-                    <td style="font-family:monospace;font-size:0.85rem;">{r.provider_refund_id || '—'}</td>
-                    <td class="money" style="font-weight:600;color:#ef4444;">{formatMoney(r.amount_paise)}</td>
-                    <td>{r.reason}</td>
-                    <td>
+                    <td data-label="Refund ref"><strong>#{r.id}</strong></td>
+                    <td data-label="Gateway refund ID" style="font-family:monospace;font-size:0.85rem;">{r.provider_refund_id || '—'}</td>
+                    <td data-label="Amount" class="money" style="font-weight:600;color:#ef4444;">{formatMoney(r.amount_paise)}</td>
+                    <td data-label="Reason">{r.reason}</td>
+                    <td data-label="Status">
                       <span class:list={['badge', r.status === 'processed' ? 'badge-success' : 'badge-warning']}>
                         {r.status}
                       </span>
                     </td>
-                    <td class="text-xs text-muted">{formatDateTime(r.created_at)}</td>
+                    <td data-label="Initiated" class="text-xs text-muted">{formatDateTime(r.created_at)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -277,7 +277,7 @@ const canRefund = payment && (payment.status === 'captured' || payment.status ==
         </div>
         <div class="admin-panel-body flush">
           <div class="table-wrap">
-            <table class="table">
+            <table class="table table-stack">
               <thead>
                 <tr>
                   <th>ID</th>
@@ -291,16 +291,16 @@ const canRefund = payment && (payment.status === 'captured' || payment.status ==
               <tbody>
                 {webhookEvents.map((w) => (
                   <tr>
-                    <td>#{w.id}</td>
-                    <td><strong>{w.event_type}</strong></td>
-                    <td style="font-family:monospace;font-size:0.8rem;">{w.provider_event_id || '—'}</td>
-                    <td>
+                    <td data-label="Event">#{w.id}</td>
+                    <td data-label="Gateway event"><strong>{w.event_type}</strong></td>
+                    <td data-label="Event ID" style="font-family:monospace;font-size:0.8rem;">{w.provider_event_id || '—'}</td>
+                    <td data-label="Signature">
                       <span class:list={['badge', w.payload_hash ? 'badge-success' : 'badge-danger']}>
                         {w.processing_status.toUpperCase()}
                       </span>
                     </td>
-                    <td class="text-xs text-muted">{formatDateTime(w.received_at)}</td>
-                    <td style="font-family:monospace;font-size:0.75rem;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                    <td data-label="Received" class="text-xs text-muted">{formatDateTime(w.received_at)}</td>
+                    <td data-label="Payload" style="font-family:monospace;font-size:0.75rem;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
                       {w.raw_payload ? w.raw_payload.slice(0, 120) : '—'}...
                     </td>
                   </tr>

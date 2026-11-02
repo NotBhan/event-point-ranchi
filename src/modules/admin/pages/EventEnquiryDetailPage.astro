@@ -157,7 +157,7 @@ if (data?.enquiry) {
           <div class="admin-empty">No catalogue line items submitted.</div>
         ) : (
           <div class="table-wrap">
-            <table class="table">
+            <table class="table table-stack">
               <thead>
                 <tr>
                   <th>Type</th>
@@ -171,15 +171,15 @@ if (data?.enquiry) {
               <tbody>
                 {data.lines.map((line) => (
                   <tr>
-                    <td><span class="badge badge-muted">{line.item_type}</span></td>
-                    <td>
+                    <td data-label="Type"><span class="badge badge-muted">{line.item_type}</span></td>
+                    <td data-label="Item">
                       <strong>{line.item_name_snapshot}</strong>
                       {line.catalogue_item_id && <div class="text-xs text-muted">Catalogue #{line.catalogue_item_id}</div>}
                     </td>
-                    <td class="money">{line.quantity}</td>
-                    <td class="text-sm">{line.standard_dimensions_snapshot || '—'}</td>
-                    <td class="text-sm">{requestedDimensions(line)}</td>
-                    <td style="max-width:320px;">
+                    <td data-label="Quantity" class="money">{line.quantity}</td>
+                    <td data-label="Standard dimensions" class="text-sm">{line.standard_dimensions_snapshot || '—'}</td>
+                    <td data-label="Requested dimensions" class="text-sm">{requestedDimensions(line)}</td>
+                    <td data-label="Specifications & notes" style="max-width:320px;">
                       {line.specifications && <div class="text-xs">{line.specifications}</div>}
                       {line.notes && <div class="text-xs text-muted">Note: {line.notes}</div>}
                       {!line.specifications && !line.notes && '—'}

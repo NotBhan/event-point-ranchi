@@ -33,6 +33,7 @@ const isRefunded = receiptData?.isRefunded || receiptData?.receipt.status === 'r
 <BaseLayout
   title={receiptData ? `Receipt Verification ${receiptData.receipt.receipt_number} | ${brandName}` : `Receipt Not Found | ${brandName}`}
   description="Official cryptographic verification portal for Event Point Ranchi payment receipts."
+  noDock
 >
   <section class="page-hero">
     <div class="container">

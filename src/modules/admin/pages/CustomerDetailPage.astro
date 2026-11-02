@@ -70,21 +70,21 @@ const statusClass: Record<string, string> = {
             <div class="admin-empty">No bookings yet.</div>
           ) : (
             <div class="table-wrap">
-              <table class="table">
+              <table class="table table-stack">
                 <thead>
                   <tr><th>#</th><th>Event</th><th>Total</th><th>Status</th><th></th></tr>
                 </thead>
                 <tbody>
                   {data.bookings.map((booking) => (
                     <tr>
-                      <td><strong>#{booking.id}</strong></td>
-                      <td>
+                      <td data-label="Booking"><strong>#{booking.id}</strong></td>
+                      <td data-label="Event">
                         {booking.event_type}
                         <div class="text-xs text-muted">{formatDate(booking.event_date)} · created {formatDateTime(booking.created_at)}</div>
                       </td>
-                      <td class="money">{formatMoney(booking.total_amount)}</td>
-                      <td><span class:list={['badge', statusClass[booking.status] ?? 'badge-muted']}>{booking.status}</span></td>
-                      <td><a href={`/admin/bookings/${booking.id}`} class="btn btn-ghost btn-sm">Open</a></td>
+                      <td data-label="Total" class="money">{formatMoney(booking.total_amount)}</td>
+                      <td data-label="Status"><span class:list={['badge', statusClass[booking.status] ?? 'badge-muted']}>{booking.status}</span></td>
+                      <td data-label="Actions"><a href={`/admin/bookings/${booking.id}`} class="btn btn-secondary btn-sm">Open</a></td>
                     </tr>
                   ))}
                 </tbody>

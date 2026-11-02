@@ -80,7 +80,7 @@ const statuses = ['pending', 'confirmed', 'cancelled', 'draft'];
     </div>
 
     <!-- Financial Breakdown & Deposit Configuration -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));gap:20px;margin-bottom:24px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(320px, 100%), 1fr));gap:20px;margin-bottom:24px;">
       <!-- Financial Overview -->
       <div class="admin-panel">
         <div class="admin-panel-head">
@@ -205,16 +205,16 @@ const statuses = ['pending', 'confirmed', 'cancelled', 'draft'];
       </div>
       <div class="admin-panel-body flush">
         <div class="table-wrap">
-          <table class="table">
+          <table class="table table-stack">
             <thead>
               <tr><th>Category</th><th>Details</th><th style="text-align:right;">Amount</th></tr>
             </thead>
             <tbody>
               {data.lines.map((line) => (
                 <tr>
-                  <td><strong>{line.label}</strong></td>
-                  <td>{line.detail}</td>
-                  <td class="money" style="text-align:right;">{formatMoney(line.amount)}</td>
+                  <td data-label="Category"><strong>{line.label}</strong></td>
+                  <td data-label="Details">{line.detail}</td>
+                  <td data-label="Amount" class="money" style="text-align:right;">{formatMoney(line.amount)}</td>
                 </tr>
               ))}
             </tbody>

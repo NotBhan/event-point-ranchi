@@ -8,6 +8,7 @@ import '../styles/tokens.css';
 import '../styles/base.css';
 import '../styles/components.css';
 import '../styles/admin.css';
+import '../styles/mobile.css';
 
 interface Props {
   title?: string;
@@ -30,7 +31,7 @@ const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="robots" content="noindex, nofollow" />
     <title>{title} · {site.name} Admin</title>
     <link rel="icon" type="image/svg+xml" href={site.logo} />
@@ -48,9 +49,12 @@ const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path
             <strong>{site.name}</strong>
             <span>Admin console</span>
           </div>
+          <button type="button" class="admin-sidebar-close" data-admin-close aria-label="Close menu">
+            <Icon name="x" size={18} />
+          </button>
         </div>
 
-        <nav class="admin-nav">
+        <nav class="admin-nav" aria-label="Admin sections">
           <span class="admin-nav-label">{isEditorOnly ? 'Content Studio' : 'Operations'}</span>
           {visibleNav.map((item) => (
             <a href={item.href} class:list={{ active: isActive(item.href) }}>
@@ -78,9 +82,18 @@ const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path
         </div>
       </aside>
 
+      <button type="button" class="admin-backdrop" data-admin-close aria-label="Close menu" tabindex="-1"></button>
+
       <div class="admin-main">
         <header class="admin-topbar">
-          <button type="button" class="admin-toggle" data-admin-toggle aria-label="Toggle menu">
+          <button
+            type="button"
+            class="admin-toggle"
+            data-admin-toggle
+            aria-label="Open admin menu"
+            aria-expanded="false"
+            aria-controls="adminShell"
+          >
             <Icon name="menu" size={18} />
           </button>
           <div>

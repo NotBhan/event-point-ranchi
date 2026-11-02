@@ -13,7 +13,7 @@ const { error, next, username } = Astro.props;
 const csrf = Astro.locals.csrf;
 ---
 
-<BaseLayout title="Log in | Event Point Ranchi" noCart>
+<BaseLayout title="Log in | Event Point Ranchi" noCart noDock>
   <section class="auth-page">
     <div class="auth-card">
       <div class="auth-head">
@@ -35,12 +35,12 @@ const csrf = Astro.locals.csrf;
 
         <div class="field">
           <label for="username">Username or email</label>
-          <input class="input" id="username" name="username" required autofocus value={username} placeholder="rohit_sharma" />
+          <input class="input" id="username" name="username" required autofocus value={username} placeholder="rohit_sharma" autocomplete="username" enterkeyhint="next" />
         </div>
 
         <div class="field">
           <label for="password">Password</label>
-          <input class="input" id="password" name="password" type="password" required placeholder="••••••••" />
+          <input class="input" id="password" name="password" type="password" required placeholder="••••••••" autocomplete="current-password" enterkeyhint="go" />
         </div>
 
         <button type="submit" class="btn btn-primary btn-lg btn-block">

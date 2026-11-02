@@ -168,7 +168,7 @@ const stats = [
           <div class="admin-empty">No bookings yet.</div>
         ) : (
           <div class="table-wrap">
-            <table class="table">
+            <table class="table table-stack">
               <thead>
                 <tr>
                   <th>#</th>
@@ -181,14 +181,14 @@ const stats = [
               <tbody>
                 {recentBookings.map((booking) => (
                   <tr>
-                    <td><a href={`/admin/bookings/${booking.id}`} style="font-weight:600;color:var(--ink);">#{booking.id}</a></td>
-                    <td>{booking.customer}</td>
-                    <td>
+                    <td data-label="Booking"><a href={`/admin/bookings/${booking.id}`} style="font-weight:600;color:var(--ink);">#{booking.id}</a></td>
+                    <td data-label="Customer">{booking.customer}</td>
+                    <td data-label="Event">
                       {booking.event_type}
                       <div class="text-xs text-muted">{formatDate(booking.event_date)}</div>
                     </td>
-                    <td class="money">{formatMoney(booking.total_amount)}</td>
-                    <td><span class:list={['badge', statusClass[booking.status] ?? 'badge-muted']}>{booking.status}</span></td>
+                    <td data-label="Total" class="money">{formatMoney(booking.total_amount)}</td>
+                    <td data-label="Status"><span class:list={['badge', statusClass[booking.status] ?? 'badge-muted']}>{booking.status}</span></td>
                   </tr>
                 ))}
               </tbody>
@@ -265,17 +265,17 @@ const stats = [
     </div>
     <div class="admin-panel-body flush">
       <div class="table-wrap">
-        <table class="table">
+        <table class="table table-stack">
           <thead>
             <tr><th>Created</th><th>Booking</th><th>Customer</th><th>Status</th></tr>
           </thead>
           <tbody>
             {recentBookings.slice(0, 5).map((booking) => (
               <tr>
-                <td class="text-mono text-xs">{formatDateTime(booking.created_at)}</td>
-                <td><a href={`/admin/bookings/${booking.id}`} style="color:var(--ink);font-weight:600;">#{booking.id}</a></td>
-                <td>{booking.customer}</td>
-                <td><span class:list={['badge', statusClass[booking.status] ?? 'badge-muted']}>{booking.status}</span></td>
+                <td data-label="Created" class="text-mono text-xs">{formatDateTime(booking.created_at)}</td>
+                <td data-label="Booking"><a href={`/admin/bookings/${booking.id}`} style="color:var(--ink);font-weight:600;">#{booking.id}</a></td>
+                <td data-label="Customer">{booking.customer}</td>
+                <td data-label="Status"><span class:list={['badge', statusClass[booking.status] ?? 'badge-muted']}>{booking.status}</span></td>
               </tr>
             ))}
           </tbody>

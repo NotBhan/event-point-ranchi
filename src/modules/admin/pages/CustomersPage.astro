@@ -28,7 +28,7 @@ const pageHref = (page: number) => `/admin/customers?q=${encodeURIComponent(quer
         <div class="admin-empty">No customers found.</div>
       ) : (
         <div class="table-wrap">
-          <table class="table">
+          <table class="table table-stack">
             <thead>
               <tr>
                 <th>Customer</th>
@@ -42,15 +42,15 @@ const pageHref = (page: number) => `/admin/customers?q=${encodeURIComponent(quer
             <tbody>
               {customers.map((customer) => (
                 <tr>
-                  <td><a href={`/admin/customers/${customer.id}`} style="font-weight:600;color:var(--ink);">{customer.name}</a></td>
-                  <td>
+                  <td data-label="Customer"><a href={`/admin/customers/${customer.id}`} style="font-weight:600;color:var(--ink);">{customer.name}</a></td>
+                  <td data-label="Contact">
                     {customer.phone}
                     <div class="text-xs text-muted">{customer.email || '—'}</div>
                   </td>
-                  <td class="text-xs">{formatDate(customer.created_at)}</td>
-                  <td>{customer.booking_count}</td>
-                  <td class="money">{formatMoney(customer.total_spend)}</td>
-                  <td>
+                  <td data-label="Joined" class="text-xs">{formatDate(customer.created_at)}</td>
+                  <td data-label="Bookings">{customer.booking_count}</td>
+                  <td data-label="Lifetime value" class="money">{formatMoney(customer.total_spend)}</td>
+                  <td data-label="Actions">
                     <div class="admin-row-actions">
                       <a href={`/admin/customers/${customer.id}`} class="btn btn-secondary btn-sm">Open</a>
                     </div>

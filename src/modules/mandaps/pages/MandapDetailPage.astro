@@ -33,6 +33,8 @@ const dimensions = mandap ? `${mandap.length_ft} × ${mandap.width_ft} × ${mand
 <BaseLayout
   title={mandap ? `${mandap.name} | Wedding Mandap in Ranchi | Event Point Ranchi` : 'Mandap not found | Event Point Ranchi'}
   description={mandap?.description ?? 'This mandap could not be found.'}
+  bodyClass="has-mobile-action"
+  noDock
 >
   {notFound || !mandap ? (
     <section class="section">
@@ -242,6 +244,19 @@ const dimensions = mandap ? `${mandap.length_ft} × ${mandap.width_ft} × ${mand
           </aside>
         </div>
       </section>
+
+      <div class="mobile-action-bar">
+        <a href="#configure" class="btn btn-primary">Add to requirements</a>
+        <a
+          href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(`Hello Event Point Ranchi, I am interested in the ${mandap.name} mandap.`)}`}
+          class="btn btn-secondary"
+          target="_blank"
+          rel="noopener"
+          aria-label="Ask about this mandap on WhatsApp"
+        >
+          <Icon name="phone" size={18} />
+        </a>
+      </div>
     </>
   )}
 </BaseLayout>

@@ -128,8 +128,9 @@ const usagePercent = Math.min(100, storageUsage.usagePercent);
                   <input type="hidden" name="_csrf" value={csrf} />
                   <input type="hidden" name="action" value="delete_category" />
                   <input type="hidden" name="category_id" value={category.id} />
-                  <button type="submit" class="icon-btn danger" data-confirm={`Delete "${category.name}" and its ${category.item_count} images?`} aria-label="Delete category">
+                  <button type="submit" class="icon-btn danger icon-btn-labeled" data-confirm={`Delete "${category.name}" and its ${category.item_count} images?`} aria-label="Delete category">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                    <span class="action-label-mobile">Delete</span>
                   </button>
                 </form>
               </div>
@@ -223,8 +224,9 @@ const usagePercent = Math.min(100, storageUsage.usagePercent);
                       <input type="hidden" name="_csrf" value={csrf} />
                       <input type="hidden" name="action" value="delete_item" />
                       <input type="hidden" name="item_id" value={item.id} />
-                      <button type="submit" class="icon-btn danger" data-confirm="Delete this image?" aria-label="Delete image">
+                      <button type="submit" class="icon-btn danger icon-btn-labeled" data-confirm="Delete this image?" aria-label="Delete image">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                        <span class="action-label-mobile">Delete</span>
                       </button>
                     </form>
                   </div>

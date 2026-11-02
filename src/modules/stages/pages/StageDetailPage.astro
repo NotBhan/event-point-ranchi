@@ -27,6 +27,8 @@ const dimensions = stage ? `${stage.length_ft} × ${stage.width_ft} × ${stage.h
 <BaseLayout
   title={stage ? `${stage.name} | Stage Design in Ranchi | Event Point Ranchi` : 'Stage design not found | Event Point Ranchi'}
   description={stage?.description ?? 'This stage design could not be found.'}
+  bodyClass="has-mobile-action"
+  noDock
 >
   {notFound || !stage ? (
     <section class="section">
@@ -185,6 +187,19 @@ const dimensions = stage ? `${stage.length_ft} × ${stage.width_ft} × ${stage.h
           </aside>
         </div>
       </section>
+
+      <div class="mobile-action-bar">
+        <a href="#configure" class="btn btn-primary">Add to requirements</a>
+        <a
+          href={`https://wa.me/919876543210?text=${encodeURIComponent(`Hello Event Point Ranchi, I am interested in the ${stage.name} stage design.`)}`}
+          class="btn btn-secondary"
+          target="_blank"
+          rel="noopener"
+          aria-label="Ask about this stage design on WhatsApp"
+        >
+          <Icon name="phone" size={18} />
+        </a>
+      </div>
     </>
   )}
 </BaseLayout>

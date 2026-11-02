@@ -558,6 +558,9 @@ function goToStep(step: number, focus = true): void {
   }
 
   saveDraft();
+  // Step changes are durable checkpoints: write immediately instead of waiting
+  // for the keystroke debounce so a refresh cannot drop the visitor back.
+  flushDraft();
 }
 
 function selectionFor(kind: 'mandap' | 'stage'): MandapRequirement | StageRequirement | null {
@@ -877,10 +880,11 @@ function updateEquipmentCard(id: string, quantity: number): void {
   }
 }
 
-// Live Blueprint Sidebar
+// Live Blueprint Sidebar + compact mobile bar
 function renderLiveSummary(): void {
   const target = document.querySelector<HTMLElement>('[data-plan-live-summary]');
-  if (!target) return;
+  const mobileTarget = document.querySelector<HTMLElement>('[data-plan-live-summary-mobile]');
+  if (!target && !mobileTarget) return;
 
   const requirements = readRequirements();
   const totalUnits = requirements.equipment.reduce((sum, item) => sum + item.quantity, 0);
@@ -895,7 +899,7 @@ function renderLiveSummary(): void {
 
   const dateFormatted = eventDate ? new Date(`${eventDate}T00:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Date pending';
 
-  target.innerHTML = `
+  const summaryHtml = `
     <div class="blueprint-row">
       <span class="blueprint-label">Celebration</span>
       <strong class="blueprint-value">${esc(eventType)} · ${esc(dateFormatted)}</strong>
@@ -924,7 +928,41 @@ function renderLiveSummary(): void {
       <span class="blueprint-label">Rooms</span>
       <strong class="blueprint-value">${requiresRooms ? `${acRooms} AC, ${nonAcRooms} Non-AC` : 'Self-arranged'}</strong>
     </div>
+    <div class="blueprint-row">
+      <span class="blueprint-label">Pricing</span>
+      <strong class="blueprint-value">${requirements.mandap || requirements.stage || requirements.equipment.length > 0 || requiresRooms ? 'Quotation required' : 'Awaiting selections'}</strong>
+    </div>
   `;
+
+  if (target) target.innerHTML = summaryHtml;
+  if (mobileTarget) mobileTarget.innerHTML = summaryHtml;
+
+  const selectionCount =
+    (requirements.mandap ? 1 : 0) +
+    (requirements.stage ? 1 : 0) +
+    requirements.equipment.length +
+    (requiresRooms ? 1 : 0);
+
+  const countNode = document.querySelector<HTMLElement>('[data-plan-mobile-count]');
+  if (countNode) {
+    countNode.textContent =
+      selectionCount === 0
+        ? 'No selections yet'
+        : `${selectionCount} selection${selectionCount === 1 ? '' : 's'} in blueprint`;
+  }
+
+  const statusNode = document.querySelector<HTMLElement>('[data-plan-mobile-status]');
+  if (statusNode) {
+    statusNode.textContent =
+      selectionCount === 0 ? 'Pricing on quotation' : 'Quotation required · no payment now';
+  }
+}
+
+function setMobileSummary(open: boolean): void {
+  const toggle = document.querySelector<HTMLElement>('[data-plan-mobile-toggle]');
+  const sheet = document.querySelector<HTMLElement>('[data-plan-mobile-sheet]');
+  toggle?.setAttribute('aria-expanded', String(open));
+  if (sheet) sheet.hidden = !open;
 }
 
 // Review Section Rendering (Phase 4)
@@ -1141,6 +1179,9 @@ async function submitEnquiry(): Promise<void> {
 
 function showReceipt(reference: string, qrDataUrl?: string, receiptUrl?: string, pdfUrl?: string): void {
   if (planShell) planShell.hidden = true;
+  setMobileSummary(false);
+  const mobileSummary = document.querySelector<HTMLElement>('[data-plan-mobile-summary]');
+  if (mobileSummary) mobileSummary.hidden = true;
   if (receipt) {
     receipt.hidden = false;
     const referenceNode = receipt.querySelector<HTMLElement>('[data-receipt-reference]');
@@ -1233,8 +1274,33 @@ if (state && form) {
     if (document.hidden) flushDraft();
   });
 
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') setMobileSummary(false);
+
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const card = (event.target as HTMLElement | null)?.closest<HTMLElement>(
+      '[data-plan-mandap-card], [data-plan-stage-card]',
+    );
+    if (!card) return;
+    event.preventDefault();
+    card.click();
+  });
+
   document.addEventListener('click', (event) => {
     const target = event.target as HTMLElement;
+
+    // Compact mobile summary sheet
+    const mobileToggle = target.closest<HTMLElement>('[data-plan-mobile-toggle]');
+    if (mobileToggle) {
+      setMobileSummary(mobileToggle.getAttribute('aria-expanded') !== 'true');
+      return;
+    }
+
+    if (target.closest('[data-plan-mobile-close]')) {
+      setMobileSummary(false);
+      document.querySelector<HTMLElement>('[data-plan-mobile-toggle]')?.focus({ preventScroll: true });
+      return;
+    }
 
     // Navigation buttons
     const next = target.closest<HTMLElement>('[data-plan-next]');

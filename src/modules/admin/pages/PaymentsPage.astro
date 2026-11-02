@@ -119,7 +119,7 @@ const providerTabs = [
         <div class="admin-empty">No payments match the selected criteria.</div>
       ) : (
         <div class="table-wrap">
-          <table class="table">
+          <table class="table table-stack">
             <thead>
               <tr>
                 <th>Reference</th>
@@ -135,18 +135,18 @@ const providerTabs = [
             <tbody>
               {payments.map((p) => (
                 <tr>
-                  <td>
+                  <td data-label="Reference">
                     <strong>#{p.id}</strong>
                     <div class="text-xs text-muted" style="font-family:monospace;font-size:0.75rem;">
                       {p.internal_transaction_reference}
                     </div>
                   </td>
-                  <td>
+                  <td data-label="Booking">
                     <a href={`/admin/bookings/${p.booking_id}`} style="font-weight:600;color:var(--gold-ink,#c8a251);">
                       Booking #{p.booking_id}
                     </a>
                   </td>
-                  <td>
+                  <td data-label="Gateway">
                     <span class="badge" style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.04em;">
                       {p.provider}
                     </span>
@@ -156,27 +156,27 @@ const providerTabs = [
                       </div>
                     )}
                   </td>
-                  <td>
+                  <td data-label="Type">
                     <span style="font-size:0.85rem;text-transform:capitalize;">
                       {p.payment_type.replace('_', ' ')}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Amount">
                     <div class="money" style="font-weight:600;">
                       {formatMoney(p.amount_paise)}
                     </div>
                   </td>
-                  <td>
+                  <td data-label="Status">
                     <span class:list={['badge', statusClass[p.status] ?? 'badge-muted']}>
                       {p.status}
                     </span>
                   </td>
-                    <td class="text-xs text-muted">
+                    <td data-label="Date" class="text-xs text-muted">
                       {formatDateTime(p.created_at)}
                     </td>
-                    <td style="text-align:right;">
+                    <td data-label="Actions" style="text-align:right;">
                       <a href={`/admin/payments/${p.id}`} class="btn btn-secondary btn-sm">
-                        View
+                        View payment
                       </a>
                     </td>
                   </tr>

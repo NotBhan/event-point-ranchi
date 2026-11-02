@@ -2,6 +2,7 @@
 import { ClientRouter } from 'astro:transitions';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
+import MobileDock from '../components/MobileDock.astro';
 import Toast from '../components/Toast.astro';
 import { getSiteSettings } from '../core/content/service';
 import { formatSnapshotAge, getSnapshotManifest, isDevServer } from '../core/content/snapshot';
@@ -13,6 +14,7 @@ import '../styles/layout.css';
 import '../styles/cards.css';
 import '../styles/wedding.css';
 import '../styles/skeletons.css';
+import '../styles/mobile.css';
 
 interface Props {
   title?: string;
@@ -20,6 +22,7 @@ interface Props {
   ogImage?: string;
   bodyClass?: string;
   noCart?: boolean;
+  noDock?: boolean;
 }
 
 const siteSettings = await getSiteSettings();
@@ -37,6 +40,7 @@ const {
   description = siteSettings.seo.defaultDescription,
   ogImage = siteSettings.seo.ogImage,
   bodyClass = '',
+  noDock = false,
 } = Astro.props;
 ---
 
@@ -44,7 +48,7 @@ const {
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>{title}</title>
     <meta name="description" content={description} />
     <meta name="theme-color" content={siteSettings.theme.primaryColor} />
@@ -62,7 +66,7 @@ const {
     <ClientRouter fallback="swap" />
     <slot name="head" />
   </head>
-  <body class={bodyClass} id="top">
+  <body class:list={[bodyClass, { 'has-mobile-dock': !noDock }]} id="top">
     <div id="pageProgressBar" class="page-progress-bar" aria-hidden="true"></div>
     {devSnapshot && (
       <div class="dev-snapshot-badge" data-dev-snapshot title="Local development is serving a content snapshot. Run `npm run sync:content` to refresh it.">
@@ -76,7 +80,8 @@ const {
       <slot />
     </main>
     <Footer settings={siteSettings} />
-    <div class="lightbox" id="lightbox" data-lightbox-root>
+    {!noDock && <MobileDock />}
+    <div class="lightbox" id="lightbox" data-lightbox-root role="dialog" aria-modal="true" aria-label="Image preview" aria-hidden="true">
       <button type="button" class="lightbox-close" data-lightbox-close aria-label="Close image">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
       </button>
