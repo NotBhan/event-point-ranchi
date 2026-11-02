@@ -238,7 +238,7 @@ The pre-existing uncommitted changes in `src/components/skeletons/SkeletonGaller
 
 Implementation commit: **`cdd192e`** (`feat(mobile): redesign public, account and admin interfaces for phones`)
 
-Follow-up fix commit: **`<pending-fix>`** (`fix(plan): stop the mobile summary covering Continue`)
+Follow-up fix commit: **`de3304c`** (`fix(plan): stop the mobile summary covering Continue`)
 
 ---
 
