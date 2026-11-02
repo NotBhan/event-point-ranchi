@@ -248,7 +248,7 @@ Implementation commit: **`cdd192e`** (`feat(mobile): redesign public, account an
 
 Follow-up fix commit: **`de3304c`** (`fix(plan): stop the mobile summary covering Continue`)
 
-Enquiry-slip redesign commit: **`<pending-receipt>`** (`feat(plan): redesign the mobile enquiry slip QR card`)
+Enquiry-slip redesign commit: **`f777e5a`** (`feat(plan): redesign the mobile enquiry slip QR card`)
 
 ---
 
