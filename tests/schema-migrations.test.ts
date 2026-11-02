@@ -48,6 +48,24 @@ test('applying migrations creates the deposit snapshot and the publications ledg
 
   const publications = await client.query('SELECT id FROM content_publications LIMIT 0');
   assert.ok(Array.isArray(publications.rows));
+
+  const enquiryColumns = await client.query<{ name: string }>('PRAGMA table_info(event_enquiries)');
+  const enquiryNames = enquiryColumns.rows.map((row) => row.name);
+  assert.ok(enquiryNames.includes('pricing_status'));
+  assert.ok(enquiryNames.includes('priced_subtotal_paise'));
+  assert.ok(enquiryNames.includes('accepted_quotation_id'));
+
+  const lineColumns = await client.query<{ name: string }>('PRAGMA table_info(enquiry_line_items)');
+  const lineNames = lineColumns.rows.map((row) => row.name);
+  assert.ok(lineNames.includes('catalogue_unit_price_paise'));
+  assert.ok(lineNames.includes('catalogue_subtotal_paise'));
+  assert.ok(lineNames.includes('pricing_status'));
+  assert.ok(lineNames.includes('metadata_json'));
+
+  const quotes = await client.query('SELECT id FROM enquiry_quotations LIMIT 0');
+  assert.ok(Array.isArray(quotes.rows));
+  const quoteLines = await client.query('SELECT id FROM enquiry_quotation_lines LIMIT 0');
+  assert.ok(Array.isArray(quoteLines.rows));
 });
 
 test('migrations are idempotent — a second run applies nothing', async () => {

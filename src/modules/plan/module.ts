@@ -49,6 +49,9 @@ async function createEnquiryApi(ctx: PageContext): Promise<Response> {
       scanUrl,
       receiptUrl,
       pdfUrl,
+      pricingStatus: result.pricing.pricingStatus,
+      pricedSubtotalPaise: result.pricing.pricedSubtotalPaise,
+      pricing: result.pricing,
     }, 201);
   } catch (error) {
     if (error instanceof EnquiryError) return badRequest(error.message);
@@ -66,7 +69,7 @@ export default defineModule({
       component: PlanPage,
       handle: async (ctx) => ({
         props: {
-          catalogue: loadPlanCatalogue(),
+          catalogue: await loadPlanCatalogue(),
           csrf: ctx.csrf,
           eventTypes,
           budgetRanges,

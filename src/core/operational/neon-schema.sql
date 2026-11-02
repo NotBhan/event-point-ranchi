@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   deposit_type        VARCHAR(20) NOT NULL DEFAULT 'percentage',
   deposit_value       BIGINT NOT NULL DEFAULT 25,
   source_enquiry_id   INTEGER UNIQUE,
+  source_quotation_id INTEGER,
   venue_location      TEXT NOT NULL DEFAULT ''
 );
 
@@ -93,7 +94,12 @@ CREATE TABLE IF NOT EXISTS event_enquiries (
   created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   accepted_by          INTEGER REFERENCES users(id) ON DELETE SET NULL,
   accepted_at          TIMESTAMPTZ,
-  rejection_reason     TEXT NOT NULL DEFAULT ''
+  rejection_reason     TEXT NOT NULL DEFAULT '',
+  pricing_status       VARCHAR(30) NOT NULL DEFAULT 'quotation_required',
+  priced_subtotal_paise BIGINT NOT NULL DEFAULT 0,
+  pricing_breakdown_json TEXT NOT NULL DEFAULT '{}',
+  additional_services  TEXT NOT NULL DEFAULT '',
+  accepted_quotation_id INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_event_enquiries_status ON event_enquiries(status);
@@ -113,10 +119,55 @@ CREATE TABLE IF NOT EXISTS enquiry_line_items (
   requested_width_ft           NUMERIC(8,2),
   requested_height_ft          NUMERIC(8,2),
   specifications               TEXT NOT NULL DEFAULT '',
-  notes                        TEXT NOT NULL DEFAULT ''
+  notes                        TEXT NOT NULL DEFAULT '',
+  catalogue_unit_price_paise    BIGINT,
+  catalogue_subtotal_paise      BIGINT,
+  pricing_status                VARCHAR(20) NOT NULL DEFAULT 'on_request',
+  metadata_json                 TEXT NOT NULL DEFAULT '{}'
 );
 
 CREATE INDEX IF NOT EXISTS idx_enquiry_line_items_enquiry ON enquiry_line_items(enquiry_id);
+
+CREATE TABLE IF NOT EXISTS enquiry_quotations (
+  id                    SERIAL PRIMARY KEY,
+  enquiry_id            INTEGER NOT NULL REFERENCES event_enquiries(id) ON DELETE CASCADE,
+  version               INTEGER NOT NULL DEFAULT 1,
+  status                VARCHAR(20) NOT NULL DEFAULT 'prepared'
+                          CHECK (status IN ('prepared', 'accepted', 'superseded')),
+  priced_subtotal_paise BIGINT NOT NULL DEFAULT 0,
+  quoted_subtotal_paise BIGINT NOT NULL DEFAULT 0,
+  total_paise           BIGINT NOT NULL DEFAULT 0,
+  notes                 TEXT NOT NULL DEFAULT '',
+  prepared_by           INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  prepared_at           TIMESTAMPTZ,
+  accepted_by           INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  accepted_at           TIMESTAMPTZ,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (enquiry_id, version)
+);
+
+CREATE INDEX IF NOT EXISTS idx_enquiry_quotations_enquiry ON enquiry_quotations(enquiry_id);
+
+CREATE TABLE IF NOT EXISTS enquiry_quotation_lines (
+  id                         SERIAL PRIMARY KEY,
+  quotation_id               INTEGER NOT NULL REFERENCES enquiry_quotations(id) ON DELETE CASCADE,
+  enquiry_line_item_id       INTEGER REFERENCES enquiry_line_items(id) ON DELETE SET NULL,
+  line_type                  VARCHAR(20) NOT NULL DEFAULT 'catalogue'
+                               CHECK (line_type IN ('catalogue', 'manual')),
+  catalogue_item_id          INTEGER,
+  description                VARCHAR(255) NOT NULL,
+  quantity                   INTEGER NOT NULL DEFAULT 1,
+  catalogue_unit_price_paise BIGINT,
+  quoted_unit_price_paise    BIGINT NOT NULL DEFAULT 0,
+  quoted_subtotal_paise      BIGINT NOT NULL DEFAULT 0,
+  notes                      TEXT NOT NULL DEFAULT '',
+  created_at                 TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_enquiry_quotation_lines_quote ON enquiry_quotation_lines(quotation_id);
+CREATE INDEX IF NOT EXISTS idx_enquiry_quotation_lines_line ON enquiry_quotation_lines(enquiry_line_item_id);
+CREATE INDEX IF NOT EXISTS idx_bookings_source_quotation ON bookings(source_quotation_id);
 
 CREATE TABLE IF NOT EXISTS contact_inquiries (
   id          SERIAL PRIMARY KEY,

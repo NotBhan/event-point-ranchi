@@ -4,6 +4,7 @@ import Icon from '../../../components/Icon.astro';
 import type { PlanCatalogue } from '../service';
 import type { EnquiryProfile } from '../profile';
 import { imageUrl } from '../../../core/http';
+import { formatCataloguePrice } from '../../bookings/pricing-core';
 
 interface Props {
   catalogue: PlanCatalogue;
@@ -282,6 +283,9 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
                       <div class="card-dimension-tag">
                         <span>Standard:</span> {mandap.length_ft} × {mandap.width_ft} × {mandap.height_ft} {mandap.dimension_unit}
                       </div>
+                      <div class="card-price-status" style="font-size:12.5px;font-weight:700;color:var(--gold-ink);margin-top:6px;">
+                        {formatCataloguePrice(mandap.price_starting_paise)}
+                      </div>
                       <p class="card-snippet">{mandap.material_specs || mandap.description}</p>
                       <button type="button" class="btn btn-secondary btn-sm card-select-btn" data-plan-mandap-select={mandap.id}>
                         Select Mandap
@@ -385,6 +389,9 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
                       <h4 class="card-title">{stage.name}</h4>
                       <div class="card-dimension-tag">
                         <span>Standard:</span> {stage.length_ft} × {stage.width_ft} × {stage.height_ft} {stage.dimension_unit}
+                      </div>
+                      <div class="card-price-status" style="font-size:12.5px;font-weight:700;color:var(--gold-ink);margin-top:6px;">
+                        {formatCataloguePrice(stage.price_starting_paise)}
                       </div>
                       <p class="card-snippet">{stage.decoration_notes || stage.description}</p>
                       <button type="button" class="btn btn-secondary btn-sm card-select-btn" data-plan-stage-select={stage.id}>
@@ -562,6 +569,125 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
 
             <hr class="plan-divider" />
 
+            <hr class="plan-divider" />
+
+            <!-- CATERING SELECTION -->
+            <div class="section-block">
+              <div class="section-block-head">
+                <div class="section-badge-pill">Catering &amp; Hospitality</div>
+                <h3>Choose a catering package</h3>
+                <p>
+                  Catering is optional. Your guest count from Phase 1 is used for the per-plate estimate;
+                  the applicable tier is selected from the published package pricing.
+                </p>
+              </div>
+
+              <select class="sr-only" id="cateringPackageId" name="cateringPackageId" tabindex="-1" aria-hidden="true">
+                <option value="">No catering package required</option>
+                {catalogue.catering.map((pkg) => (
+                  <option value={pkg.id}>{pkg.name}</option>
+                ))}
+              </select>
+
+              <div class="plan-visual-grid" role="radiogroup" aria-label="Catering packages">
+                <div
+                  class="plan-visual-card plan-skip-card is-selected"
+                  data-plan-catering-card=""
+                  role="radio"
+                  aria-checked="true"
+                  tabindex="0"
+                >
+                  <div class="skip-card-inner">
+                    <span class="skip-icon"><Icon name="x" size={20} /></span>
+                    <strong>No Catering Required</strong>
+                    <small>Catering will be arranged separately or is not needed</small>
+                    <span class="card-status-badge">Optional</span>
+                  </div>
+                </div>
+
+                {catalogue.catering.map((pkg) => (
+                  <div
+                    class="plan-visual-card"
+                    data-plan-catering-card={pkg.id}
+                    role="radio"
+                    aria-checked="false"
+                    tabindex="0"
+                  >
+                    <div class="card-image-wrap">
+                      {pkg.image ? (
+                        <img src={imageUrl(pkg.image)} alt={pkg.name} loading="lazy" />
+                      ) : (
+                        <div style="width:100%;height:100%;min-height:180px;background:var(--canvas-warm);display:flex;align-items:center;justify-content:center;">
+                          <Icon name="utensils" size={32} />
+                        </div>
+                      )}
+                      <span class="card-cat-badge">{pkg.badge || 'Catering'}</span>
+                      <span class="card-selected-tick" aria-hidden="true">✓</span>
+                    </div>
+                    <div class="card-content">
+                      <h4 class="card-title">{pkg.name}</h4>
+                      <div class="card-price-status" style="font-size:13px;font-weight:700;color:var(--gold-ink);">
+                        {formatCataloguePrice(pkg.price_per_plate_paise)} <small style="font-weight:400;color:var(--muted);">/ plate</small>
+                      </div>
+                      <p class="card-snippet">{pkg.description}</p>
+                      {pkg.features.length > 0 && (
+                        <ul class="text-xs text-muted" style="margin:8px 0 0;padding-left:18px;line-height:1.6;">
+                          {pkg.features.map((feature) => <li>{feature}</li>)}
+                        </ul>
+                      )}
+                      {pkg.guest_pricing.length > 0 && (
+                        <div class="text-xs text-muted" style="margin-top:8px;">
+                          <strong>Tier pricing:</strong>{' '}
+                          {pkg.guest_pricing.map((tier: any) => `${tier.guest_count} guests — ${formatCataloguePrice(tier.price_per_plate_paise)}/plate`).join(' · ')}
+                        </div>
+                      )}
+                      {pkg.menu_sections.length > 0 && (
+                        <details class="dimension-accordion" style="margin-top:10px;">
+                          <summary class="dimension-accordion-trigger" style="padding:10px 0;">
+                            <div class="accordion-trigger-title"><Icon name="utensils" size={14} /><span>Menu &amp; inclusions</span></div>
+                            <span class="accordion-badge">View</span>
+                          </summary>
+                          <div class="dimension-accordion-body">
+                            {pkg.menu_sections.map((section: any) => (
+                              <div class="text-xs" style="margin-bottom:8px;">
+                                <strong>{section.title || section.name || 'Menu section'}</strong>
+                                {Array.isArray(section.items) && section.items.length > 0 && (
+                                  <div class="text-muted">{section.items.map((item: any) => typeof item === 'string' ? item : item.name).filter(Boolean).join(', ')}</div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      )}
+                      <button type="button" class="btn btn-secondary btn-sm card-select-btn" data-plan-catering-select={pkg.id}>
+                        Select Catering
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div class="field" style="margin-top: 18px;">
+                <label for="cateringNotes">Catering preferences or dietary notes <span class="label-optional">(optional)</span></label>
+                <textarea class="textarea" id="cateringNotes" name="cateringNotes" rows="2" placeholder="Dietary requirements, live counters, service style…"></textarea>
+              </div>
+            </div>
+
+            <hr class="plan-divider" />
+
+            <!-- ADDITIONAL SERVICES -->
+            <div class="section-block">
+              <div class="section-block-head">
+                <div class="section-badge-pill">Additional Services</div>
+                <h3>Anything else you would like us to arrange?</h3>
+                <p>Additional services are quoted individually by the planning team and are not included in the catalogue subtotal.</p>
+              </div>
+              <div class="field">
+                <label for="additionalServices">Additional service requirements <span class="label-optional">(optional)</span></label>
+                <textarea class="textarea" id="additionalServices" name="additionalServices" rows="3" placeholder="Describe any service not listed in the catalogue — our team will quote it separately."></textarea>
+              </div>
+            </div>
+
             <!-- GUEST ACCOMMODATION -->
             <div class="section-block">
               <div class="section-block-head">
@@ -670,12 +796,13 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
 
               <div class="field" data-field-wrap="budgetRange" style="margin-bottom: 18px;">
                 <label for="budgetRange">
-                  Approximate budget range (INR) <span class="required-indicator" aria-hidden="true">*</span>
+                  Approximate budget range (INR) <span class="label-optional">(optional)</span>
                 </label>
-                <select class="select" id="budgetRange" name="budgetRange" required aria-required="true">
-                  <option value="">Select target budget bracket</option>
+                <select class="select" id="budgetRange" name="budgetRange">
+                  <option value="">Prefer not to say / planner to advise</option>
                   {budgetRanges.map((range) => <option value={range}>{range}</option>)}
                 </select>
+                <span class="hint">Your budget guides the planning conversation; it does not change catalogue prices.</span>
               </div>
 
               <div class="form-grid cols-2">
@@ -886,13 +1013,16 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
         <span class="eyebrow" style="color:var(--gold-deep);">Enquiry Transmitted</span>
         <h2>Your Celebration Blueprint is with our Ranchi Planning Team.</h2>
         <p>
-          We have recorded your requirements. A dedicated wedding director is reviewing dates, venue space, and equipment availability before compiling your itemised quotation.
+          Your enquiry has been submitted successfully. Our team will review your event requirements and prepare a quotation.
+          Your booking will be confirmed only after our team accepts the enquiry.
         </p>
 
         <div class="receipt-reference">
           <span>Reference Identification Code</span>
           <strong data-receipt-reference>—</strong>
         </div>
+
+        <div class="receipt-summary" data-receipt-summary style="width:100%;text-align:left;margin:18px 0;padding:16px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--canvas-warm);"></div>
 
         <!-- Official Digital QR Check-in Slip -->
         <div class="receipt-qr-card" data-receipt-qr-container hidden>

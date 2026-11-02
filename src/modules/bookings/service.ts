@@ -207,6 +207,7 @@ const LINE_LABELS: Record<string, string> = {
   service: 'Additional service',
   catering: 'Catering package',
   quotation: 'Accepted quotation',
+  manual: 'Manual quotation line',
 };
 
 function metadataFor(item: BookingItemRow): Record<string, any> {

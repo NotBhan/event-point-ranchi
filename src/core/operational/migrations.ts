@@ -194,6 +194,166 @@ const enquiryBookingLifecycle: SchemaMigration = {
 };
 
 /**
+ * Server-priced enquiry selections and admin quotation versions.
+ *
+ * Catalogue prices remain on the enquiry line snapshot; admin-agreed prices
+ * live only on quotation lines. A quotation is versioned so edits are auditable
+ * and acceptance can point at the exact agreed version.
+ */
+const enquiryQuotations: SchemaMigration = {
+  id: '006_enquiry_quotations',
+  description: 'Persist priced enquiry lines and versioned admin quotation lines',
+  async up(context) {
+    const { client, dialect } = context;
+    const serial = dialect === 'postgres' ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT';
+    const money = dialect === 'postgres' ? 'BIGINT' : 'INTEGER';
+    const timestamp = dialect === 'postgres' ? 'TIMESTAMPTZ' : 'TEXT';
+    const now = dialect === 'postgres' ? 'NOW()' : "(datetime('now'))";
+
+    if (!(await context.hasColumn('event_enquiries', 'pricing_status'))) {
+      await client.query(
+        `ALTER TABLE event_enquiries ADD COLUMN pricing_status VARCHAR(30) NOT NULL DEFAULT 'quotation_required'`,
+      );
+    }
+    if (!(await context.hasColumn('event_enquiries', 'priced_subtotal_paise'))) {
+      await client.query(
+        `ALTER TABLE event_enquiries ADD COLUMN priced_subtotal_paise ${money} NOT NULL DEFAULT 0`,
+      );
+    }
+    if (!(await context.hasColumn('event_enquiries', 'pricing_breakdown_json'))) {
+      await client.query(
+        `ALTER TABLE event_enquiries ADD COLUMN pricing_breakdown_json TEXT NOT NULL DEFAULT '{}'`,
+      );
+    }
+    if (!(await context.hasColumn('event_enquiries', 'additional_services'))) {
+      await client.query(
+        `ALTER TABLE event_enquiries ADD COLUMN additional_services TEXT NOT NULL DEFAULT ''`,
+      );
+    }
+
+    if (!(await context.hasColumn('enquiry_line_items', 'catalogue_unit_price_paise'))) {
+      await client.query(
+        `ALTER TABLE enquiry_line_items ADD COLUMN catalogue_unit_price_paise ${money}`,
+      );
+    }
+    if (!(await context.hasColumn('enquiry_line_items', 'catalogue_subtotal_paise'))) {
+      await client.query(
+        `ALTER TABLE enquiry_line_items ADD COLUMN catalogue_subtotal_paise ${money}`,
+      );
+    }
+    if (!(await context.hasColumn('enquiry_line_items', 'pricing_status'))) {
+      await client.query(
+        `ALTER TABLE enquiry_line_items ADD COLUMN pricing_status VARCHAR(20) NOT NULL DEFAULT 'on_request'`,
+      );
+    }
+    if (!(await context.hasColumn('enquiry_line_items', 'metadata_json'))) {
+      await client.query(
+        `ALTER TABLE enquiry_line_items ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}'`,
+      );
+    }
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS enquiry_quotations (
+        id                   ${serial},
+        enquiry_id           INTEGER NOT NULL REFERENCES event_enquiries(id) ON DELETE CASCADE,
+        version              INTEGER NOT NULL DEFAULT 1,
+        status               VARCHAR(20) NOT NULL DEFAULT 'prepared'
+                               CHECK (status IN ('prepared', 'accepted', 'superseded')),
+        priced_subtotal_paise ${money} NOT NULL DEFAULT 0,
+        quoted_subtotal_paise ${money} NOT NULL DEFAULT 0,
+        total_paise           ${money} NOT NULL DEFAULT 0,
+        notes                 TEXT NOT NULL DEFAULT '',
+        prepared_by           INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        prepared_at           ${timestamp},
+        accepted_by           INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        accepted_at           ${timestamp},
+        created_at            ${timestamp} NOT NULL DEFAULT ${now},
+        updated_at            ${timestamp} NOT NULL DEFAULT ${now},
+        UNIQUE (enquiry_id, version)
+      )`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS enquiry_quotation_lines (
+        id                        ${serial},
+        quotation_id              INTEGER NOT NULL REFERENCES enquiry_quotations(id) ON DELETE CASCADE,
+        enquiry_line_item_id      INTEGER REFERENCES enquiry_line_items(id) ON DELETE SET NULL,
+        line_type                 VARCHAR(20) NOT NULL DEFAULT 'catalogue'
+                                    CHECK (line_type IN ('catalogue', 'manual')),
+        catalogue_item_id         INTEGER,
+        description               VARCHAR(255) NOT NULL,
+        quantity                  INTEGER NOT NULL DEFAULT 1,
+        catalogue_unit_price_paise ${money},
+        quoted_unit_price_paise   ${money} NOT NULL DEFAULT 0,
+        quoted_subtotal_paise     ${money} NOT NULL DEFAULT 0,
+        notes                     TEXT NOT NULL DEFAULT '',
+        created_at                ${timestamp} NOT NULL DEFAULT ${now}
+      )`);
+
+    if (!(await context.hasColumn('event_enquiries', 'accepted_quotation_id'))) {
+      await client.query('ALTER TABLE event_enquiries ADD COLUMN accepted_quotation_id INTEGER');
+      if (dialect === 'postgres') {
+        await client.query(
+          `ALTER TABLE event_enquiries
+             ADD CONSTRAINT event_enquiries_accepted_quotation_fk
+             FOREIGN KEY (accepted_quotation_id) REFERENCES enquiry_quotations(id) ON DELETE SET NULL`,
+        );
+      }
+    }
+    if (!(await context.hasColumn('bookings', 'source_quotation_id'))) {
+      await client.query('ALTER TABLE bookings ADD COLUMN source_quotation_id INTEGER');
+      if (dialect === 'postgres') {
+        await client.query(
+          `ALTER TABLE bookings
+             ADD CONSTRAINT bookings_source_quotation_fk
+             FOREIGN KEY (source_quotation_id) REFERENCES enquiry_quotations(id) ON DELETE SET NULL`,
+        );
+      }
+    }
+
+    if (dialect === 'postgres') {
+      const acceptedQuoteFk = await client.query(
+        `SELECT 1 FROM pg_constraint
+          WHERE conname = 'event_enquiries_accepted_quotation_fk'
+            AND conrelid = 'event_enquiries'::regclass`,
+      );
+      if (!acceptedQuoteFk.rows[0]) {
+        await client.query(
+          `ALTER TABLE event_enquiries
+             ADD CONSTRAINT event_enquiries_accepted_quotation_fk
+             FOREIGN KEY (accepted_quotation_id) REFERENCES enquiry_quotations(id) ON DELETE SET NULL`,
+        );
+      }
+
+      const sourceQuoteFk = await client.query(
+        `SELECT 1 FROM pg_constraint
+          WHERE conname = 'bookings_source_quotation_fk'
+            AND conrelid = 'bookings'::regclass`,
+      );
+      if (!sourceQuoteFk.rows[0]) {
+        await client.query(
+          `ALTER TABLE bookings
+             ADD CONSTRAINT bookings_source_quotation_fk
+             FOREIGN KEY (source_quotation_id) REFERENCES enquiry_quotations(id) ON DELETE SET NULL`,
+        );
+      }
+    }
+
+    await client.query(
+      'CREATE INDEX IF NOT EXISTS idx_enquiry_quotations_enquiry ON enquiry_quotations(enquiry_id)',
+    );
+    await client.query(
+      'CREATE INDEX IF NOT EXISTS idx_enquiry_quotation_lines_quote ON enquiry_quotation_lines(quotation_id)',
+    );
+    await client.query(
+      'CREATE INDEX IF NOT EXISTS idx_enquiry_quotation_lines_line ON enquiry_quotation_lines(enquiry_line_item_id)',
+    );
+    await client.query(
+      'CREATE INDEX IF NOT EXISTS idx_bookings_source_quotation ON bookings(source_quotation_id)',
+    );
+  },
+};
+
+/**
  * Content publication ledger. Previously created lazily by the Content Studio.
  */
 const contentPublications: SchemaMigration = {
@@ -321,6 +481,7 @@ export const SCHEMA_MIGRATIONS: SchemaMigration[] = [
   contentReleases,
   contentDrafts,
   enquiryBookingLifecycle,
+  enquiryQuotations,
 ];
 
 export function migrationDialect(client: MigrationClient): MigrationDialect {

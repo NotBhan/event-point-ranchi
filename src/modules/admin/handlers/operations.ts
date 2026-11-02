@@ -5,7 +5,12 @@ import { getInt, getString, parseMoneyToPaise, parsePageParams, redirect, safeNe
 import type { PageContext } from '../../../core/types';
 import { authenticate } from '../../accounts/service';
 import { loadBookingForViewer } from '../../bookings/service';
-import { acceptEnquiry, rejectEnquiry, setEnquiryWorkflowStatus } from '../enquiry-lifecycle';
+import {
+  acceptEnquiry,
+  prepareEnquiryQuotation,
+  rejectEnquiry,
+  setEnquiryWorkflowStatus,
+} from '../enquiry-lifecycle';
 import {
   deleteBooking,
   deleteInquiry,
@@ -232,16 +237,58 @@ export async function newEnquiryDetail(ctx: PageContext) {
         return redirect(backTo);
       }
 
+      if (action === 'save_quotation') {
+        if (!adminUserId) throw new Error('An admin user is required.');
+        const values = (name: string) => (ctx.form?.getAll(name) ?? []).map((value) => String(value));
+        const lineIds = values('line_id');
+        const lineQuantities = values('line_quantity');
+        const linePrices = values('line_price');
+        const lineNotes = values('line_notes');
+        const lines = lineIds.map((lineId, index) => ({
+          enquiryLineItemId: Number(lineId),
+          quantity: Number(lineQuantities[index] ?? 0),
+          quotedUnitPricePaise: parseMoneyToPaise(linePrices[index] ?? ''),
+          notes: lineNotes[index] ?? '',
+        }));
+
+        const manualDescriptions = values('manual_description');
+        const manualQuantities = values('manual_quantity');
+        const manualPrices = values('manual_price');
+        const manualNotes = values('manual_notes');
+        const manualLines = manualDescriptions
+          .map((description, index) => ({
+            description,
+            quantity: Number(manualQuantities[index] ?? 0),
+            quotedUnitPricePaise: parseMoneyToPaise(manualPrices[index] ?? ''),
+            notes: manualNotes[index] ?? '',
+          }))
+          .filter((line) => line.description.trim() || line.quotedUnitPricePaise > 0);
+
+        const quotation = await prepareEnquiryQuotation({
+          enquiryId: id,
+          adminUserId,
+          lines,
+          manualLines,
+          notes: getString(ctx.form, 'quote_notes'),
+        });
+        setSuccess(
+          ctx.cookies,
+          `Quotation version ${quotation.version} saved for ₹${(quotation.totalPaise / 100).toLocaleString('en-IN')}.`,
+        );
+        return redirect(backTo);
+      }
+
       if (action === 'accept') {
         if (!adminUserId) throw new Error('An admin user is required.');
-        const finalAmountPaise = parseMoneyToPaise(getString(ctx.form, 'final_amount'));
-        if (finalAmountPaise <= 0) {
-          throw new Error('Enter the final booking amount before accepting the enquiry.');
+        if (getString(ctx.form, 'confirm_quotation') !== 'on') {
+          throw new Error('Confirm the prepared quotation before accepting the enquiry.');
         }
+        const quotationId = Number(getString(ctx.form, 'quotation_id'));
         const result = await acceptEnquiry({
           enquiryId: id,
           adminUserId,
-          finalAmountPaise,
+          quotationId,
+          confirm: true,
         });
         setSuccess(ctx.cookies, `Enquiry accepted. Booking #${result.bookingId} has been created.`);
         return redirect(`/admin/bookings/${result.bookingId}`);

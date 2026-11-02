@@ -8,6 +8,7 @@ import {
   enquiryStatusClass,
   enquiryStatusLabel,
   paymentStatusLabel,
+  pricingStatusLabel,
   summariseEnquiryLines,
 } from '../presentation';
 import type { listNewEnquiries } from '../service';
@@ -140,9 +141,10 @@ function namesSummary(names: string[]): string {
                       )}
                     </td>
                     <td data-label="Pricing">
-                      <span class="text-sm">
-                        {enquiry.booking ? 'Final booking amount' : 'Pricing on quotation'}
-                      </span>
+                      <span class="text-sm">{pricingStatusLabel(enquiry.pricing_status)}</span>
+                      <div class="text-xs text-muted">
+                        Priced subtotal: {formatMoney(enquiry.priced_subtotal_paise ?? 0)}
+                      </div>
                       <div class="text-xs text-muted">Budget: {enquiry.budget_range || '—'}</div>
                       {enquiry.booking && (
                         <div class="text-xs" style="margin-top:4px;">

@@ -2,11 +2,16 @@
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import Icon from '../../../components/Icon.astro';
 import { formatDate, formatDateTime, formatMoney } from '../../../core/http';
+import { formatCataloguePrice } from '../../bookings/pricing-core';
 import {
   bookingStatusLabel,
   enquiryStatusClass,
   enquiryStatusLabel,
   paymentStatusLabel,
+  pricingStatusClass,
+  pricingStatusLabel,
+  quotationStatusClass,
+  quotationStatusLabel,
   summariseEnquiryLines,
 } from '../presentation';
 import type { loadNewEnquiry } from '../service';
@@ -24,11 +29,23 @@ const enquiry = data?.enquiry;
 const status = enquiry?.status ?? '';
 const hasBooking = Boolean(data?.booking);
 const isWorkflowActive = ['new', 'reviewing', 'contacted', 'quoted'].includes(status) && !hasBooking;
-const canAccept = Boolean(enquiry) && !hasBooking && !['rejected', 'archived'].includes(status);
+const canPrepareQuote = Boolean(enquiry) && !hasBooking && !['rejected', 'archived'].includes(status);
+const latestPreparedQuote = data?.latestPreparedQuotation ?? null;
+const canAccept =
+  Boolean(latestPreparedQuote) && !hasBooking && !['rejected', 'archived'].includes(status);
 const canReject =
   Boolean(enquiry) && !hasBooking && !['accepted', 'confirmed', 'rejected', 'archived'].includes(status);
-const showActions = isWorkflowActive || canAccept || canReject;
+const showActions = isWorkflowActive || canReject;
 const selections = summariseEnquiryLines(data?.lines ?? []);
+
+const quoteLinesByEnquiryLine = new Map<number, any>();
+for (const line of latestPreparedQuote?.lines ?? []) {
+  if (line.enquiry_line_item_id) quoteLinesByEnquiryLine.set(Number(line.enquiry_line_item_id), line);
+}
+const latestManualLines = (latestPreparedQuote?.lines ?? []).filter((line) => line.line_type === 'manual');
+const manualQuoteRows = [...latestManualLines, null, null];
+const quoteHistory = data?.quotations ?? [];
+const latestQuote = quoteHistory[0] ?? null;
 
 function requestedDimensions(line: {
   requested_length_ft: number | null;
@@ -228,6 +245,9 @@ if (enquiry) {
                   <th>Type</th>
                   <th>Item</th>
                   <th>Qty</th>
+                  <th>Catalogue unit</th>
+                  <th>Catalogue subtotal</th>
+                  <th>Pricing</th>
                   <th>Standard dimensions</th>
                   <th>Requested dimensions</th>
                   <th>Specifications &amp; notes</th>
@@ -242,6 +262,13 @@ if (enquiry) {
                       {line.catalogue_item_id && <div class="text-xs text-muted">Catalogue #{line.catalogue_item_id}</div>}
                     </td>
                     <td data-label="Quantity" class="money">{line.quantity}</td>
+                    <td data-label="Catalogue unit" class="text-sm">{formatCataloguePrice(line.catalogue_unit_price_paise)}</td>
+                    <td data-label="Catalogue subtotal" class="money">{formatMoney(line.catalogue_subtotal_paise ?? 0)}</td>
+                    <td data-label="Pricing">
+                      <span class:list={['badge', line.pricing_status === 'priced' ? 'badge-success' : 'badge-gold']}>
+                        {line.pricing_status === 'priced' ? 'Priced' : 'Price on request'}
+                      </span>
+                    </td>
                     <td data-label="Standard dimensions" class="text-sm">{line.standard_dimensions_snapshot || '—'}</td>
                     <td data-label="Requested dimensions" class="text-sm">{requestedDimensions(line)}</td>
                     <td data-label="Specifications & notes" style="max-width:320px;">
@@ -272,11 +299,24 @@ if (enquiry) {
           <div class="summary-row">
             <div class="summary-left">
               <small>Pricing status</small>
-              <h4>{data.booking ? 'Quotation accepted' : 'Quotation required'}</h4>
+              <h4>
+                <span class:list={['badge', pricingStatusClass(enquiry.pricing_status)]}>
+                  {pricingStatusLabel(enquiry.pricing_status)}
+                </span>
+              </h4>
+              <div class="text-xs text-muted">
+                Priced subtotal: {formatMoney(enquiry.priced_subtotal_paise ?? 0)}
+              </div>
             </div>
           </div>
           <div class="summary-row">
             <div class="summary-left"><small>Customer budget</small><h4>{enquiry.budget_range || '—'}</h4></div>
+          </div>
+          <div class="summary-row">
+            <div class="summary-left">
+              <small>Additional services requested</small>
+              <h4 style="white-space:pre-line;">{enquiry.additional_services || '—'}</h4>
+            </div>
           </div>
           {data.booking ? (
             <div class="summary-row">
@@ -290,7 +330,7 @@ if (enquiry) {
             </div>
           ) : (
             <p class="text-sm text-muted">
-              No amount has been charged. Enter the agreed quotation amount to create the booking.
+              No amount has been charged. Prepare and confirm an itemised quotation before creating the booking.
             </p>
           )}
 
@@ -315,6 +355,275 @@ if (enquiry) {
         </div>
       </div>
     </div>
+
+    {canPrepareQuote && (
+      <div class="admin-panel">
+        <div class="admin-panel-head">
+          <div>
+            <h2>{latestPreparedQuote ? 'Edit quotation' : 'Prepare quotation'}</h2>
+            <p>
+              Catalogue prices are preserved on the original selections. Enter the agreed price for each line;
+              every line is required. Saving creates a new version and recalculates the total on the server.
+            </p>
+          </div>
+          {latestPreparedQuote && (
+            <span class:list={['badge', quotationStatusClass(latestPreparedQuote.quotation.status)]}>
+              Version {latestPreparedQuote.quotation.version} · {quotationStatusLabel(latestPreparedQuote.quotation.status)}
+            </span>
+          )}
+        </div>
+        <div class="admin-panel-body">
+          <form method="POST" action={`/admin/new-enquiries/${enquiry.id}`}>
+            <input type="hidden" name="_csrf" value={csrf} />
+            <input type="hidden" name="action" value="save_quotation" />
+            <div class="table-wrap">
+              <table class="table table-stack">
+                <thead>
+                  <tr>
+                    <th>Customer selection</th>
+                    <th>Catalogue price</th>
+                    <th>Quantity</th>
+                    <th>Agreed unit price (₹)</th>
+                    <th>Line notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.lines.map((line) => {
+                    const quoteLine = quoteLinesByEnquiryLine.get(Number(line.id));
+                    const agreed = quoteLine
+                      ? Number(quoteLine.quoted_unit_price_paise) / 100
+                      : line.catalogue_unit_price_paise && line.catalogue_unit_price_paise > 0
+                        ? Number(line.catalogue_unit_price_paise) / 100
+                        : '';
+                    return (
+                      <tr>
+                        <td data-label="Customer selection">
+                          <input type="hidden" name="line_id" value={line.id} />
+                          <strong>{line.item_name_snapshot}</strong>
+                          <div class="text-xs text-muted">{line.item_type} · #{line.catalogue_item_id ?? '—'}</div>
+                        </td>
+                        <td data-label="Catalogue price" class="text-sm">
+                          {formatCataloguePrice(line.catalogue_unit_price_paise)}
+                          <div class="text-xs text-muted">Subtotal {formatMoney(line.catalogue_subtotal_paise ?? 0)}</div>
+                        </td>
+                        <td data-label="Quantity">
+                          <input
+                            class="input"
+                            name="line_quantity"
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={quoteLine?.quantity ?? line.quantity}
+                            required
+                            style="min-width:90px;"
+                          />
+                        </td>
+                        <td data-label="Agreed unit price">
+                          <input
+                            class="input"
+                            name="line_price"
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            value={agreed === '' ? '' : Number(agreed).toFixed(2)}
+                            placeholder={line.pricing_status === 'on_request' ? 'Enter agreed price' : ''}
+                            required
+                            style="min-width:150px;"
+                          />
+                        </td>
+                        <td data-label="Line notes">
+                          <input type="hidden" name="line_notes" value={quoteLine?.notes ?? ''} />
+                          <span class="text-xs text-muted">{quoteLine?.notes || '—'}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div class="admin-panel-body">
+              <h3 style="margin:18px 0 10px;font-size:1rem;">Manual quotation lines</h3>
+              <p class="text-sm text-muted" style="margin-bottom:12px;">
+                Add any service or package that is not in the catalogue. Manual lines are clearly identified
+                on the quotation and booking.
+              </p>
+              <div class="table-wrap">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Description</th>
+                      <th>Quantity</th>
+                      <th>Agreed unit price (₹)</th>
+                      <th>Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {manualQuoteRows.map((manualLine) => (
+                      <tr>
+                        <td>
+                          <input
+                            class="input"
+                            name="manual_description"
+                            type="text"
+                            value={manualLine?.description ?? ''}
+                            placeholder="Additional service"
+                            maxlength="255"
+                          />
+                        </td>
+                        <td>
+                          <input
+                            class="input"
+                            name="manual_quantity"
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={manualLine?.quantity ?? 1}
+                            style="min-width:90px;"
+                          />
+                        </td>
+                        <td>
+                          <input
+                            class="input"
+                            name="manual_price"
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            value={manualLine ? (Number(manualLine.quoted_unit_price_paise) / 100).toFixed(2) : ''}
+                            placeholder="0.00"
+                            style="min-width:150px;"
+                          />
+                        </td>
+                        <td>
+                          <input
+                            class="input"
+                            name="manual_notes"
+                            type="text"
+                            value={manualLine?.notes ?? ''}
+                            maxlength="1000"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="field" style="margin-top:16px;">
+                <label for="quote_notes">Quotation notes <span class="label-optional">(optional)</span></label>
+                <textarea class="input" id="quote_notes" name="quote_notes" rows="2" maxlength="2000">
+                  {latestPreparedQuote?.quotation.notes ?? ''}
+                </textarea>
+              </div>
+              <button type="submit" class="btn btn-primary" data-confirm="Save a new quotation version?">
+                {latestPreparedQuote ? 'Save revised quotation' : 'Prepare quotation'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    )}
+
+    {latestQuote && (
+      <div class="admin-panel">
+        <div class="admin-panel-head">
+          <div>
+            <h2>Latest quotation</h2>
+            <p>
+              Version {latestQuote.quotation.version} · {quotationStatusLabel(latestQuote.quotation.status)}
+              {latestQuote.preparedByName ? ` · Prepared by ${latestQuote.preparedByName}` : ''}
+              {latestQuote.quotation.prepared_at ? ` · ${formatDateTime(latestQuote.quotation.prepared_at)}` : ''}
+            </p>
+          </div>
+          <strong class="money" style="font-size:1.1rem;">{formatMoney(latestQuote.quotation.total_paise)}</strong>
+        </div>
+        <div class="admin-panel-body flush">
+          <div class="table-wrap">
+            <table class="table table-stack">
+              <thead>
+                <tr>
+                  <th>Line</th>
+                  <th>Type</th>
+                  <th>Qty</th>
+                  <th>Catalogue unit</th>
+                  <th>Agreed unit</th>
+                  <th>Agreed subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {latestQuote.lines.map((line) => (
+                  <tr>
+                    <td data-label="Line">
+                      <strong>{line.description}</strong>
+                      {line.notes && <div class="text-xs text-muted">{line.notes}</div>}
+                    </td>
+                    <td data-label="Type"><span class="badge badge-muted">{line.line_type}</span></td>
+                    <td data-label="Quantity">{line.quantity}</td>
+                    <td data-label="Catalogue unit" class="text-sm">{formatCataloguePrice(line.catalogue_unit_price_paise)}</td>
+                    <td data-label="Agreed unit" class="money">{formatMoney(line.quoted_unit_price_paise)}</td>
+                    <td data-label="Agreed subtotal" class="money">{formatMoney(line.quoted_subtotal_paise)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {latestQuote.quotation.notes && (
+            <div class="admin-panel-body">
+              <div class="muted-box" style="white-space:pre-line;">{latestQuote.quotation.notes}</div>
+            </div>
+          )}
+        </div>
+        {latestPreparedQuote?.quotation.id === latestQuote.quotation.id && canAccept && (
+          <div class="admin-panel-body" style="border-top:1px solid var(--line);">
+            <form method="POST" action={`/admin/new-enquiries/${enquiry.id}`} class="form-grid">
+              <input type="hidden" name="_csrf" value={csrf} />
+              <input type="hidden" name="action" value="accept" />
+              <input type="hidden" name="quotation_id" value={latestPreparedQuote.quotation.id} />
+              <label class="checkbox-row" style="display:flex;gap:10px;align-items:flex-start;">
+                <input type="checkbox" name="confirm_quotation" value="on" required />
+                <span>
+                  I confirm this itemised quotation and agree that accepting it creates one managed booking for{' '}
+                  <strong>{formatMoney(latestPreparedQuote.quotation.total_paise)}</strong>.
+                </span>
+              </label>
+              <button type="submit" class="btn btn-primary" data-confirm="Accept this quotation and create one booking?">
+                Accept quotation &amp; create booking
+              </button>
+            </form>
+          </div>
+        )}
+      </div>
+    )}
+
+    {quoteHistory.length > 1 && (
+      <div class="admin-panel">
+        <div class="admin-panel-head"><div><h2>Quotation history</h2><p>Every prepared version is retained for audit.</p></div></div>
+        <div class="admin-panel-body flush">
+          <div class="table-wrap">
+            <table class="table table-stack">
+              <thead>
+                <tr><th>Version</th><th>Status</th><th>Prepared by</th><th>Prepared</th><th>Total</th></tr>
+              </thead>
+              <tbody>
+                {quoteHistory.map((entry) => (
+                  <tr>
+                    <td data-label="Version">#{entry.quotation.version}</td>
+                    <td data-label="Status">
+                      <span class:list={['badge', quotationStatusClass(entry.quotation.status)]}>
+                        {quotationStatusLabel(entry.quotation.status)}
+                      </span>
+                    </td>
+                    <td data-label="Prepared by">{entry.preparedByName || '—'}</td>
+                    <td data-label="Prepared">{formatDateTime(entry.quotation.prepared_at)}</td>
+                    <td data-label="Total" class="money">{formatMoney(entry.quotation.total_paise)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    )}
 
     {showActions && (
       <div class="admin-panel">
@@ -342,34 +651,6 @@ if (enquiry) {
           )}
 
           <div class="admin-grid-2">
-            {canAccept && (
-              <form method="POST" action={`/admin/new-enquiries/${enquiry.id}`} class="form-grid">
-                <input type="hidden" name="_csrf" value={csrf} />
-                <input type="hidden" name="action" value="accept" />
-                <div class="field">
-                  <label for="final_amount">Final booking amount (₹) <span class="required-indicator">*</span></label>
-                  <input
-                    class="input"
-                    id="final_amount"
-                    name="final_amount"
-                    type="number"
-                    min="1"
-                    step="0.01"
-                    required
-                    placeholder="e.g. 75000"
-                  />
-                  <span class="hint">This becomes the managed booking total. The original selections stay linked.</span>
-                </div>
-                <button
-                  type="submit"
-                  class="btn btn-primary"
-                  data-confirm="Accept this enquiry and create one managed booking?"
-                >
-                  Accept enquiry &amp; create booking
-                </button>
-              </form>
-            )}
-
             {canReject && (
               <form method="POST" action={`/admin/new-enquiries/${enquiry.id}`} class="form-grid">
                 <input type="hidden" name="_csrf" value={csrf} />

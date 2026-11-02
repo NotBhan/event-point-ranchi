@@ -13,6 +13,7 @@ import {
   getBookingForEnquiry,
   getBookingsForEnquiryIds,
   getEnquiryLineItemsForIds,
+  listEnquiryQuotations,
   getEventEnquiryWithItems,
   getHallBookingActivity,
   getRecentBookings,
@@ -1324,6 +1325,10 @@ export interface EventEnquiryRow {
   accepted_by?: number | null;
   accepted_at?: string | Date | null;
   rejection_reason?: string | null;
+  pricing_status?: 'fully_priced' | 'partially_priced' | 'quotation_required';
+  priced_subtotal_paise?: number;
+  additional_services?: string;
+  accepted_quotation_id?: number | null;
   // TIMESTAMPTZ from Neon arrives as a Date; the fallback returns a string.
   created_at: string | Date;
 }
@@ -1341,6 +1346,10 @@ export interface EnquiryLineItemRow {
   requested_height_ft: number | null;
   specifications: string;
   notes: string;
+  catalogue_unit_price_paise?: number | null;
+  catalogue_subtotal_paise?: number | null;
+  pricing_status?: 'priced' | 'on_request';
+  metadata_json?: string;
 }
 
 export interface AdminEnquiryListRow extends EventEnquiryRow {
@@ -1396,20 +1405,70 @@ export async function loadNewEnquiry(id: number): Promise<{
   lines: EnquiryLineItemRow[];
   booking: EnquiryBookingSummary | null;
   acceptedBy: string | null;
+  quotations: Array<{
+    quotation: Awaited<ReturnType<typeof listEnquiryQuotations>>[number]['quotation'];
+    lines: Awaited<ReturnType<typeof listEnquiryQuotations>>[number]['lines'];
+    preparedByName: string | null;
+    acceptedByName: string | null;
+  }>;
+  latestPreparedQuotation:
+    | {
+        quotation: Awaited<ReturnType<typeof listEnquiryQuotations>>[number]['quotation'];
+        lines: Awaited<ReturnType<typeof listEnquiryQuotations>>[number]['lines'];
+        preparedByName: string | null;
+        acceptedByName: string | null;
+      }
+    | null;
 } | null> {
   const result = await getEventEnquiryWithItems(id);
   if (!result) return null;
 
-  const booking = await getBookingForEnquiry(id);
+  const [booking, quotations] = await Promise.all([
+    getBookingForEnquiry(id),
+    listEnquiryQuotations(id),
+  ]);
   const acceptedByUser = result.enquiry.accepted_by
     ? await findUserById(Number(result.enquiry.accepted_by))
     : null;
+
+  const userIds = [
+    ...new Set(
+      quotations
+        .flatMap((entry) => [entry.quotation.prepared_by, entry.quotation.accepted_by])
+        .filter((value): value is number => Number.isInteger(value) && Number(value) > 0),
+    ),
+  ];
+
+  const userNames = new Map<number, string>();
+  if (userIds.length > 0) {
+    const placeholders = userIds.map((_, index) => `$${index + 1}`).join(', ');
+    const users = await getNeonClient().query<{ id: number; first_name: string; username: string }>(
+      `SELECT id, first_name, username FROM users WHERE id IN (${placeholders})`,
+      userIds,
+    );
+    for (const user of users.rows) {
+      userNames.set(Number(user.id), user.first_name || user.username);
+    }
+  }
+
+  const withNames = quotations.map((entry) => ({
+    ...entry,
+    preparedByName: entry.quotation.prepared_by
+      ? userNames.get(Number(entry.quotation.prepared_by)) ?? null
+      : null,
+    acceptedByName: entry.quotation.accepted_by
+      ? userNames.get(Number(entry.quotation.accepted_by)) ?? null
+      : null,
+  }));
 
   return {
     enquiry: result.enquiry as unknown as EventEnquiryRow,
     lines: result.lines as unknown as EnquiryLineItemRow[],
     booking,
     acceptedBy: acceptedByUser?.first_name || acceptedByUser?.username || null,
+    quotations: withNames,
+    latestPreparedQuotation:
+      withNames.find((entry) => entry.quotation.status === 'prepared') ?? null,
   };
 }
 

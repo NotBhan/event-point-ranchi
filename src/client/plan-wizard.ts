@@ -16,6 +16,14 @@ import {
   type StageRequirement,
 } from './requirements';
 import { clearEnquiryBrowserState } from './enquiry-state';
+import {
+  calculateSelectionPricing,
+  formatCataloguePrice,
+  formatPricingStatus,
+  PricingError,
+  type PricingCatalogue,
+  type SelectionPricing,
+} from '../modules/bookings/pricing-core';
 
 interface CatalogueMandap {
   id: number;
@@ -29,6 +37,7 @@ interface CatalogueMandap {
   height_ft: number;
   dimension_unit: string;
   material_specs: string;
+  price_starting_paise: number;
 }
 
 interface CatalogueStage {
@@ -43,6 +52,7 @@ interface CatalogueStage {
   height_ft: number;
   dimension_unit: string;
   decoration_notes: string;
+  price_starting_paise: number;
 }
 
 interface CatalogueEquipmentItem {
@@ -55,6 +65,9 @@ interface CatalogueEquipmentItem {
   specifications: string;
   min_quantity: number;
   default_quantity: number;
+  price_paise: number;
+  pricing_unit: string;
+  dimensions: string;
 }
 
 interface CatalogueEquipmentCategory {
@@ -65,10 +78,24 @@ interface CatalogueEquipmentCategory {
   items: CatalogueEquipmentItem[];
 }
 
+interface CatalogueCateringPackage {
+  id: number;
+  name: string;
+  slug: string;
+  description: string;
+  image: string;
+  price_per_plate_paise: number;
+  features: string[];
+  guest_pricing: Array<{ guest_count: number; price_per_plate_paise: number }>;
+  menu_sections: any[];
+}
+
 interface PlanCatalogue {
   mandaps: CatalogueMandap[];
   stages: CatalogueStage[];
   equipment: CatalogueEquipmentCategory[];
+  catering: CatalogueCateringPackage[];
+  pricing: PricingCatalogue;
 }
 
 interface PlanDraft {
@@ -94,6 +121,9 @@ interface PlanDraft {
   floralPalette: string;
   specialInstructions: string;
   equipmentNotes: string;
+  cateringPackageId: string;
+  cateringNotes: string;
+  additionalServices: string;
   requiresRooms: string;
   roomCount: string;
   acRoomCount: string;
@@ -131,7 +161,10 @@ const state: {
   activeEquipmentCategory: string;
 } | null = form && catalogueNode
   ? {
-      catalogue: JSON.parse(catalogueNode.textContent ?? '{"mandaps":[],"stages":[],"equipment":[]}') as PlanCatalogue,
+      catalogue: JSON.parse(
+        catalogueNode.textContent ??
+          '{"mandaps":[],"stages":[],"equipment":[],"catering":[],"pricing":{"mandaps":[],"stages":[],"furniture":[],"catering":[]}}',
+      ) as PlanCatalogue,
       currentStep: 1,
       activeEquipmentCategory: '',
     }
@@ -243,6 +276,9 @@ function collectDraft(): PlanDraft {
     floralPalette: fieldValue('floralPalette') || 'Maroon & ivory',
     specialInstructions: fieldValue('specialInstructions'),
     equipmentNotes: fieldValue('equipmentNotes'),
+    cateringPackageId: fieldValue('cateringPackageId'),
+    cateringNotes: fieldValue('cateringNotes'),
+    additionalServices: fieldValue('additionalServices'),
     requiresRooms: radioValue('requiresRooms') || 'no',
     roomCount: fieldValue('roomCount'),
     acRoomCount: fieldValue('acRoomCount'),
@@ -354,7 +390,6 @@ function validateStep(step: number): boolean {
 
   // Phase 4: Contact & Review
   if (step === 4) {
-    if (!fieldValue('budgetRange')) return fail('Select an approximate budget range.', 'budgetRange');
     if (fieldValue('customerName').length < 2) return fail('Enter your full name.', 'customerName');
     const digits = fieldValue('customerPhone').replace(/\D/g, '');
     if (!/^[6-9]\d{9}$/.test(digits)) {
@@ -624,6 +659,23 @@ function syncDimensionsFromInputs(kind: 'mandap' | 'stage'): void {
   renderLiveSummary();
 }
 
+function syncCateringSelection(): void {
+  const selected = fieldValue('cateringPackageId');
+  document.querySelectorAll<HTMLElement>('[data-plan-catering-card]').forEach((card) => {
+    const id = card.getAttribute('data-plan-catering-card') ?? '';
+    const isSelected = id === selected;
+    card.classList.toggle('is-selected', isSelected);
+    card.setAttribute('aria-checked', String(isSelected));
+  });
+}
+
+function applyCateringSelection(id: string): void {
+  const select = field<HTMLSelectElement>('cateringPackageId');
+  if (select) select.value = id;
+  syncCateringSelection();
+  schedulePlanRender();
+}
+
 // Interactive Equipment Grid & Tabs
 function renderEquipmentGrid(): void {
   if (!state) return;
@@ -662,6 +714,7 @@ function renderEquipmentGrid(): void {
             <strong class="equipment-mini-title">${esc(item.name)}</strong>
             <span class="equipment-mini-specs">${esc(item.specifications || item.description)}</span>
             <small class="equipment-mini-unit">Per ${esc(item.unit)} · Min ${item.min_quantity}</small>
+            <small class="equipment-mini-price" style="display:block;margin-top:3px;font-weight:700;color:var(--gold-ink);">${esc(formatCataloguePrice(item.price_paise))}</small>
           </div>
           <div class="equipment-mini-stepper">
             <button
@@ -766,6 +819,68 @@ function updateEquipmentCard(id: string, quantity: number): void {
   }
 }
 
+function pricingSelection(): {
+  mandap: { id: string | number } | null;
+  stage: { id: string | number } | null;
+  furniture: Array<{ id: string | number; quantity: number }>;
+  catering: { id: string | number; guestCount: number } | null;
+} {
+  const requirements = readRequirements();
+  const cateringId = fieldValue('cateringPackageId');
+  const guestCount = Number(fieldValue('guestCount'));
+
+  return {
+    mandap: requirements.mandap ? { id: requirements.mandap.id } : null,
+    stage: requirements.stage ? { id: requirements.stage.id } : null,
+    furniture: requirements.equipment.map((item) => ({ id: item.id, quantity: item.quantity })),
+    catering: cateringId && guestCount > 0 ? { id: cateringId, guestCount } : null,
+  };
+}
+
+function currentPricing(): SelectionPricing | null {
+  if (!state?.catalogue.pricing) return null;
+  try {
+    return calculateSelectionPricing(state.catalogue.pricing, pricingSelection());
+  } catch (error) {
+    if (error instanceof PricingError) return null;
+    throw error;
+  }
+}
+
+function formatSubtotalPaise(paise: number): string {
+  return `₹${(Number(paise || 0) / 100).toLocaleString('en-IN')}`;
+}
+
+function pricingLinesHtml(pricing: SelectionPricing): string {
+  if (pricing.items.length === 0) {
+    return '<p class="text-xs text-muted" style="margin:8px 0 0;">No catalogue selections yet.</p>';
+  }
+
+  return `
+    <div class="plan-pricing-lines">
+      ${pricing.items
+        .map((item) => {
+          const quantity = item.quantity > 1 ? ` × ${item.quantity}` : '';
+          const unit =
+            item.category === 'catering'
+              ? `${formatCataloguePrice(item.unitPricePaise)} / plate × ${item.quantity} guests`
+              : `${formatCataloguePrice(item.unitPricePaise)}${quantity}`;
+          return `<div class="plan-pricing-line">
+            <span><strong>${esc(item.name)}</strong>${item.category === 'catering' ? ` <small class="text-muted">(${item.quantity} guests)</small>` : ''}</span>
+            <span class="${item.pricingStatus === 'on_request' ? 'text-muted' : ''}">${esc(unit)}</span>
+          </div>`;
+        })
+        .join('')}
+    </div>
+    <div class="plan-pricing-total">
+      <span>Priced subtotal</span>
+      <strong>${formatSubtotalPaise(pricing.pricedSubtotalPaise)}</strong>
+    </div>
+    ${pricing.unpricedItemCount > 0 ? `<p class="text-xs text-muted" style="margin:6px 0 0;">${pricing.unpricedItemCount} item${pricing.unpricedItemCount === 1 ? '' : 's'} require a final quotation.</p>` : ''}
+    <p class="text-xs" style="margin:6px 0 0;font-weight:600;">${esc(formatPricingStatus(pricing.pricingStatus))}</p>
+  `;
+}
+
 // Live Blueprint Sidebar + compact mobile bar
 function renderLiveSummary(): void {
   const target = document.querySelector<HTMLElement>('[data-plan-live-summary]');
@@ -774,6 +889,7 @@ function renderLiveSummary(): void {
 
   const requirements = readRequirements();
   const totalUnits = requirements.equipment.reduce((sum, item) => sum + item.quantity, 0);
+  const pricing = currentPricing();
 
   const eventType = fieldValue('eventType') || 'Celebration';
   const eventDate = fieldValue('eventDate');
@@ -782,7 +898,8 @@ function renderLiveSummary(): void {
   const requiresRooms = radioValue('requiresRooms') === 'yes';
   const acRooms = Number(fieldValue('acRoomCount')) || 0;
   const nonAcRooms = Number(fieldValue('nonAcRoomCount')) || 0;
-
+  const cateringId = fieldValue('cateringPackageId');
+  const catering = (state?.catalogue.catering ?? []).find((entry) => String(entry.id) === cateringId);
   const dateFormatted = eventDate ? new Date(`${eventDate}T00:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Date pending';
 
   const summaryHtml = `
@@ -807,16 +924,23 @@ function renderLiveSummary(): void {
       <strong class="blueprint-value">${requirements.stage ? esc(requirements.stage.name) : '— No stage'}</strong>
     </div>
     <div class="blueprint-row">
-      <span class="blueprint-label">Equipment</span>
+      <span class="blueprint-label">Furniture &amp; equipment</span>
       <strong class="blueprint-value">${requirements.equipment.length > 0 ? `${requirements.equipment.length} items (${totalUnits} units)` : '— None selected'}</strong>
+    </div>
+    <div class="blueprint-row">
+      <span class="blueprint-label">Catering</span>
+      <strong class="blueprint-value">${catering ? `${esc(catering.name)}${guests ? ` · ${esc(guests)} guests` : ''}` : '— Not selected'}</strong>
     </div>
     <div class="blueprint-row">
       <span class="blueprint-label">Rooms</span>
       <strong class="blueprint-value">${requiresRooms ? `${acRooms} AC, ${nonAcRooms} Non-AC` : 'Self-arranged'}</strong>
     </div>
-    <div class="blueprint-row">
-      <span class="blueprint-label">Pricing</span>
-      <strong class="blueprint-value">${requirements.mandap || requirements.stage || requirements.equipment.length > 0 || requiresRooms ? 'Quotation required' : 'Awaiting selections'}</strong>
+    <div class="blueprint-pricing-panel">
+      <div class="blueprint-row">
+        <span class="blueprint-label">Pricing</span>
+        <strong class="blueprint-value">${pricing ? esc(formatPricingStatus(pricing.pricingStatus)) : 'Pricing on quotation'}</strong>
+      </div>
+      ${pricing ? pricingLinesHtml(pricing) : '<p class="text-xs text-muted" style="margin:8px 0 0;">Select valid items and a guest count to see the estimate.</p>'}
     </div>
   `;
 
@@ -827,6 +951,7 @@ function renderLiveSummary(): void {
     (requirements.mandap ? 1 : 0) +
     (requirements.stage ? 1 : 0) +
     requirements.equipment.length +
+    (catering ? 1 : 0) +
     (requiresRooms ? 1 : 0);
 
   const countNode = document.querySelector<HTMLElement>('[data-plan-mobile-count]');
@@ -839,8 +964,9 @@ function renderLiveSummary(): void {
 
   const statusNode = document.querySelector<HTMLElement>('[data-plan-mobile-status]');
   if (statusNode) {
-    statusNode.textContent =
-      selectionCount === 0 ? 'Pricing on quotation' : 'Quotation required · no payment now';
+    statusNode.textContent = pricing
+      ? formatPricingStatus(pricing.pricingStatus)
+      : 'Pricing on quotation';
   }
 }
 
@@ -884,6 +1010,15 @@ function renderReview(): void {
       ? `${Number(draft.acRoomCount) || 0} AC rooms + ${Number(draft.nonAcRoomCount) || 0} Non-AC rooms (${(Number(draft.acRoomCount) || 0) + (Number(draft.nonAcRoomCount) || 0)} rooms total)${draft.accommodationNotes ? `<br><small>${esc(draft.accommodationNotes)}</small>` : ''}`
       : 'No hotel room blocks required';
 
+  const catering = state.catalogue.catering.find((entry) => String(entry.id) === draft.cateringPackageId);
+  const cateringText = catering
+    ? `<strong>${esc(catering.name)}</strong>${draft.guestCount ? ` · ${esc(draft.guestCount)} guests` : ''}${draft.cateringNotes ? `<br><small>${esc(draft.cateringNotes)}</small>` : ''}`
+    : 'No catering package selected';
+  const pricing = currentPricing();
+  const pricingHtml = pricing
+    ? pricingLinesHtml(pricing)
+    : '<p class="review-empty">Select valid items and a guest count to see the estimate.</p>';
+
   target.innerHTML = `
     <div class="review-card">
       <div class="review-card-head">
@@ -919,15 +1054,25 @@ function renderReview(): void {
         <button type="button" class="btn btn-secondary btn-sm" data-plan-edit="3">Edit</button>
       </div>
       <dl class="review-dl">
-        <div><dt>Equipment Items</dt><dd>${equipmentHtml}</dd></div>
+        <div><dt>Furniture &amp; Equipment</dt><dd>${equipmentHtml}</dd></div>
         ${draft.equipmentNotes ? `<div><dt>Setup Notes</dt><dd>${esc(draft.equipmentNotes)}</dd></div>` : ''}
+        <div><dt>Catering Package</dt><dd>${cateringText}</dd></div>
+        ${draft.additionalServices ? `<div><dt>Additional Services</dt><dd>${esc(draft.additionalServices)}</dd></div>` : ''}
         <div><dt>Accommodation</dt><dd>${roomsText}</dd></div>
       </dl>
     </div>
 
     <div class="review-card">
       <div class="review-card-head">
-        <h4>4. Contact &amp; Budget Information</h4>
+        <h4>4. Pricing Estimate</h4>
+        <button type="button" class="btn btn-secondary btn-sm" data-plan-edit="3">Review selections</button>
+      </div>
+      <div class="review-pricing">${pricingHtml}</div>
+    </div>
+
+    <div class="review-card">
+      <div class="review-card-head">
+        <h4>5. Contact &amp; Budget Information</h4>
         <button type="button" class="btn btn-secondary btn-sm" data-plan-edit="4">Edit</button>
       </div>
       <dl class="review-dl">
@@ -977,12 +1122,21 @@ function buildPayload() {
     },
     mandap: selected(requirements.mandap),
     stage: selected(requirements.stage),
-    equipment: requirements.equipment.map((item: EquipmentRequirement) => ({
+    furniture: requirements.equipment.map((item: EquipmentRequirement) => ({
       id: Number(item.id),
       quantity: item.quantity,
       notes: item.notes,
     })),
     equipmentNotes: fieldValue('equipmentNotes'),
+    catering: fieldValue('cateringPackageId') && Number(fieldValue('guestCount')) > 0
+      ? {
+          id: Number(fieldValue('cateringPackageId')),
+          guestCount: Number(fieldValue('guestCount')),
+          notes: fieldValue('cateringNotes'),
+        }
+      : null,
+    cateringNotes: fieldValue('cateringNotes'),
+    additionalServices: fieldValue('additionalServices'),
     accommodation: {
       required: radioValue('requiresRooms') === 'yes',
       roomCount: totalRooms,
@@ -1042,6 +1196,9 @@ async function submitEnquiry(): Promise<void> {
       token?: string;
       receiptUrl?: string;
       pdfUrl?: string;
+      pricing?: SelectionPricing;
+      pricingStatus?: SelectionPricing['pricingStatus'];
+      pricedSubtotalPaise?: number;
       message?: string;
     };
 
@@ -1052,7 +1209,7 @@ async function submitEnquiry(): Promise<void> {
     const receiptUrl = data.receiptUrl || `/receipts/enquiry/${data.reference}${data.token ? `?token=${data.token}` : ''}`;
     const pdfUrl = data.pdfUrl || `/api/enquiries/receipt/${data.reference}/pdf${data.token ? `?token=${data.token}` : ''}`;
 
-    showReceipt(data.reference, data.qrDataUrl, receiptUrl, pdfUrl);
+    showReceipt(data.reference, data.qrDataUrl, receiptUrl, pdfUrl, data.pricing);
   } catch (error) {
     showError(error instanceof Error ? error.message : 'We could not submit the enquiry. Please try again.');
   } finally {
@@ -1063,7 +1220,36 @@ async function submitEnquiry(): Promise<void> {
   }
 }
 
-function showReceipt(reference: string, qrDataUrl?: string, receiptUrl?: string, pdfUrl?: string): void {
+function receiptSummaryHtml(pricing: SelectionPricing | null): string {
+  const requirements = readRequirements();
+  const cateringId = fieldValue('cateringPackageId');
+  const catering = (state?.catalogue.catering ?? []).find((entry) => String(entry.id) === cateringId);
+  const eventType = fieldValue('eventType') || 'Celebration';
+  const eventDate = fieldValue('eventDate');
+  const venue = fieldValue('venueLocation');
+  const guests = fieldValue('guestCount');
+  return `
+    <div style="font-weight:700;margin-bottom:8px;">Submitted enquiry summary</div>
+    <div class="text-sm" style="display:grid;gap:4px;margin-bottom:12px;">
+      <div><span class="text-muted">Event:</span> ${esc(eventType)}${eventDate ? ` · ${esc(eventDate)}` : ''}${guests ? ` · ${esc(guests)} guests` : ''}</div>
+      <div><span class="text-muted">Venue:</span> ${esc(venue || 'To be confirmed')}</div>
+      <div><span class="text-muted">Mandap:</span> ${requirements.mandap ? esc(requirements.mandap.name) : 'Not selected'}</div>
+      <div><span class="text-muted">Stage:</span> ${requirements.stage ? esc(requirements.stage.name) : 'Not selected'}</div>
+      <div><span class="text-muted">Furniture &amp; equipment:</span> ${requirements.equipment.length ? `${requirements.equipment.length} selected line(s)` : 'Not selected'}</div>
+      <div><span class="text-muted">Catering:</span> ${catering ? esc(catering.name) : 'Not selected'}</div>
+    </div>
+    ${pricing ? pricingLinesHtml(pricing) : '<p class="text-sm text-muted">Pricing on quotation.</p>'}
+    <p class="text-xs text-muted" style="margin-top:10px;">This is an enquiry acknowledgement, not a confirmed booking. Our team will review the requirements and prepare the quotation.</p>
+  `;
+}
+
+function showReceipt(
+  reference: string,
+  qrDataUrl?: string,
+  receiptUrl?: string,
+  pdfUrl?: string,
+  serverPricing?: SelectionPricing,
+): void {
   if (planShell) planShell.hidden = true;
   setMobileSummary(false);
   const mobileSummary = document.querySelector<HTMLElement>('[data-plan-mobile-summary]');
@@ -1072,6 +1258,11 @@ function showReceipt(reference: string, qrDataUrl?: string, receiptUrl?: string,
     receipt.hidden = false;
     const referenceNode = receipt.querySelector<HTMLElement>('[data-receipt-reference]');
     if (referenceNode) referenceNode.textContent = reference;
+
+    const summaryNode = receipt.querySelector<HTMLElement>('[data-receipt-summary]');
+    if (summaryNode) {
+      summaryNode.innerHTML = receiptSummaryHtml(serverPricing ?? currentPricing());
+    }
 
     if (qrDataUrl) {
       const qrContainer = receipt.querySelector<HTMLElement>('[data-receipt-qr-container]');
@@ -1130,6 +1321,7 @@ if (state && form) {
 
     renderEquipmentTabs();
     renderEquipmentGrid();
+    syncCateringSelection();
     renderLiveSummary();
     goToStep(1, false);
   } catch (error) {
@@ -1157,7 +1349,7 @@ if (state && form) {
 
     if (event.key !== 'Enter' && event.key !== ' ') return;
     const card = (event.target as HTMLElement | null)?.closest<HTMLElement>(
-      '[data-plan-mandap-card], [data-plan-stage-card]',
+      '[data-plan-mandap-card], [data-plan-stage-card], [data-plan-catering-card]',
     );
     if (!card) return;
     event.preventDefault();
@@ -1208,6 +1400,13 @@ if (state && form) {
     const edit = target.closest<HTMLElement>('[data-plan-edit]');
     if (edit) {
       goToStep(Number(edit.dataset.planEdit));
+      return;
+    }
+
+    // Catering package selection
+    const cateringCard = target.closest<HTMLElement>('[data-plan-catering-card]');
+    if (cateringCard) {
+      applyCateringSelection(cateringCard.getAttribute('data-plan-catering-card') ?? '');
       return;
     }
 

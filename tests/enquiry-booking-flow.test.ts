@@ -16,7 +16,9 @@ const {
   findOrCreateCustomer,
   getBookingForEnquiry,
   getEnquiryLineItemsForIds,
+  getEnquiryQuotationWithLines,
   getEventEnquiryWithItems,
+  listEnquiryQuotations,
   insertEventEnquiry,
   listBookingsPage,
   listEventEnquiriesPage,
@@ -25,6 +27,7 @@ const { registerCustomer } = await import('../src/modules/accounts/service');
 const {
   EnquiryLifecycleError,
   acceptEnquiry,
+  prepareEnquiryQuotation,
   rejectEnquiry,
   setEnquiryWorkflowStatus,
 } = await import('../src/modules/admin/enquiry-lifecycle');
@@ -77,6 +80,9 @@ async function seedEnquiry(phone = '9876501234') {
         requestedHeight: null,
         specifications: 'Carved pillars',
         notes: '',
+        catalogueUnitPricePaise: 4500000,
+        catalogueSubtotalPaise: 4500000,
+        pricingStatus: 'priced',
       },
       {
         itemType: 'stage',
@@ -89,6 +95,9 @@ async function seedEnquiry(phone = '9876501234') {
         requestedHeight: null,
         specifications: 'Royal backdrop',
         notes: '',
+        catalogueUnitPricePaise: null,
+        catalogueSubtotalPaise: null,
+        pricingStatus: 'on_request',
       },
       {
         itemType: 'equipment',
@@ -101,10 +110,42 @@ async function seedEnquiry(phone = '9876501234') {
         requestedHeight: null,
         specifications: 'Gold frame',
         notes: 'Match ivory cushions',
+        catalogueUnitPricePaise: null,
+        catalogueSubtotalPaise: null,
+        pricingStatus: 'on_request',
       },
     ],
     nextReference,
   );
+}
+
+async function prepareQuote(enquiryId: number, unitPricePaise = 100000) {
+  const source = await getEventEnquiryWithItems(enquiryId);
+  if (!source) throw new Error('source enquiry missing');
+  return prepareEnquiryQuotation({
+    enquiryId,
+    adminUserId,
+    lines: source.lines.map((line) => ({
+      enquiryLineItemId: Number(line.id),
+      quantity: Number(line.quantity),
+      quotedUnitPricePaise: unitPricePaise,
+    })),
+    notes: 'Test quotation',
+  });
+}
+
+async function acceptQuote(enquiryId: number, quotationId: number) {
+  return acceptEnquiry({
+    enquiryId,
+    adminUserId,
+    quotationId,
+    confirm: true,
+  });
+}
+
+async function prepareAndAccept(enquiryId: number) {
+  const quote = await prepareQuote(enquiryId);
+  return acceptQuote(enquiryId, quote.quotationId);
 }
 
 before(async () => {
@@ -154,11 +195,8 @@ test('the migration adds the enquiry/booking link and lifecycle columns', async 
 test('acceptance creates one linked booking and preserves the enquiry selections', async () => {
   const neon = getNeonClient();
   const seeded = await seedEnquiry();
-  const result = await acceptEnquiry({
-    enquiryId: seeded.id,
-    adminUserId,
-    finalAmountPaise: 7500000,
-  });
+  const quote = await prepareQuote(seeded.id);
+  const result = await acceptQuote(seeded.id, quote.quotationId);
 
   const booking = await neon.query<{
     id: number;
@@ -173,8 +211,8 @@ test('acceptance creates one linked booking and preserves the enquiry selections
   assert.equal(Number(row.source_enquiry_id), seeded.id);
   assert.equal(row.venue_location, 'Harmu Ground, Ranchi');
   assert.equal(row.status, 'pending');
-  assert.equal(Number(row.total_amount), 7500000);
-  assert.equal(Number(row.advance_amount), 1875000);
+  assert.equal(Number(row.total_amount), quote.totalPaise);
+  assert.equal(Number(row.advance_amount), Math.round(quote.totalPaise * 0.25));
   assert.equal(row.payment_status, 'unpaid');
 
   const enquiry = await neon.query<{
@@ -190,17 +228,17 @@ test('acceptance creates one linked booking and preserves the enquiry selections
   assert.ok(enquiry.rows[0]?.accepted_at);
   assert.equal(enquiry.rows[0]?.rejection_reason, '');
 
-  const item = await neon.query<{ category: string; item_name: string; metadata_json: string }>(
-    'SELECT category, item_name, metadata_json FROM booking_items WHERE booking_id = $1',
+  const items = await neon.query<{ category: string; item_name: string; subtotal: number; metadata_json: string }>(
+    'SELECT category, item_name, subtotal, metadata_json FROM booking_items WHERE booking_id = $1 ORDER BY id',
     [result.bookingId],
   );
-  assert.equal(item.rows[0]?.category, 'quotation');
-  assert.match(item.rows[0]?.item_name ?? '', new RegExp(seeded.referenceCode));
-  const metadata = JSON.parse(item.rows[0]?.metadata_json ?? '{}');
+  assert.equal(items.rows.length, 3);
+  assert.equal(items.rows.reduce((sum, item) => sum + Number(item.subtotal), 0), quote.totalPaise);
+  const metadata = JSON.parse(items.rows[0]?.metadata_json ?? '{}');
   assert.equal(metadata.sourceEnquiryId, seeded.id);
   assert.equal(metadata.sourceEnquiryReference, seeded.referenceCode);
-  assert.equal(metadata.sourceItems.length, 3);
-  assert.equal(metadata.sourceItems[0].name, 'Royal Rajputana Mandap');
+  assert.ok(metadata.sourceQuotationId);
+  assert.ok(metadata.quotationLineId);
 
   assert.equal((await getBookingForEnquiry(seeded.id))?.id, result.bookingId);
   const lines = await getEnquiryLineItemsForIds([seeded.id]);
@@ -231,7 +269,7 @@ test('acceptance creates one linked booking and preserves the enquiry selections
 
 test('active New Enquiries excludes accepted rows; history includes them and the linked booking', async () => {
   const seeded = await seedEnquiry();
-  await acceptEnquiry({ enquiryId: seeded.id, adminUserId, finalAmountPaise: 5000000 });
+  await prepareAndAccept(seeded.id);
 
   const active = await listEventEnquiriesPage({ status: 'active' }, { limit: 50, offset: 0 });
   assert.equal(active.items.some((row) => row.id === seeded.id), false);
@@ -288,7 +326,7 @@ test('rejected enquiries create no booking and remain in rejected history', asyn
   assert.equal(rejected.items.some((entry) => entry.id === seeded.id), true);
 
   await assert.rejects(
-    () => acceptEnquiry({ enquiryId: seeded.id, adminUserId, finalAmountPaise: 100000 }),
+    () => acceptQuote(seeded.id, 1),
     EnquiryLifecycleError,
   );
   assert.equal(await getBookingForEnquiry(seeded.id), null);
@@ -297,11 +335,12 @@ test('rejected enquiries create no booking and remain in rejected history', asyn
 test('duplicate acceptance is rejected and cannot create a second booking', async () => {
   const neon = getNeonClient();
   const seeded = await seedEnquiry();
-  const first = await acceptEnquiry({ enquiryId: seeded.id, adminUserId, finalAmountPaise: 5000000 });
+  const quote = await prepareQuote(seeded.id);
+  const first = await acceptQuote(seeded.id, quote.quotationId);
   assert.ok(first.bookingId);
 
   await assert.rejects(
-    () => acceptEnquiry({ enquiryId: seeded.id, adminUserId, finalAmountPaise: 5000000 }),
+    () => acceptQuote(seeded.id, quote.quotationId),
     EnquiryLifecycleError,
   );
 
@@ -330,12 +369,13 @@ test('duplicate acceptance is rejected and cannot create a second booking', asyn
 test('concurrent acceptance attempts leave exactly one linked booking', async () => {
   const path = process.env.OPERATIONAL_DB_LOCAL_PATH!;
   const seeded = await seedEnquiry();
+  const quote = await prepareQuote(seeded.id);
   const clientA = new NeonOperationalClient({ localDbPath: path });
   const clientB = new NeonOperationalClient({ localDbPath: path });
 
   const results = await Promise.allSettled([
-    acceptEnquiry({ enquiryId: seeded.id, adminUserId, finalAmountPaise: 5000000 }, clientA),
-    acceptEnquiry({ enquiryId: seeded.id, adminUserId, finalAmountPaise: 5000000 }, clientB),
+    acceptEnquiry({ enquiryId: seeded.id, adminUserId, quotationId: quote.quotationId, confirm: true }, clientA),
+    acceptEnquiry({ enquiryId: seeded.id, adminUserId, quotationId: quote.quotationId, confirm: true }, clientB),
   ]);
 
   await clientA.close();
@@ -351,7 +391,7 @@ test('concurrent acceptance attempts leave exactly one linked booking', async ()
 
 test('managed booking list exposes the source enquiry, venue, payment, and admin handling', async () => {
   const seeded = await seedEnquiry();
-  const accepted = await acceptEnquiry({ enquiryId: seeded.id, adminUserId, finalAmountPaise: 5000000 });
+  const accepted = await prepareAndAccept(seeded.id);
 
   const all = await listBookingsPage({ status: 'all' }, { limit: 50, offset: 0 });
   const booking = all.find((row) => row.id === accepted.bookingId);
@@ -361,7 +401,7 @@ test('managed booking list exposes the source enquiry, venue, payment, and admin
   assert.equal(booking?.venue_location, 'Harmu Ground, Ranchi');
   assert.equal(booking?.payment_status, 'unpaid');
   assert.equal(booking?.accepted_by_name, 'Admin Handler');
-  assert.equal(booking?.item_count, 1);
+  assert.equal(booking?.item_count, 3);
 
   const pendingPayment = await listBookingsPage({ status: 'pending_payment' }, { limit: 50, offset: 0 });
   assert.equal(pendingPayment.some((row) => row.id === accepted.bookingId), true);
@@ -459,4 +499,153 @@ test('old event-enquiry routes redirect to New Enquiries', async () => {
   } as any);
   assert.equal(postResponse.status, 308);
   assert.equal(postResponse.headers.get('location'), '/admin/new-enquiries/7');
+});
+
+test('quotation preparation keeps catalogue and agreed prices separate and preserves versions', async () => {
+  const seeded = await seedEnquiry();
+  const source = await getEventEnquiryWithItems(seeded.id);
+  assert.ok(source);
+  const lines = source.lines.map((line, index) => ({
+    enquiryLineItemId: Number(line.id),
+    quantity: Number(line.quantity),
+    quotedUnitPricePaise: 100000 + index * 1000,
+  }));
+
+  const first = await prepareEnquiryQuotation({
+    enquiryId: seeded.id,
+    adminUserId,
+    lines,
+    manualLines: [{ description: 'Valet parking', quantity: 1, quotedUnitPricePaise: 250000 }],
+    notes: 'First prepared version',
+  });
+  const firstData = await getEnquiryQuotationWithLines(first.quotationId);
+  assert.ok(firstData);
+  assert.equal(firstData?.quotation.status, 'prepared');
+  assert.equal(firstData?.quotation.version, 1);
+  assert.equal(firstData?.lines.length, 4);
+  const mandapQuoteLine = firstData?.lines.find((line) => line.line_type === 'catalogue');
+  assert.equal(mandapQuoteLine?.catalogue_unit_price_paise, 4500000);
+  assert.equal(mandapQuoteLine?.quoted_unit_price_paise, 100000);
+  const manual = firstData?.lines.find((line) => line.line_type === 'manual');
+  assert.equal(manual?.description, 'Valet parking');
+  assert.equal(manual?.quoted_subtotal_paise, 250000);
+  assert.ok(firstData?.lines.every((line) => line.line_type === 'manual' || line.enquiry_line_item_id));
+
+  const neon = getNeonClient();
+  const enquiry = await neon.query<{ status: string }>('SELECT status FROM event_enquiries WHERE id = $1', [seeded.id]);
+  assert.equal(enquiry.rows[0]?.status, 'quoted');
+
+  const second = await prepareEnquiryQuotation({
+    enquiryId: seeded.id,
+    adminUserId,
+    lines: lines.map((line) => ({ ...line, quotedUnitPricePaise: 200000 })),
+    notes: 'Revised version',
+  });
+  const quotes = await listEnquiryQuotations(seeded.id);
+  assert.equal(quotes.length, 2);
+  assert.equal(quotes[0]?.quotation.version, 2);
+  assert.equal(quotes[0]?.quotation.status, 'prepared');
+  assert.equal(quotes[1]?.quotation.version, 1);
+  assert.equal(quotes[1]?.quotation.status, 'superseded');
+  assert.equal(second.totalPaise, lines.reduce((sum, line) => sum + line.quantity * 200000, 0));
+});
+
+test('quotation preparation rejects incomplete source lines', async () => {
+  const seeded = await seedEnquiry();
+  const source = await getEventEnquiryWithItems(seeded.id);
+  assert.ok(source);
+  const first = source.lines[0]!;
+  await assert.rejects(
+    () =>
+      prepareEnquiryQuotation({
+        enquiryId: seeded.id,
+        adminUserId,
+        lines: [
+          {
+            enquiryLineItemId: Number(first.id),
+            quantity: Number(first.quantity),
+            quotedUnitPricePaise: 100000,
+          },
+        ],
+      }),
+    /every original customer selection/i,
+  );
+});
+
+test('acceptance requires explicit quotation confirmation and a valid total', async () => {
+  const seeded = await seedEnquiry();
+  const quote = await prepareQuote(seeded.id);
+
+  await assert.rejects(
+    () =>
+      acceptEnquiry({
+        enquiryId: seeded.id,
+        adminUserId,
+        quotationId: quote.quotationId,
+        confirm: false,
+      }),
+    /Confirm the prepared quotation/i,
+  );
+
+  const neon = getNeonClient();
+  await neon.query('UPDATE enquiry_quotations SET total_paise = 1 WHERE id = $1', [quote.quotationId]);
+  await assert.rejects(
+    () => acceptQuote(seeded.id, quote.quotationId),
+    /total changed|invalid/i,
+  );
+  assert.equal(await getBookingForEnquiry(seeded.id), null, 'failed acceptance must not create a booking');
+
+  const fresh = await prepareQuote(seeded.id);
+  const result = await acceptQuote(seeded.id, fresh.quotationId);
+  const booking = await neon.query<{ total_amount: number; source_quotation_id: number }>(
+    'SELECT total_amount, source_quotation_id FROM bookings WHERE id = $1',
+    [result.bookingId],
+  );
+  assert.equal(Number(booking.rows[0]?.total_amount), fresh.totalPaise);
+  assert.equal(Number(booking.rows[0]?.source_quotation_id), fresh.quotationId);
+
+  const quoteRow = await neon.query<{ status: string }>(
+    'SELECT status FROM enquiry_quotations WHERE id = $1',
+    [fresh.quotationId],
+  );
+  assert.equal(quoteRow.rows[0]?.status, 'accepted');
+  const items = await neon.query<{ metadata_json: string; subtotal: number }>(
+    'SELECT metadata_json, subtotal FROM booking_items WHERE booking_id = $1 ORDER BY id',
+    [result.bookingId],
+  );
+  assert.equal(items.rows.length, 3);
+  assert.equal(items.rows.reduce((sum, item) => sum + Number(item.subtotal), 0), fresh.totalPaise);
+  assert.ok(items.rows.every((item) => JSON.parse(item.metadata_json).sourceQuotationId === fresh.quotationId));
+});
+
+test('manual quotation lines are preserved as booking lines', async () => {
+  const seeded = await seedEnquiry();
+  const source = await getEventEnquiryWithItems(seeded.id);
+  assert.ok(source);
+  const quote = await prepareEnquiryQuotation({
+    enquiryId: seeded.id,
+    adminUserId,
+    lines: source.lines.map((line) => ({
+      enquiryLineItemId: Number(line.id),
+      quantity: Number(line.quantity),
+      quotedUnitPricePaise: 100000,
+    })),
+    manualLines: [{ description: 'Additional valet service', quantity: 1, quotedUnitPricePaise: 300000 }],
+  });
+  const result = await acceptQuote(seeded.id, quote.quotationId);
+  const neon = getNeonClient();
+  const items = await neon.query<{ category: string; item_name: string; subtotal: number; metadata_json: string }>(
+    'SELECT category, item_name, subtotal, metadata_json FROM booking_items WHERE booking_id = $1 ORDER BY id',
+    [result.bookingId],
+  );
+  assert.equal(items.rows.length, 4);
+  const manual = items.rows.find((item) => item.item_name === 'Additional valet service');
+  assert.ok(manual);
+  assert.equal(manual?.category, 'manual');
+  assert.equal(Number(manual?.subtotal), 300000);
+  assert.equal(JSON.parse(manual?.metadata_json ?? '{}').lineType, 'manual');
+  assert.equal(
+    items.rows.reduce((sum, item) => sum + Number(item.subtotal), 0),
+    quote.totalPaise,
+  );
 });

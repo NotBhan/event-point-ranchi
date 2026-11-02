@@ -42,7 +42,7 @@ const ENQUIRY_LABELS: Record<EnquiryStatus, string> = {
   new: 'New / pending',
   reviewing: 'Under review',
   contacted: 'Contacted',
-  quoted: 'Quoted (legacy)',
+  quoted: 'Quotation prepared',
   accepted: 'Accepted',
   rejected: 'Rejected',
   confirmed: 'Confirmed (legacy)',
@@ -92,6 +92,30 @@ const PAYMENT_CLASSES: Record<string, string> = {
   refunded: 'badge-muted',
 };
 
+const PRICING_LABELS: Record<string, string> = {
+  fully_priced: 'Fully priced',
+  partially_priced: 'Partially priced — final quotation required',
+  quotation_required: 'Quotation required',
+};
+
+const PRICING_CLASSES: Record<string, string> = {
+  fully_priced: 'badge-success',
+  partially_priced: 'badge-warning',
+  quotation_required: 'badge-gold',
+};
+
+const QUOTE_LABELS: Record<string, string> = {
+  prepared: 'Prepared',
+  accepted: 'Accepted',
+  superseded: 'Superseded',
+};
+
+const QUOTE_CLASSES: Record<string, string> = {
+  prepared: 'badge-info',
+  accepted: 'badge-success',
+  superseded: 'badge-muted',
+};
+
 export function enquiryStatusLabel(status: string): string {
   return ENQUIRY_LABELS[status as EnquiryStatus] ?? status;
 }
@@ -117,6 +141,22 @@ export function paymentStatusClass(status: string | null | undefined): string {
   return PAYMENT_CLASSES[status || 'unpaid'] ?? 'badge-muted';
 }
 
+export function pricingStatusLabel(status: string | null | undefined): string {
+  return PRICING_LABELS[status || 'quotation_required'] ?? (status || 'Quotation required');
+}
+
+export function pricingStatusClass(status: string | null | undefined): string {
+  return PRICING_CLASSES[status || 'quotation_required'] ?? 'badge-muted';
+}
+
+export function quotationStatusLabel(status: string | null | undefined): string {
+  return QUOTE_LABELS[status || 'prepared'] ?? (status || 'Prepared');
+}
+
+export function quotationStatusClass(status: string | null | undefined): string {
+  return QUOTE_CLASSES[status || 'prepared'] ?? 'badge-muted';
+}
+
 export interface EnquirySelectionSummary {
   mandap: string[];
   stage: string[];
@@ -139,7 +179,9 @@ function withQuantity(line: EnquiryLine): string {
 export function summariseEnquiryLines(lines: EnquiryLine[]): EnquirySelectionSummary {
   const mandap = lines.filter((line) => line.item_type === 'mandap').map(withQuantity);
   const stage = lines.filter((line) => line.item_type === 'stage').map(withQuantity);
-  const furniture = lines.filter((line) => line.item_type === 'equipment').map(withQuantity);
+  const furniture = lines
+    .filter((line) => line.item_type === 'equipment' || line.item_type === 'furniture')
+    .map(withQuantity);
   const catering = lines.filter((line) => line.item_type === 'catering').map(withQuantity);
 
   return {

@@ -55,6 +55,11 @@ export interface EventEnquiryRow {
   accepted_by?: number | null;
   accepted_at?: string | null;
   rejection_reason?: string | null;
+  pricing_status?: 'fully_priced' | 'partially_priced' | 'quotation_required';
+  priced_subtotal_paise?: number;
+  pricing_breakdown_json?: string;
+  additional_services?: string;
+  accepted_quotation_id?: number | null;
   created_at: string;
 }
 
@@ -88,6 +93,7 @@ export interface BookingRow {
   outstanding_balance: number;
   payment_status: 'unpaid' | 'partially_paid' | 'paid' | 'refunded';
   source_enquiry_id?: number | null;
+  source_quotation_id?: number | null;
   venue_location?: string | null;
   /** Snapshot of the deposit policy that produced `advance_amount`. */
   deposit_type?: DepositType;
@@ -476,6 +482,10 @@ export interface NewEventEnquiryInput {
   accommodationNotes: string;
   decorationNotes: string;
   preferredContact: string;
+  pricingStatus?: 'fully_priced' | 'partially_priced' | 'quotation_required';
+  pricedSubtotalPaise?: number;
+  pricingBreakdownJson?: string;
+  additionalServices?: string;
 }
 
 export interface NewEnquiryLineItemInput {
@@ -489,6 +499,10 @@ export interface NewEnquiryLineItemInput {
   requestedHeight: number | null;
   specifications: string;
   notes: string;
+  catalogueUnitPricePaise?: number | null;
+  catalogueSubtotalPaise?: number | null;
+  pricingStatus?: 'priced' | 'on_request';
+  metadata?: Record<string, unknown>;
 }
 
 export interface EnquiryLineItemRecord {
@@ -504,6 +518,10 @@ export interface EnquiryLineItemRecord {
   requested_height_ft: number | null;
   specifications: string;
   notes: string;
+  catalogue_unit_price_paise?: number | null;
+  catalogue_subtotal_paise?: number | null;
+  pricing_status?: 'priced' | 'on_request';
+  metadata_json?: string;
 }
 
 /** Postgres raises 23505 on a unique violation; the SQLite fallback has its own message. */
@@ -544,8 +562,10 @@ export async function insertEventEnquiry(
           `INSERT INTO event_enquiries
              (reference_code, customer_name, customer_phone, customer_email, event_type, event_date,
               end_date, event_time, venue_location, guest_count, budget_range, requires_rooms,
-              room_count, accommodation_notes, decoration_notes, preferred_contact, status)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'new')
+              room_count, accommodation_notes, decoration_notes, preferred_contact, status,
+              pricing_status, priced_subtotal_paise, pricing_breakdown_json, additional_services)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'new',
+                   $17, $18, $19, $20)
            RETURNING id`,
           [
             referenceCode,
@@ -564,6 +584,10 @@ export async function insertEventEnquiry(
             enquiry.accommodationNotes,
             enquiry.decorationNotes,
             enquiry.preferredContact,
+            enquiry.pricingStatus ?? 'quotation_required',
+            Math.max(0, Math.round(Number(enquiry.pricedSubtotalPaise ?? 0))),
+            enquiry.pricingBreakdownJson ?? '{}',
+            enquiry.additionalServices ?? '',
           ],
         );
 
@@ -584,8 +608,9 @@ export async function insertEventEnquiry(
             `INSERT INTO enquiry_line_items
                (enquiry_id, item_type, catalogue_item_id, item_name_snapshot, quantity,
                 standard_dimensions_snapshot, requested_length_ft, requested_width_ft, requested_height_ft,
-                specifications, notes)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+                specifications, notes, catalogue_unit_price_paise, catalogue_subtotal_paise,
+                pricing_status, metadata_json)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
             [
               id,
               line.itemType,
@@ -598,6 +623,10 @@ export async function insertEventEnquiry(
               line.requestedHeight,
               line.specifications,
               line.notes,
+              line.catalogueUnitPricePaise ?? null,
+              line.catalogueSubtotalPaise ?? null,
+              line.pricingStatus ?? 'on_request',
+              JSON.stringify(line.metadata ?? {}),
             ],
           );
         }
@@ -718,6 +747,10 @@ export async function getEventEnquiryWithItems(
       requested_height_ft: optionalNumber(line.requested_height_ft),
       quantity: Number(line.quantity ?? 0),
       catalogue_item_id: line.catalogue_item_id === null ? null : Number(line.catalogue_item_id),
+      catalogue_unit_price_paise: optionalNumber(line.catalogue_unit_price_paise),
+      catalogue_subtotal_paise: optionalNumber(line.catalogue_subtotal_paise),
+      pricing_status: line.pricing_status ?? 'on_request',
+      metadata_json: line.metadata_json ?? '{}',
     })),
   };
 }
@@ -742,7 +775,137 @@ export async function getEnquiryLineItemsForIds(ids: number[]): Promise<EnquiryL
     requested_height_ft: optionalNumber(line.requested_height_ft),
     quantity: Number(line.quantity ?? 0),
     catalogue_item_id: line.catalogue_item_id === null ? null : Number(line.catalogue_item_id),
+    catalogue_unit_price_paise: optionalNumber(line.catalogue_unit_price_paise),
+    catalogue_subtotal_paise: optionalNumber(line.catalogue_subtotal_paise),
+    pricing_status: line.pricing_status ?? 'on_request',
+    metadata_json: line.metadata_json ?? '{}',
   }));
+}
+
+export interface EnquiryQuotationRow {
+  id: number;
+  enquiry_id: number;
+  version: number;
+  status: 'prepared' | 'accepted' | 'superseded';
+  priced_subtotal_paise: number;
+  quoted_subtotal_paise: number;
+  total_paise: number;
+  notes: string;
+  prepared_by: number | null;
+  prepared_at: string | null;
+  accepted_by: number | null;
+  accepted_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EnquiryQuotationLineRow {
+  id: number;
+  quotation_id: number;
+  enquiry_line_item_id: number | null;
+  line_type: 'catalogue' | 'manual';
+  catalogue_item_id: number | null;
+  description: string;
+  quantity: number;
+  catalogue_unit_price_paise: number | null;
+  quoted_unit_price_paise: number;
+  quoted_subtotal_paise: number;
+  notes: string;
+  created_at: string;
+}
+
+export interface EnquiryQuotationWithLines {
+  quotation: EnquiryQuotationRow;
+  lines: EnquiryQuotationLineRow[];
+}
+
+function normaliseQuotation(row: EnquiryQuotationRow): EnquiryQuotationRow {
+  return {
+    ...row,
+    version: Number(row.version ?? 1),
+    priced_subtotal_paise: Number(row.priced_subtotal_paise ?? 0),
+    quoted_subtotal_paise: Number(row.quoted_subtotal_paise ?? 0),
+    total_paise: Number(row.total_paise ?? 0),
+  };
+}
+
+function normaliseQuotationLine(row: EnquiryQuotationLineRow): EnquiryQuotationLineRow {
+  return {
+    ...row,
+    enquiry_line_item_id: row.enquiry_line_item_id === null ? null : Number(row.enquiry_line_item_id),
+    catalogue_item_id: row.catalogue_item_id === null ? null : Number(row.catalogue_item_id),
+    quantity: Number(row.quantity ?? 0),
+    catalogue_unit_price_paise:
+      row.catalogue_unit_price_paise === null ? null : Number(row.catalogue_unit_price_paise),
+    quoted_unit_price_paise: Number(row.quoted_unit_price_paise ?? 0),
+    quoted_subtotal_paise: Number(row.quoted_subtotal_paise ?? 0),
+  };
+}
+
+export async function getEnquiryQuotationWithLines(
+  quotationId: number,
+): Promise<EnquiryQuotationWithLines | null> {
+  const neon = getNeonClient();
+  const quotationRes = await neon.query<EnquiryQuotationRow>(
+    'SELECT * FROM enquiry_quotations WHERE id = $1 LIMIT 1',
+    [quotationId],
+  );
+  const quotation = quotationRes.rows[0];
+  if (!quotation) return null;
+
+  const lineRes = await neon.query<EnquiryQuotationLineRow>(
+    'SELECT * FROM enquiry_quotation_lines WHERE quotation_id = $1 ORDER BY id ASC',
+    [quotationId],
+  );
+
+  return {
+    quotation: normaliseQuotation(quotation),
+    lines: lineRes.rows.map(normaliseQuotationLine),
+  };
+}
+
+export async function listEnquiryQuotations(enquiryId: number): Promise<EnquiryQuotationWithLines[]> {
+  const neon = getNeonClient();
+  const quotes = await neon.query<EnquiryQuotationRow>(
+    'SELECT * FROM enquiry_quotations WHERE enquiry_id = $1 ORDER BY version DESC',
+    [enquiryId],
+  );
+  if (quotes.rows.length === 0) return [];
+
+  const ids = quotes.rows.map((quote) => Number(quote.id));
+  const placeholders = ids.map((_, index) => `$${index + 1}`).join(', ');
+  const lines = await neon.query<EnquiryQuotationLineRow>(
+    `SELECT * FROM enquiry_quotation_lines
+      WHERE quotation_id IN (${placeholders})
+      ORDER BY quotation_id ASC, id ASC`,
+    ids,
+  );
+  const byQuote = new Map<number, EnquiryQuotationLineRow[]>();
+  for (const line of lines.rows) {
+    const list = byQuote.get(Number(line.quotation_id)) ?? [];
+    list.push(normaliseQuotationLine(line));
+    byQuote.set(Number(line.quotation_id), list);
+  }
+
+  return quotes.rows.map((quote) => ({
+    quotation: normaliseQuotation(quote),
+    lines: byQuote.get(Number(quote.id)) ?? [],
+  }));
+}
+
+export async function getLatestPreparedEnquiryQuotation(
+  enquiryId: number,
+): Promise<EnquiryQuotationWithLines | null> {
+  const neon = getNeonClient();
+  const quoteRes = await neon.query<EnquiryQuotationRow>(
+    `SELECT * FROM enquiry_quotations
+      WHERE enquiry_id = $1 AND status = 'prepared'
+      ORDER BY version DESC LIMIT 1`,
+    [enquiryId],
+  );
+  const quote = quoteRes.rows[0];
+  if (!quote) return null;
+  return getEnquiryQuotationWithLines(Number(quote.id));
 }
 
 export interface EnquiryBookingSummary {
@@ -751,6 +914,7 @@ export interface EnquiryBookingSummary {
   total_amount: number;
   payment_status: string;
   created_at: string;
+  source_quotation_id?: number | null;
 }
 
 export async function getBookingForEnquiry(enquiryId: number): Promise<EnquiryBookingSummary | null> {
@@ -801,6 +965,7 @@ function normaliseEnquiryRow(row: EventEnquiryRow): EventEnquiryRow {
     requires_rooms: Boolean(row.requires_rooms),
     room_count: Number(row.room_count ?? 0),
     guest_count: Number(row.guest_count ?? 0),
+    priced_subtotal_paise: Number(row.priced_subtotal_paise ?? 0),
   };
 }
 

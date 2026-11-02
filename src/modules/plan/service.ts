@@ -1,7 +1,15 @@
 import { randomBytes } from 'node:crypto';
-import { all, one } from '../../core/db';
 import { isEmail } from '../../core/http';
+import {
+  getCateringPackages,
+  getFurnitureCategories,
+  getFurnitureItems,
+  getMandaps,
+  getStages,
+} from '../../core/content/service';
+import type { CateringPackage } from '../../core/content/types';
 import { insertEventEnquiry } from '../../core/operational/service';
+import { PricingError, priceEnquirySelection, type PricingCatalogue } from '../bookings/pricing';
 
 export interface PlanMandap {
   id: number;
@@ -15,6 +23,7 @@ export interface PlanMandap {
   height_ft: number;
   dimension_unit: string;
   material_specs: string;
+  price_starting_paise: number;
 }
 
 export interface PlanStage {
@@ -29,6 +38,7 @@ export interface PlanStage {
   height_ft: number;
   dimension_unit: string;
   decoration_notes: string;
+  price_starting_paise: number;
 }
 
 export interface PlanEquipmentItem {
@@ -41,6 +51,9 @@ export interface PlanEquipmentItem {
   specifications: string;
   min_quantity: number;
   default_quantity: number;
+  price_paise: number;
+  pricing_unit: string;
+  dimensions: string;
 }
 
 export interface PlanEquipmentCategory {
@@ -51,41 +64,97 @@ export interface PlanEquipmentCategory {
   items: PlanEquipmentItem[];
 }
 
+export interface PlanCateringPackage extends Omit<CateringPackage, 'image_url'> {
+  image: string;
+}
+
 export interface PlanCatalogue {
   mandaps: PlanMandap[];
   stages: PlanStage[];
   equipment: PlanEquipmentCategory[];
+  catering: PlanCateringPackage[];
+  pricing: PricingCatalogue;
 }
 
-export function loadPlanCatalogue(): PlanCatalogue {
-  const mandaps = all<PlanMandap>(
-    `SELECT id, name, slug, description, image, category, length_ft, width_ft, height_ft,
-            dimension_unit, material_specs
-     FROM mandaps WHERE is_active = 1 ORDER BY sort, id`,
-  );
+export async function loadPlanCatalogue(): Promise<PlanCatalogue> {
+  const [mandaps, stages, categories, furniture, catering] = await Promise.all([
+    getMandaps(),
+    getStages(),
+    getFurnitureCategories(),
+    getFurnitureItems(),
+    getCateringPackages(),
+  ]);
 
-  const stages = all<PlanStage>(
-    `SELECT id, name, slug, description, image, style_category, length_ft, width_ft, height_ft,
-            dimension_unit, decoration_notes
-     FROM stages WHERE is_active = 1 ORDER BY sort, id`,
-  );
-
-  const categories = all<{ id: number; name: string; slug: string; icon: string }>(
-    'SELECT id, name, slug, icon FROM equipment_categories WHERE is_active = 1 ORDER BY sort, id',
-  );
-
-  const items = all<PlanEquipmentItem & { category_id: number }>(
-    `SELECT id, category_id, name, slug, description, image, unit, specifications,
-            min_quantity, default_quantity
-     FROM equipment_items WHERE is_active = 1 ORDER BY sort, id`,
-  );
-
-  const equipment = categories.map((category) => ({
-    ...category,
-    items: items.filter((item) => item.category_id === category.id),
+  const planMandaps: PlanMandap[] = mandaps.map((entry) => ({
+    id: Number(entry.id),
+    name: entry.name,
+    slug: entry.slug,
+    description: entry.description,
+    image: entry.image_url || null,
+    category: entry.category,
+    length_ft: Number(entry.length_ft),
+    width_ft: Number(entry.width_ft),
+    height_ft: Number(entry.height_ft),
+    dimension_unit: entry.dimension_unit,
+    material_specs: entry.material_specs,
+    price_starting_paise: Number(entry.price_starting_paise ?? 0),
   }));
 
-  return { mandaps, stages, equipment };
+  const planStages: PlanStage[] = stages.map((entry) => ({
+    id: Number(entry.id),
+    name: entry.name,
+    slug: entry.slug,
+    description: entry.description,
+    image: entry.image_url || null,
+    style_category: entry.style_category,
+    length_ft: Number(entry.length_ft),
+    width_ft: Number(entry.width_ft),
+    height_ft: Number(entry.height_ft),
+    dimension_unit: entry.dimension_unit,
+    decoration_notes: entry.decoration_notes,
+    price_starting_paise: Number(entry.price_starting_paise ?? 0),
+  }));
+
+  const equipment: PlanEquipmentCategory[] = categories.map((category) => ({
+    id: Number(category.id),
+    name: category.name,
+    slug: category.slug,
+    icon: category.icon,
+    items: furniture
+      .filter((item) => Number(item.category_id) === Number(category.id))
+      .map((item) => ({
+        id: Number(item.id),
+        name: item.name,
+        slug: item.slug,
+        description: item.description,
+        image: item.image_url || null,
+        unit: item.pricing_unit,
+        specifications: item.specifications,
+        min_quantity: Number(item.min_quantity ?? 1),
+        default_quantity: Number(item.default_quantity ?? 1),
+        price_paise: Number(item.price_paise ?? 0),
+        pricing_unit: item.pricing_unit,
+        dimensions: item.dimensions,
+      })),
+  }));
+
+  const planCatering: PlanCateringPackage[] = catering.map((entry) => ({
+    ...entry,
+    image: entry.image_url || '',
+  }));
+
+  return {
+    mandaps: planMandaps,
+    stages: planStages,
+    equipment,
+    catering: planCatering,
+    pricing: {
+      mandaps: planMandaps,
+      stages: planStages,
+      furniture,
+      catering,
+    },
+  };
 }
 
 export class EnquiryError extends Error {}
@@ -120,8 +189,16 @@ export interface EnquiryPayload {
   };
   mandap?: EnquirySelectionPayload | null;
   stage?: EnquirySelectionPayload | null;
+  furniture?: EnquiryEquipmentPayload[];
   equipment?: EnquiryEquipmentPayload[];
   equipmentNotes?: unknown;
+  catering?: {
+    id?: unknown;
+    guestCount?: unknown;
+    notes?: unknown;
+  } | null;
+  cateringNotes?: unknown;
+  additionalServices?: unknown;
   accommodation?: {
     required?: unknown;
     roomCount?: unknown;
@@ -137,46 +214,6 @@ export interface EnquiryPayload {
     budgetRange?: unknown;
     preferredContact?: unknown;
   };
-}
-
-interface LineInput {
-  itemType: 'mandap' | 'stage' | 'equipment';
-  catalogueItemId: number;
-  name: string;
-  quantity: number;
-  dimensions: string;
-  requestedLength: number | null;
-  requestedWidth: number | null;
-  requestedHeight: number | null;
-  specifications: string;
-  notes: string;
-}
-
-interface MandapRow {
-  id: number;
-  name: string;
-  length_ft: number;
-  width_ft: number;
-  height_ft: number;
-  dimension_unit: string;
-  material_specs: string;
-}
-
-interface StageRow {
-  id: number;
-  name: string;
-  length_ft: number;
-  width_ft: number;
-  height_ft: number;
-  dimension_unit: string;
-  decoration_notes: string;
-}
-
-interface EquipmentRow {
-  id: number;
-  name: string;
-  unit: string;
-  specifications: string;
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -226,109 +263,21 @@ function validDate(value: unknown, label: string): string {
   return date;
 }
 
-function selectedMandapLine(value: unknown): LineInput | null {
-  if (!value) return null;
-  const selection = record(value);
-  const id = integer(selection.id, 0);
-  if (id <= 0) throw new EnquiryError('Select a valid mandap or skip this step.');
-
-  const row = one<MandapRow>(
-    `SELECT id, name, length_ft, width_ft, height_ft, dimension_unit, material_specs
-     FROM mandaps WHERE id = ? AND is_active = 1`,
-    [id],
-  );
-  if (!row) throw new EnquiryError('The selected mandap is no longer available. Please choose another.');
-
-  const requested = record(selection.requested);
-  const length = optionalPositive(requested.length);
-  const width = optionalPositive(requested.width);
-  const height = optionalPositive(requested.height);
-  const hasRequested = Boolean(length || width || height);
-
-  return {
-    itemType: 'mandap',
-    catalogueItemId: row.id,
-    name: row.name,
-    quantity: 1,
-    dimensions: `${row.length_ft} × ${row.width_ft} × ${row.height_ft} ${row.dimension_unit}`,
-    requestedLength: hasRequested ? length : null,
-    requestedWidth: hasRequested ? width : null,
-    requestedHeight: hasRequested ? height : null,
-    specifications: row.material_specs,
-    notes: text(selection.note, 1000),
-  };
-}
-
-function selectedStageLine(value: unknown): LineInput | null {
-  if (!value) return null;
-  const selection = record(value);
-  const id = integer(selection.id, 0);
-  if (id <= 0) throw new EnquiryError('Select a valid stage design or skip this step.');
-
-  const row = one<StageRow>(
-    `SELECT id, name, length_ft, width_ft, height_ft, dimension_unit, decoration_notes
-     FROM stages WHERE id = ? AND is_active = 1`,
-    [id],
-  );
-  if (!row) throw new EnquiryError('The selected stage is no longer available. Please choose another.');
-
-  const requested = record(selection.requested);
-  const length = optionalPositive(requested.length);
-  const width = optionalPositive(requested.width);
-  const height = optionalPositive(requested.height);
-  const hasRequested = Boolean(length || width || height);
-
-  return {
-    itemType: 'stage',
-    catalogueItemId: row.id,
-    name: row.name,
-    quantity: 1,
-    dimensions: `${row.length_ft} × ${row.width_ft} × ${row.height_ft} ${row.dimension_unit}`,
-    requestedLength: hasRequested ? length : null,
-    requestedWidth: hasRequested ? width : null,
-    requestedHeight: hasRequested ? height : null,
-    specifications: row.decoration_notes,
-    notes: text(selection.note, 1000),
-  };
-}
-
-function selectedEquipmentLines(value: unknown): LineInput[] {
-  if (!Array.isArray(value) || value.length === 0) return [];
-  if (value.length > 100) {
-    throw new EnquiryError('Please reduce the equipment list to 100 lines or fewer.');
-  }
-
-  return value.map((entry) => {
-    const selection = record(entry);
-    const id = integer(selection.id, 0);
-    if (id <= 0) throw new EnquiryError('One of the selected equipment items is invalid.');
-
-    const row = one<EquipmentRow>(
-      'SELECT id, name, unit, specifications FROM equipment_items WHERE id = ? AND is_active = 1',
-      [id],
-    );
-    if (!row) {
-      throw new EnquiryError('One of the selected equipment items is no longer available. Please refresh your list.');
-    }
-
-    const quantity = integer(selection.quantity, 1);
-    if (quantity < 1 || quantity > 100000) {
-      throw new EnquiryError(`Enter a valid quantity for ${row.name}.`);
-    }
-
-    return {
-      itemType: 'equipment',
-      catalogueItemId: row.id,
-      name: row.name,
-      quantity,
-      dimensions: '',
-      requestedLength: null,
-      requestedWidth: null,
-      requestedHeight: null,
-      specifications: row.specifications,
-      notes: text(selection.notes, 500),
-    };
-  });
+interface EnquiryLineInput {
+  itemType: 'mandap' | 'stage' | 'furniture' | 'equipment' | 'catering';
+  catalogueItemId: number;
+  name: string;
+  quantity: number;
+  dimensions: string;
+  requestedLength: number | null;
+  requestedWidth: number | null;
+  requestedHeight: number | null;
+  specifications: string;
+  notes: string;
+  catalogueUnitPricePaise: number | null;
+  catalogueSubtotalPaise: number | null;
+  pricingStatus: 'priced' | 'on_request';
+  metadata: Record<string, unknown>;
 }
 
 /**
@@ -342,7 +291,37 @@ function makeReferenceCode(): string {
   return `EP-${stamp}-${randomBytes(2).toString('hex').toUpperCase()}`;
 }
 
-export async function createEnquiry(payload: EnquiryPayload): Promise<{ reference: string; id: number }> {
+function pricedLine(
+  pricing: Awaited<ReturnType<typeof priceEnquirySelection>>,
+  category: 'mandap' | 'stage' | 'furniture' | 'catering',
+) {
+  return pricing.items.find((line) => line.category === category) ?? null;
+}
+
+function requestedDimensions(value: EnquirySelectionPayload | null | undefined): {
+  length: number | null;
+  width: number | null;
+  height: number | null;
+} {
+  const requested = record(value?.requested);
+  const length = optionalPositive(requested.length);
+  const width = optionalPositive(requested.width);
+  const height = optionalPositive(requested.height);
+  const hasRequested = Boolean(length || width || height);
+  return {
+    length: hasRequested ? length : null,
+    width: hasRequested ? width : null,
+    height: hasRequested ? height : null,
+  };
+}
+
+export async function createEnquiry(
+  payload: EnquiryPayload,
+): Promise<{
+  reference: string;
+  id: number;
+  pricing: Awaited<ReturnType<typeof priceEnquirySelection>>;
+}> {
   if (!payload || typeof payload !== 'object') {
     throw new EnquiryError('We could not read the enquiry details. Please refresh and try again.');
   }
@@ -383,7 +362,6 @@ export async function createEnquiry(payload: EnquiryPayload): Promise<{ referenc
   }
 
   const budgetRange = text(contact.budgetRange, 120);
-  if (!budgetRange) throw new EnquiryError('Select an approximate budget range.');
 
   const preferredContact = text(contact.preferredContact, 20);
   if (!['Phone', 'WhatsApp', 'Email'].includes(preferredContact)) {
@@ -403,10 +381,142 @@ export async function createEnquiry(payload: EnquiryPayload): Promise<{ referenc
     }
   }
 
-  const mandapLine = selectedMandapLine(payload.mandap);
-  const stageLine = selectedStageLine(payload.stage);
-  const equipmentLines = selectedEquipmentLines(payload.equipment);
-  const lines = [mandapLine, stageLine, ...equipmentLines].filter((line): line is LineInput => Boolean(line));
+  const furniturePayload = Array.isArray(payload.furniture)
+    ? payload.furniture
+    : Array.isArray(payload.equipment)
+      ? payload.equipment
+      : [];
+  const furnitureItemType: 'furniture' | 'equipment' = Array.isArray(payload.furniture)
+    ? 'furniture'
+    : 'equipment';
+  const cateringId = payload.catering?.id ? integer(payload.catering.id, 0) : 0;
+  const hasCatalogueSelection =
+    Boolean(payload.mandap?.id) ||
+    Boolean(payload.stage?.id) ||
+    furniturePayload.some((entry) => integer(entry.id, 0) > 0) ||
+    cateringId > 0;
+
+  let pricing: Awaited<ReturnType<typeof priceEnquirySelection>> = {
+    items: [],
+    pricedSubtotalPaise: 0,
+    pricingStatus: 'quotation_required',
+    unpricedItemCount: 0,
+  };
+  let planCatalogue: PlanCatalogue | null = null;
+
+  if (hasCatalogueSelection) {
+    try {
+      planCatalogue = await loadPlanCatalogue();
+      pricing = await priceEnquirySelection(
+        {
+          mandap: payload.mandap?.id ? { id: payload.mandap.id as string | number } : null,
+          stage: payload.stage?.id ? { id: payload.stage.id as string | number } : null,
+          furniture: furniturePayload
+            .map((entry) => ({ id: entry.id as string | number, quantity: integer(entry.quantity, 0) }))
+            .filter((entry) => entry.quantity > 0),
+          catering: cateringId > 0 ? { id: cateringId, guestCount } : null,
+        },
+        planCatalogue.pricing,
+      );
+    } catch (error) {
+      if (error instanceof PricingError) throw new EnquiryError(error.message);
+      throw error;
+    }
+  }
+
+  const lines: EnquiryLineInput[] = [];
+
+  if (payload.mandap?.id) {
+    const id = integer(payload.mandap.id, 0);
+    const item = planCatalogue?.mandaps.find((entry) => entry.id === id);
+    const priced = pricedLine(pricing, 'mandap');
+    if (!item || !priced) throw new EnquiryError('The selected mandap is no longer available. Please choose another.');
+    const requested = requestedDimensions(payload.mandap);
+    lines.push({
+      itemType: 'mandap',
+      catalogueItemId: id,
+      name: item.name,
+      quantity: 1,
+      dimensions: `${item.length_ft} × ${item.width_ft} × ${item.height_ft} ${item.dimension_unit}`,
+      requestedLength: requested.length,
+      requestedWidth: requested.width,
+      requestedHeight: requested.height,
+      specifications: item.material_specs,
+      notes: text(payload.mandap.note, 1000),
+      catalogueUnitPricePaise: priced.unitPricePaise,
+      catalogueSubtotalPaise: priced.subtotalPaise,
+      pricingStatus: priced.pricingStatus,
+      metadata: priced.metadata,
+    });
+  }
+
+  if (payload.stage?.id) {
+    const id = integer(payload.stage.id, 0);
+    const item = planCatalogue?.stages.find((entry) => entry.id === id);
+    const priced = pricedLine(pricing, 'stage');
+    if (!item || !priced) throw new EnquiryError('The selected stage design is no longer available. Please choose another.');
+    const requested = requestedDimensions(payload.stage);
+    lines.push({
+      itemType: 'stage',
+      catalogueItemId: id,
+      name: item.name,
+      quantity: 1,
+      dimensions: `${item.length_ft} × ${item.width_ft} × ${item.height_ft} ${item.dimension_unit}`,
+      requestedLength: requested.length,
+      requestedWidth: requested.width,
+      requestedHeight: requested.height,
+      specifications: item.decoration_notes,
+      notes: text(payload.stage.note, 1000),
+      catalogueUnitPricePaise: priced.unitPricePaise,
+      catalogueSubtotalPaise: priced.subtotalPaise,
+      pricingStatus: priced.pricingStatus,
+      metadata: priced.metadata,
+    });
+  }
+
+  for (const priced of pricing.items.filter((line) => line.category === 'furniture')) {
+    const catalogueId = Number(priced.itemId);
+    const source = furniturePayload.find((entry) => integer(entry.id, 0) === catalogueId);
+    const item = planCatalogue?.pricing.furniture.find((entry) => Number(entry.id) === catalogueId);
+    lines.push({
+      itemType: furnitureItemType,
+      catalogueItemId: catalogueId,
+      name: priced.name,
+      quantity: priced.quantity,
+      dimensions: String(priced.metadata.dimensions ?? item?.dimensions ?? ''),
+      requestedLength: null,
+      requestedWidth: null,
+      requestedHeight: null,
+      specifications: item?.specifications ?? '',
+      notes: text(source?.notes, 500),
+      catalogueUnitPricePaise: priced.unitPricePaise,
+      catalogueSubtotalPaise: priced.subtotalPaise,
+      pricingStatus: priced.pricingStatus,
+      metadata: priced.metadata,
+    });
+  }
+
+  if (cateringId > 0) {
+    const priced = pricedLine(pricing, 'catering');
+    const pkg = planCatalogue?.catering.find((entry) => entry.id === cateringId);
+    if (!priced || !pkg) throw new EnquiryError('The selected catering package is no longer available.');
+    lines.push({
+      itemType: 'catering',
+      catalogueItemId: cateringId,
+      name: pkg.name,
+      quantity: guestCount,
+      dimensions: '',
+      requestedLength: null,
+      requestedWidth: null,
+      requestedHeight: null,
+      specifications: (pkg.features ?? []).join(', '),
+      notes: text(payload.catering?.notes ?? payload.cateringNotes, 1000),
+      catalogueUnitPricePaise: priced.unitPricePaise,
+      catalogueSubtotalPaise: priced.subtotalPaise,
+      pricingStatus: priced.pricingStatus,
+      metadata: priced.metadata,
+    });
+  }
 
   const decorationParts = [
     text(event.description, 2000) ? `Event description: ${text(event.description, 2000)}` : '',
@@ -416,18 +526,16 @@ export async function createEnquiry(payload: EnquiryPayload): Promise<{ referenc
       ? `Special instructions: ${text(styling.specialInstructions, 2000)}`
       : '',
     text(payload.equipmentNotes, 2000) ? `Equipment notes: ${text(payload.equipmentNotes, 2000)}` : '',
+    text(payload.cateringNotes, 2000) ? `Catering notes: ${text(payload.cateringNotes, 2000)}` : '',
   ].filter(Boolean);
 
   const accommodationBreakdown = requiresRooms && (acRoomCount > 0 || nonAcRoomCount > 0)
     ? `Rooms requested: ${acRoomCount} AC, ${nonAcRoomCount} Non-AC (${roomCount} total)`
     : '';
   const accommodationNotes = [accommodationBreakdown, text(accommodation.notes, 2000)].filter(Boolean).join('\n');
-
+  const additionalServices = text(payload.additionalServices, 2000);
   const reference = makeReferenceCode();
 
-  // Operational records live in Neon PostgreSQL (the authoritative store). The
-  // enquiry, its line items and the reference code are committed together, so a
-  // receipt is only ever issued for a committed enquiry.
   const saved = await insertEventEnquiry(
     {
       customerName,
@@ -445,6 +553,10 @@ export async function createEnquiry(payload: EnquiryPayload): Promise<{ referenc
       accommodationNotes,
       decorationNotes: decorationParts.join('\n'),
       preferredContact,
+      pricingStatus: pricing.pricingStatus,
+      pricedSubtotalPaise: pricing.pricedSubtotalPaise,
+      pricingBreakdownJson: JSON.stringify(pricing),
+      additionalServices,
     },
     lines.map((line) => ({
       itemType: line.itemType,
@@ -457,9 +569,13 @@ export async function createEnquiry(payload: EnquiryPayload): Promise<{ referenc
       requestedHeight: line.requestedHeight,
       specifications: line.specifications,
       notes: line.notes,
+      catalogueUnitPricePaise: line.catalogueUnitPricePaise,
+      catalogueSubtotalPaise: line.catalogueSubtotalPaise,
+      pricingStatus: line.pricingStatus,
+      metadata: line.metadata,
     })),
     (attempt) => (attempt === 0 ? reference : makeReferenceCode()),
   );
 
-  return { reference: saved.referenceCode, id: saved.id };
+  return { reference: saved.referenceCode, id: saved.id, pricing };
 }
