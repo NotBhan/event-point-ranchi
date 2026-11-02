@@ -1,4 +1,4 @@
-import { cartTotal, formatPaise, readCart } from './cart';
+import { cartTotal, clearCart, formatPaise, readCart } from './cart';
 
 interface Prefill {
   name?: string;
@@ -348,7 +348,7 @@ if (root) {
         throw new Error(result.message ?? 'We could not create your booking. Please try again.');
       }
 
-      localStorage.removeItem('royalEventCart:v2');
+      clearCart();
       window.location.href = result.quotationUrl;
     } catch (error) {
       showError(error instanceof Error ? error.message : 'Unexpected error. Please try again.');

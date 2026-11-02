@@ -1,5 +1,6 @@
 import {
   CART_EVENT,
+  CART_STORAGE_KEY,
   addRoom,
   cartCount,
   cartTotal,
@@ -260,7 +261,7 @@ document.addEventListener('keydown', (event) => {
 
 window.addEventListener(CART_EVENT, refresh);
 window.addEventListener('storage', (event) => {
-  if (event.key === 'royalEventCart:v2') refresh();
+  if (event.key === CART_STORAGE_KEY) refresh();
 });
 
 document.addEventListener('DOMContentLoaded', refresh);

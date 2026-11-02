@@ -1,11 +1,11 @@
 import {
   REQUIREMENTS_EVENT,
-  REQUIREMENTS_STORAGE_KEY,
   addEquipment,
   addMandap,
   addStage,
-  clearRequirements,
+  consumeRequirementsForPlan,
   formatDimensions,
+  prepareRequirementsHandoff,
   readRequirements,
   removeLineItem,
   setSelectionDimensions,
@@ -15,6 +15,7 @@ import {
   type MandapRequirement,
   type StageRequirement,
 } from './requirements';
+import { clearEnquiryBrowserState } from './enquiry-state';
 
 interface CatalogueMandap {
   id: number;
@@ -107,7 +108,6 @@ interface PlanDraft {
 
 type DimensionResult = DimensionSet | null | 'invalid';
 
-const DRAFT_KEY = 'eventPointPlanDraft:v1';
 const STEP_LABELS = [
   'Event & Venue Essentials',
   'Mandap & Stage Architecture',
@@ -129,55 +129,16 @@ const state: {
   catalogue: PlanCatalogue;
   currentStep: number;
   activeEquipmentCategory: string;
-  draft: PlanDraft;
 } | null = form && catalogueNode
   ? {
       catalogue: JSON.parse(catalogueNode.textContent ?? '{"mandaps":[],"stages":[],"equipment":[]}') as PlanCatalogue,
       currentStep: 1,
       activeEquipmentCategory: '',
-      draft: defaultDraft(),
     }
   : null;
 
 const today = form?.dataset.today ?? new Date().toISOString().slice(0, 10);
 const csrf = form?.dataset.csrf ?? '';
-
-function defaultDraft(): PlanDraft {
-  return {
-    step: 1,
-    eventType: '',
-    eventDate: '',
-    endDate: '',
-    eventTime: '',
-    venueLocation: '',
-    guestCount: '',
-    eventDescription: '',
-    mandapId: '',
-    mandapLength: '',
-    mandapWidth: '',
-    mandapHeight: '',
-    mandapNotes: '',
-    stageId: '',
-    stageLength: '',
-    stageWidth: '',
-    stageHeight: '',
-    stageNotes: '',
-    lighting: 'Warm fairy lights',
-    floralPalette: 'Maroon & ivory',
-    specialInstructions: '',
-    equipmentNotes: '',
-    requiresRooms: 'no',
-    roomCount: '',
-    acRoomCount: '',
-    nonAcRoomCount: '',
-    accommodationNotes: '',
-    budgetRange: '',
-    customerName: '',
-    customerPhone: '',
-    customerEmail: '',
-    preferredContact: '',
-  };
-}
 
 function esc(value: unknown): string {
   return String(value ?? '')
@@ -188,61 +149,7 @@ function esc(value: unknown): string {
     .replace(/'/g, '&#39;');
 }
 
-
-function readDraft(): PlanDraft {
-  try {
-    const raw = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? 'null') as Partial<PlanDraft> | null;
-    const initial = { ...defaultDraft(), ...(raw ?? {}) };
-    // Map legacy 8-step counter to modern 4-phase counter if needed
-    if (initial.step > 4) {
-      initial.step = initial.step <= 1 ? 1 : initial.step <= 3 ? 2 : initial.step <= 5 ? 3 : 4;
-    }
-    return initial;
-  } catch {
-    return defaultDraft();
-  }
-}
-
-// Draft persistence and rendering are debounced/batched: draft saves were
-// previously a JSON.stringify + localStorage write on every keystroke, and the
-// summary/review were rebuilt synchronously per input event.
-const DRAFT_FLUSH_DELAY_MS = 250;
-let draftSaveTimer: number | null = null;
 let planRenderQueued = false;
-
-// Browser storage is best-effort: private browsing modes and full quotas throw
-// on write, and an exception here must never break navigation or rendering.
-function writeDraft(draft: PlanDraft): void {
-  try {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-  } catch (error) {
-    console.warn('[plan-wizard] draft could not be saved to local storage.', error);
-  }
-}
-
-function flushDraft(): void {
-  if (!state) return;
-  if (draftSaveTimer !== null) {
-    window.clearTimeout(draftSaveTimer);
-    draftSaveTimer = null;
-  }
-  writeDraft(state.draft);
-}
-
-function scheduleDraftFlush(): void {
-  if (draftSaveTimer !== null) return;
-  draftSaveTimer = window.setTimeout(() => {
-    draftSaveTimer = null;
-    if (state) writeDraft(state.draft);
-  }, DRAFT_FLUSH_DELAY_MS);
-}
-
-function saveDraft(): void {
-  if (!form || !state) return;
-  state.draft = collectDraft();
-  state.draft.step = state.currentStep;
-  scheduleDraftFlush();
-}
 
 function schedulePlanRender(): void {
   if (planRenderQueued) return;
@@ -266,12 +173,6 @@ function fieldValue(name: string): string {
 function radioValue(name: string): string {
   const checked = document.querySelector<HTMLInputElement>(`input[name="${name}"]:checked`);
   return checked?.value ?? '';
-}
-
-function setRadio(name: string, value: string): void {
-  document.querySelectorAll<HTMLInputElement>(`input[name="${name}"]`).forEach((input) => {
-    input.checked = input.value === value;
-  });
 }
 
 function setFieldError(fieldElement: HTMLElement | null, message: string): void {
@@ -353,20 +254,6 @@ function collectDraft(): PlanDraft {
     customerEmail: fieldValue('customerEmail'),
     preferredContact: fieldValue('preferredContact'),
   };
-}
-
-function applyDraft(draft: PlanDraft): void {
-  Object.entries(draft).forEach(([key, value]) => {
-    if (key === 'step') return;
-    const element = field<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(key);
-    if (element) element.value = String(value ?? '');
-  });
-
-  setRadio('requiresRooms', draft.requiresRooms || 'no');
-  const endDate = field<HTMLInputElement>('endDate');
-  const eventDate = field<HTMLInputElement>('eventDate');
-  if (endDate && eventDate?.value) endDate.min = eventDate.value;
-  syncRoomField();
 }
 
 function syncRoomField(): void {
@@ -562,11 +449,6 @@ function goToStep(step: number, focus = true): void {
       heading?.focus({ preventScroll: true });
     }
   }
-
-  saveDraft();
-  // Step changes are durable checkpoints: write immediately instead of waiting
-  // for the keystroke debounce so a refresh cannot drop the visitor back.
-  flushDraft();
 }
 
 function selectionFor(kind: 'mandap' | 'stage'): MandapRequirement | StageRequirement | null {
@@ -661,7 +543,6 @@ function applySelection(kind: 'mandap' | 'stage', id: string): void {
     syncSelectionInputs(kind);
     if (kind === 'mandap') syncMandapCardSelection();
     else syncStageCardSelection();
-    saveDraft();
     renderLiveSummary();
     return;
   }
@@ -709,7 +590,6 @@ function applySelection(kind: 'mandap' | 'stage', id: string): void {
   }
 
   syncSelectionInputs(kind);
-  saveDraft();
   renderLiveSummary();
 }
 
@@ -1218,19 +1098,21 @@ function showReceipt(reference: string, qrDataUrl?: string, receiptUrl?: string,
     heading?.focus({ preventScroll: true });
   }
 
-  clearRequirements();
-  localStorage.removeItem(DRAFT_KEY);
+  form?.reset();
+  clearEnquiryBrowserState();
 }
 
 // Initialization and Event Listeners
 if (state && form) {
-  state.draft = readDraft();
   state.activeEquipmentCategory = state.catalogue.equipment[0]?.slug ?? '';
 
+  // Package selections may arrive once from a catalogue page. They are
+  // consumed into memory and removed from sessionStorage immediately.
+  consumeRequirementsForPlan();
+
   // The listeners below must always be attached. A failure while painting the
-  // restored draft must never leave the wizard inert.
+  // package selections must never leave the wizard inert.
   try {
-    applyDraft(state.draft);
     syncSelectionInputs('mandap');
     syncSelectionInputs('stage');
     syncMandapCardSelection();
@@ -1249,35 +1131,25 @@ if (state && form) {
     renderEquipmentTabs();
     renderEquipmentGrid();
     renderLiveSummary();
-
-    const initialStep = Math.min(Math.max(Number(state.draft.step) || 1, 1), 4);
-    goToStep(initialStep, false);
+    goToStep(1, false);
   } catch (error) {
-    console.error('[plan-wizard] restored draft could not be rendered; navigation stays active.', error);
+    console.error('[plan-wizard] initial selections could not be rendered; navigation stays active.', error);
     goToStep(1, false);
   }
 
   form.addEventListener('input', (event) => {
     if (event.target instanceof HTMLElement) clearFieldError(event.target);
-    saveDraft();
     schedulePlanRender();
   });
 
   form.addEventListener('change', (event) => {
     if (event.target instanceof HTMLElement) clearFieldError(event.target);
-    saveDraft();
     schedulePlanRender();
   });
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();
-    flushDraft();
     void submitEnquiry();
-  });
-
-  window.addEventListener('pagehide', flushDraft);
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) flushDraft();
   });
 
   document.addEventListener('keydown', (event) => {
@@ -1362,7 +1234,6 @@ if (state && form) {
       const select = field<HTMLSelectElement>('lighting');
       if (select) select.value = val;
       syncStylingSwatches();
-      saveDraft();
       if (state.currentStep === 4) renderReview();
       return;
     }
@@ -1374,7 +1245,6 @@ if (state && form) {
       const select = field<HTMLSelectElement>('floralPalette');
       if (select) select.value = val;
       syncStylingSwatches();
-      saveDraft();
       if (state.currentStep === 4) renderReview();
       return;
     }
@@ -1425,7 +1295,6 @@ if (state && form) {
 
     if (target.matches('[name="requiresRooms"], [name="acRoomCount"], [name="nonAcRoomCount"]')) {
       syncRoomField();
-      saveDraft();
       schedulePlanRender();
       return;
     }
@@ -1437,7 +1306,6 @@ if (state && form) {
         endDate.min = eventDate || today;
         if (endDate.value && eventDate && endDate.value < eventDate) endDate.value = '';
       }
-      saveDraft();
       schedulePlanRender();
     }
   });
@@ -1449,13 +1317,28 @@ if (state && form) {
     schedulePlanRender();
   });
 
-  window.addEventListener('storage', (event) => {
-    if (event.key !== REQUIREMENTS_STORAGE_KEY) return;
-    syncMandapCardSelection();
-    syncStageCardSelection();
-    renderEquipmentGrid();
-    schedulePlanRender();
-  });
+  // Package selections are memory-only on the Plan page. An explicit
+  // same-tab navigation to another page may carry a one-shot handoff so the
+  // visitor can add a catalogue item and return; a reload never writes one.
+  document.addEventListener(
+    'click',
+    (event) => {
+      const link = (event.target as HTMLElement | null)?.closest<HTMLAnchorElement>('a[href]');
+      if (!link || link.hasAttribute('download') || link.target === '_blank') return;
+      try {
+        if (new URL(link.href, window.location.href).origin === window.location.origin) {
+          prepareRequirementsHandoff();
+        }
+      } catch {
+        // Ignore malformed hrefs.
+      }
+    },
+    true,
+  );
 
-  saveDraft();
+  // Some browsers restore a form from the back/forward cache with the previous
+  // visitor's values still in the DOM. Reload to a blank, server-rendered form.
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted) window.location.reload();
+  });
 }

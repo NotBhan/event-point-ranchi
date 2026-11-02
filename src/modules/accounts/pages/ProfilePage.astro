@@ -6,6 +6,9 @@ import { formatDate, formatMoney } from '../../../core/http';
 import type { CustomerRow, UserRow } from '../service';
 import '../accounts.css';
 
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+Astro.response.headers.set('Pragma', 'no-cache');
+
 interface Props {
   customer: CustomerRow;
   recentBookings: Array<{

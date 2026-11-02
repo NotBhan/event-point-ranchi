@@ -4,6 +4,11 @@ import Icon from '../../../components/Icon.astro';
 import { getSiteSettings } from '../../../core/content/service';
 import { getEnquiryReceiptService } from '../../../core/operational/enquiry-receipt-service';
 
+// Receipts contain customer contact details. Keep them out of shared and
+// browser caches even though access is token-gated.
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+Astro.response.headers.set('Pragma', 'no-cache');
+
 const settings = await getSiteSettings();
 const brandName = settings.name || 'Event Point Ranchi';
 

@@ -4,6 +4,9 @@ import Icon from '../../../components/Icon.astro';
 import { eventTypes } from '../../../core/config';
 import '../bookings.css';
 
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+Astro.response.headers.set('Pragma', 'no-cache');
+
 interface Props {
   csrf: string;
   prefill: { name?: string; phone?: string; email?: string; address?: string };

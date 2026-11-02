@@ -58,7 +58,26 @@ export interface CartState {
 }
 
 export const CART_EVENT = 'cart:change';
-const STORAGE_KEY = 'royalEventCart:v2';
+export const CART_STORAGE_KEY = 'royalEventCart:session:v1';
+const LEGACY_CART_STORAGE_KEYS = ['royalEventCart:v2', 'royalEventCart:v1'];
+
+type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+
+function sessionStore(): StorageLike | null {
+  try {
+    return typeof sessionStorage !== 'undefined' ? sessionStorage : null;
+  } catch {
+    return null;
+  }
+}
+
+// Legacy builds kept catering/hall selections in localStorage. Remove those
+// values so they cannot reappear for the next visitor on this browser.
+if (typeof localStorage !== 'undefined') {
+  try {
+    LEGACY_CART_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+  } catch {}
+}
 
 export function emptyCart(): CartState {
   return {
@@ -166,16 +185,26 @@ function normalize(raw: unknown): CartState {
 }
 
 export function readCart(): CartState {
+  const store = sessionStore();
+  if (!store) return emptyCart();
+
   try {
-    return normalize(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null'));
+    return normalize(JSON.parse(store.getItem(CART_STORAGE_KEY) ?? 'null'));
   } catch {
     return emptyCart();
   }
 }
 
 function commit(state: CartState): CartState {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  window.dispatchEvent(new CustomEvent(CART_EVENT, { detail: state }));
+  sessionStore()?.setItem(CART_STORAGE_KEY, JSON.stringify(state));
+  if (typeof localStorage !== 'undefined') {
+    try {
+      LEGACY_CART_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+    } catch {}
+  }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(CART_EVENT, { detail: state }));
+  }
   return state;
 }
 
@@ -295,8 +324,15 @@ export function removeCatering(): void {
 }
 
 export function clearCart(): void {
-  localStorage.removeItem(STORAGE_KEY);
-  window.dispatchEvent(new CustomEvent(CART_EVENT, { detail: emptyCart() }));
+  sessionStore()?.removeItem(CART_STORAGE_KEY);
+  if (typeof localStorage !== 'undefined') {
+    try {
+      LEGACY_CART_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+    } catch {}
+  }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(CART_EVENT, { detail: emptyCart() }));
+  }
 }
 
 export function formatPaise(paise: number): string {

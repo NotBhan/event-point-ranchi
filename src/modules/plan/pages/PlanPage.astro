@@ -2,6 +2,7 @@
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import Icon from '../../../components/Icon.astro';
 import type { PlanCatalogue } from '../service';
+import type { EnquiryProfile } from '../profile';
 import { imageUrl } from '../../../core/http';
 
 interface Props {
@@ -11,9 +12,15 @@ interface Props {
   budgetRanges: readonly string[];
   preferredContactMethods: readonly string[];
   today: string;
+  profile: EnquiryProfile | null;
 }
 
-const { catalogue, csrf, eventTypes, budgetRanges, preferredContactMethods, today } = Astro.props;
+const { catalogue, csrf, eventTypes, budgetRanges, preferredContactMethods, today, profile } = Astro.props;
+
+// The plan form can contain the signed-in customer's contact details. Never let
+// a shared cache or a bfcache restore hand that HTML to another visitor.
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+Astro.response.headers.set('Pragma', 'no-cache');
 
 const phases = [
   { step: '1', title: 'Event & Venue', short: 'Event', icon: 'calendar', subtitle: 'Essentials & Dates' },
@@ -100,7 +107,14 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
       </nav>
 
       <div class="plan-layout">
-        <form class="plan-form panel" id="planForm" data-csrf={csrf} data-today={today} novalidate>
+        <form
+          class="plan-form panel"
+          id="planForm"
+          data-csrf={csrf}
+          data-today={today}
+          autocomplete="off"
+          novalidate
+        >
           <div class="plan-form-header">
             <span class="form-required-legend">
               <span class="required-indicator" aria-hidden="true">*</span> Mandatory details for accurate quotation
@@ -678,6 +692,7 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
                     required
                     aria-required="true"
                     placeholder="e.g. Ramesh Kumar"
+                    value={profile?.name ?? ''}
                   />
                 </div>
 
@@ -699,6 +714,7 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
                       required
                       aria-required="true"
                       placeholder="9876543210"
+                      value={profile?.phone ?? ''}
                     />
                   </div>
                   <span class="hint">10 digits starting with 6, 7, 8 or 9.</span>
@@ -713,6 +729,7 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
                     type="email"
                     autocomplete="email"
                     placeholder="you@example.com"
+                    value={profile?.email ?? ''}
                   />
                 </div>
 

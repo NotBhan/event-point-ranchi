@@ -1,6 +1,5 @@
 import {
   REQUIREMENTS_EVENT,
-  REQUIREMENTS_STORAGE_KEY,
   addEquipment,
   addMandap,
   addStage,
@@ -185,9 +184,6 @@ if (!(window as any).__requirements_ui_initialized) {
 });
 
   window.addEventListener(REQUIREMENTS_EVENT, updateCounts);
-  window.addEventListener('storage', (event) => {
-    if (event.key === REQUIREMENTS_STORAGE_KEY) updateCounts();
-  });
 }
 
 document.addEventListener('DOMContentLoaded', updateCounts);

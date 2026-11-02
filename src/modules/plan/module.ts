@@ -4,6 +4,7 @@ import type { PageContext } from '../../core/types';
 import { budgetRanges, eventTypes, preferredContactMethods } from '../../core/config';
 import PlanPage from './pages/PlanPage.astro';
 import PolicyPage from './pages/PolicyPage.astro';
+import { loadEnquiryProfile } from './profile';
 import {
   EnquiryError,
   createEnquiry,
@@ -63,7 +64,7 @@ export default defineModule({
     {
       path: '/plan',
       component: PlanPage,
-      handle: (ctx) => ({
+      handle: async (ctx) => ({
         props: {
           catalogue: loadPlanCatalogue(),
           csrf: ctx.csrf,
@@ -71,6 +72,9 @@ export default defineModule({
           budgetRanges,
           preferredContactMethods,
           today: new Date().toISOString().slice(0, 10),
+          // Only the authenticated customer's basic contact details are
+          // personalised. Event, package and message fields stay blank.
+          profile: await loadEnquiryProfile(ctx.auth.user),
         },
       }),
     },

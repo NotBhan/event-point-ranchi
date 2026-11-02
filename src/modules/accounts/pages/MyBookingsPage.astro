@@ -5,6 +5,9 @@ import Icon from '../../../components/Icon.astro';
 import { formatDate, formatMoney } from '../../../core/http';
 import '../accounts.css';
 
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+Astro.response.headers.set('Pragma', 'no-cache');
+
 interface Props {
   bookings: Array<{
     id: number;

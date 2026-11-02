@@ -18,6 +18,9 @@ const auth = Astro.locals.auth ?? { user: null, isAuthenticated: false, isAdmin:
 const csrf = Astro.locals.csrf ?? '';
 const path = Astro.url.pathname;
 const nav = getNav();
+// Return customers to the Plan form after authentication so the server can
+// render their profile-prefilled contact fields.
+const authNext = path === '/plan' ? `?next=${encodeURIComponent(path)}` : '';
 
 const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWith(href));
 ---
@@ -102,11 +105,11 @@ const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWit
             </>
           ) : (
             <>
-              <a href="/login" class:list={['nav-link', { active: isActive('/login') }]}>
+              <a href={`/login${authNext}`} class:list={['nav-link', { active: isActive('/login') }]}>
                 <span>Customer login</span>
                 <Icon name="chevron-right" size={14} class="nav-link-arrow" />
               </a>
-              <a href="/register" class:list={['nav-link', { active: isActive('/register') }]}>
+              <a href={`/register${authNext}`} class:list={['nav-link', { active: isActive('/register') }]}>
                 <span>Create an account</span>
                 <Icon name="chevron-right" size={14} class="nav-link-arrow" />
               </a>
@@ -250,8 +253,8 @@ const isActive = (href: string) => (href === '/' ? path === '/' : path.startsWit
         </div>
       ) : (
         <span class="header-auth-links">
-          <a href="/login" class="header-auth-link">Login</a>
-          <a href="/register" class="btn btn-secondary btn-sm header-auth-register">Register</a>
+          <a href={`/login${authNext}`} class="header-auth-link">Login</a>
+          <a href={`/register${authNext}`} class="btn btn-secondary btn-sm header-auth-register">Register</a>
         </span>
       )}
 

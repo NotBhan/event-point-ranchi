@@ -1,4 +1,12 @@
-import { CART_EVENT, cartCount, cartTotal, formatPaise, readCart, type CartState } from './cart';
+import {
+  CART_EVENT,
+  CART_STORAGE_KEY,
+  cartCount,
+  cartTotal,
+  formatPaise,
+  readCart,
+  type CartState,
+} from './cart';
 
 const rootElement = document.querySelector<HTMLElement>('[data-cart-page]');
 
@@ -198,6 +206,6 @@ if (rootElement) {
   render(readCart());
   window.addEventListener(CART_EVENT, () => render(readCart()));
   window.addEventListener('storage', (event) => {
-    if (event.key === 'royalEventCart:v2') render(readCart());
+    if (event.key === CART_STORAGE_KEY) render(readCart());
   });
 }

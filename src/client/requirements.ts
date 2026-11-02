@@ -50,7 +50,60 @@ export interface RequirementsState {
 }
 
 export const REQUIREMENTS_EVENT = 'requirements:change';
-export const REQUIREMENTS_STORAGE_KEY = 'eventPointRequirements:v1';
+export const REQUIREMENTS_STORAGE_KEY = 'eventPointRequirements:session:v1';
+export const LEGACY_REQUIREMENTS_STORAGE_KEY = 'eventPointRequirements:v1';
+const HANDOFF_TTL_MS = 30 * 60 * 1000;
+
+type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+
+let memoryState: RequirementsState | null = null;
+
+function sessionStore(): StorageLike | null {
+  try {
+    return typeof sessionStorage !== 'undefined' ? sessionStorage : null;
+  } catch {
+    return null;
+  }
+}
+
+function clone(state: RequirementsState): RequirementsState {
+  return JSON.parse(JSON.stringify(state)) as RequirementsState;
+}
+
+function planPageIsOpen(): boolean {
+  return typeof document !== 'undefined' && Boolean(document.getElementById('planForm'));
+}
+
+function readHandoff(): RequirementsState {
+  const store = sessionStore();
+  if (!store) return emptyRequirements();
+
+  try {
+    const envelope = JSON.parse(store.getItem(REQUIREMENTS_STORAGE_KEY) ?? 'null') as
+      | { state?: unknown; savedAt?: unknown }
+      | null;
+    if (!envelope || typeof envelope !== 'object') return emptyRequirements();
+
+    const savedAt = Number(envelope.savedAt);
+    if (!Number.isFinite(savedAt) || Date.now() - savedAt > HANDOFF_TTL_MS) {
+      store.removeItem(REQUIREMENTS_STORAGE_KEY);
+      return emptyRequirements();
+    }
+
+    return normalizeRequirements(envelope.state);
+  } catch {
+    store.removeItem(REQUIREMENTS_STORAGE_KEY);
+    return emptyRequirements();
+  }
+}
+
+// Older builds wrote package selections into localStorage. Purge them as soon
+// as this module loads; they are not a safe place for enquiry data.
+if (typeof localStorage !== 'undefined') {
+  try {
+    localStorage.removeItem(LEGACY_REQUIREMENTS_STORAGE_KEY);
+  } catch {}
+}
 
 export function emptyRequirements(): RequirementsState {
   return { mandap: null, stage: null, equipment: [] };
@@ -130,17 +183,63 @@ export function normalizeRequirements(raw: unknown): RequirementsState {
 }
 
 export function readRequirements(): RequirementsState {
-  try {
-    return normalizeRequirements(JSON.parse(localStorage.getItem(REQUIREMENTS_STORAGE_KEY) ?? 'null'));
-  } catch {
-    return emptyRequirements();
-  }
+  if (memoryState) return clone(memoryState);
+  memoryState = readHandoff();
+  return clone(memoryState);
+}
+
+/**
+ * The Plan page keeps package selections in memory for the lifetime of that
+ * page. Any catalogue handoff is consumed once and removed, so a reload or a
+ * later visit in the same tab starts blank.
+ */
+export function consumeRequirementsForPlan(): RequirementsState {
+  const state = readRequirements();
+  sessionStore()?.removeItem(REQUIREMENTS_STORAGE_KEY);
+  return clone(state);
+}
+
+/**
+ * Preserve the plan page's in-memory selections only for an explicit
+ * same-tab navigation to a catalogue page (for example, to add another item).
+ */
+export function prepareRequirementsHandoff(): void {
+  if (!memoryState) return;
+  const store = sessionStore();
+  if (!store) return;
+  store.setItem(
+    REQUIREMENTS_STORAGE_KEY,
+    JSON.stringify({ state: memoryState, savedAt: Date.now() }),
+  );
 }
 
 function commit(state: RequirementsState): RequirementsState {
-  localStorage.setItem(REQUIREMENTS_STORAGE_KEY, JSON.stringify(state));
-  window.dispatchEvent(new CustomEvent(REQUIREMENTS_EVENT, { detail: state }));
-  return state;
+  memoryState = clone(state);
+
+  if (typeof localStorage !== 'undefined') {
+    try {
+      localStorage.removeItem(LEGACY_REQUIREMENTS_STORAGE_KEY);
+    } catch {}
+  }
+
+  const store = sessionStore();
+  if (store) {
+    if (planPageIsOpen()) {
+      // The Plan page must never persist its selections. Memory is enough for
+      // step navigation; a reload starts blank.
+      store.removeItem(REQUIREMENTS_STORAGE_KEY);
+    } else {
+      store.setItem(
+        REQUIREMENTS_STORAGE_KEY,
+        JSON.stringify({ state: memoryState, savedAt: Date.now() }),
+      );
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(REQUIREMENTS_EVENT, { detail: clone(memoryState) }));
+  }
+  return clone(memoryState);
 }
 
 export function getRequirementsCount(state: RequirementsState = readRequirements()): number {
@@ -241,8 +340,20 @@ export function updateEquipmentNotes(itemId: string, notes: string): Requirement
 }
 
 export function clearRequirements(): void {
-  localStorage.removeItem(REQUIREMENTS_STORAGE_KEY);
-  window.dispatchEvent(new CustomEvent(REQUIREMENTS_EVENT, { detail: emptyRequirements() }));
+  // Return to the cold-start state: the next read checks (now empty) session
+  // storage instead of reusing a previous in-memory selection.
+  memoryState = null;
+  sessionStore()?.removeItem(REQUIREMENTS_STORAGE_KEY);
+
+  if (typeof localStorage !== 'undefined') {
+    try {
+      localStorage.removeItem(LEGACY_REQUIREMENTS_STORAGE_KEY);
+    } catch {}
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(REQUIREMENTS_EVENT, { detail: emptyRequirements() }));
+  }
 }
 
 export function formatDimensions(dimensions: DimensionSet | null | undefined): string {

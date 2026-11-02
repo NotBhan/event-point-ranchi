@@ -16,6 +16,8 @@ interface Props {
 }
 
 const { title = 'Dashboard', description = '' } = Astro.props;
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+Astro.response.headers.set('Pragma', 'no-cache');
 const auth = Astro.locals.auth;
 const user = auth.user!;
 const csrf = Astro.locals.csrf;
@@ -113,6 +115,7 @@ const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path
 
     <script>
       import '../client/admin';
+      import '../client/enquiry-state';
 
       document.addEventListener('astro:before-preparation', () => {
         const bar = document.getElementById('pageProgressBar');
