@@ -82,6 +82,7 @@ The baseline was built in an isolated worktree from `HEAD`. The baseline worktre
 - Plan wizard — compact four-phase rail, horizontal visual cards, collapsible dimensions, mobile sticky summary, draft flush on step change.
 - Tables — all admin/account tables use `table-stack` labelled cards; action buttons carry visible labels on touch layouts.
 - Content Studio — scrollable/snap tab rail, active-tab reveal, full-width forms, mobile upload dropzone.
+- Enquiry slip QR card — ticket-style mobile receipt panel with a dedicated QR tile, concise check-in copy, a full-width primary receipt action, two-up secondary actions and a screenshot hint.
 - Lightbox — modal semantics, 44px close, focus return to the triggering tile, Enter/Space support on non-button tiles.
 
 ---
@@ -163,7 +164,7 @@ Automated Chromium/CDP audit over **19 routes × 6 viewports** (320×640, 360×8
 
 ### 8.3 Interaction checks
 
-**23/23 passed:**
+**24/24 passed:**
 
 - Drawer opens, modal semantics, focus to close, scroll lock
 - Escape closes, inert state restored, focus returns to trigger
@@ -174,6 +175,7 @@ Automated Chromium/CDP audit over **19 routes × 6 viewports** (320×640, 360×8
 - Step 3 equipment rail scrolls without widening the form
 - Draft persists and restores step/selections after reload
 - Sticky summary clears the submit button
+- Enquiry slip QR card fits at 390px and its three actions are touch-sized
 - Gallery lightbox opens/closes, locks scroll, restores focus
 - Gallery tile opens with Enter
 - Contact inline validation and first-invalid focus
@@ -190,6 +192,12 @@ The summary is now in the form flow **before** the navigation row and uses `posi
 - Customer `/account`, `/profile`, `/my-bookings`: 320, 390, 768, 1440 — no overflow; 0 sub-44px controls at 320/390/768.
 - Admin operational routes (`bookings`, booking detail, `payments`, payment detail, `enquiries`, enquiry detail, scanner, `customers`, customer detail, `inquiries`): 320, 390, 768, 900 — no overflow and 0 sub-44px controls.
 - Admin dashboard visually checked at 390 and 768; booking/enquiry/payment/customer cards checked at 320/390/900.
+
+### 8.6 Follow-up: enquiry slip QR card
+
+The post-submission QR slip was a dense row of small actions on phones. It is now a vertical receipt panel: official-slip badge, concise check-in copy, a 156px QR tile (144px at 320px), a full-width primary receipt action, a two-up secondary row (stacked below 360px), and a screenshot hint. It fits 320–1440px without overflow and all three actions are at least 44px tall.
+
+Screenshots: `docs/mobile-redesign/screenshots/receipt/`.
 
 ---
 
@@ -239,6 +247,8 @@ The pre-existing uncommitted changes in `src/components/skeletons/SkeletonGaller
 Implementation commit: **`cdd192e`** (`feat(mobile): redesign public, account and admin interfaces for phones`)
 
 Follow-up fix commit: **`de3304c`** (`fix(plan): stop the mobile summary covering Continue`)
+
+Enquiry-slip redesign commit: **`<pending-receipt>`** (`feat(plan): redesign the mobile enquiry slip QR card`)
 
 ---
 

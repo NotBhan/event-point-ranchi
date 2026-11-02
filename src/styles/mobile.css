@@ -1592,6 +1592,54 @@
     font-weight: 700;
   }
 
+  /* ---------- Enquiry slip / QR receipt ------------------------------ */
+  body .receipt-qr-card {
+    width: 100%;
+    max-width: none;
+    margin: 20px auto;
+    padding: 18px 14px;
+    gap: 14px;
+    border-radius: 16px;
+  }
+
+  body .receipt-qr-head h4 {
+    font-size: 1.05rem;
+  }
+
+  body .receipt-qr-head p {
+    font-size: 12.5px;
+    max-width: 30ch;
+  }
+
+  body .receipt-qr-tile {
+    padding: 10px 12px 9px;
+  }
+
+  body .receipt-qr-card img {
+    width: 156px;
+    height: 156px;
+    padding: 5px;
+  }
+
+  body .receipt-qr-actions {
+    gap: 8px;
+    padding-top: 14px;
+  }
+
+  body .receipt-qr-actions > .btn {
+    min-height: 46px;
+  }
+
+  body .receipt-qr-secondary .btn {
+    min-height: var(--touch-target);
+    padding: 10px 8px;
+    font-size: 12px;
+  }
+
+  body .receipt-qr-hint {
+    font-size: 11.5px;
+  }
+
   /* ---------- Account pages ------------------------------------------ */
   body .account-page {
     padding: 26px 0 48px;
@@ -2580,6 +2628,19 @@
 
   body .home-gallery-grid,
   body .gallery-grid {
+    grid-template-columns: 1fr;
+  }
+
+  body .receipt-qr-card {
+    padding: 16px 12px;
+  }
+
+  body .receipt-qr-card img {
+    width: 144px;
+    height: 144px;
+  }
+
+  body .receipt-qr-secondary {
     grid-template-columns: 1fr;
   }
 }

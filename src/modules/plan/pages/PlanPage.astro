@@ -879,25 +879,38 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
 
         <!-- Official Digital QR Check-in Slip -->
         <div class="receipt-qr-card" data-receipt-qr-container hidden>
-          <img data-receipt-qr src="" alt="Enquiry QR Code" />
-          <div class="receipt-qr-copy">
-            <span class="receipt-qr-badge">Official Digital Enquiry Slip</span>
-            <h4>Instant Coordinator Check-in QR</h4>
-            <p>
-              Present this QR code to our planning team at our Main Road Ranchi studio or on-site for immediate blueprint retrieval.
-            </p>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
-              <a href="#" class="btn btn-gold btn-sm" data-receipt-view-link target="_blank" rel="noopener">
-                <Icon name="external" size={14} /> View Full Receipt
-              </a>
-              <a href="#" class="btn btn-secondary btn-sm" data-receipt-pdf-link download>
+          <div class="receipt-qr-head">
+            <span class="receipt-qr-badge">
+              <Icon name="shield" size={13} />
+              Official digital enquiry slip
+            </span>
+            <h4>Coordinator check-in</h4>
+            <p>Show this code at our Main Road studio or on-site to load your blueprint instantly.</p>
+          </div>
+
+          <div class="receipt-qr-tile">
+            <img data-receipt-qr src="" alt="Enquiry QR code" width="168" height="168" />
+            <span class="receipt-qr-tile-label">Scan to check in</span>
+          </div>
+
+          <div class="receipt-qr-actions">
+            <a href="#" class="btn btn-gold btn-block" data-receipt-view-link target="_blank" rel="noopener">
+              <Icon name="external" size={15} /> View full receipt
+            </a>
+            <div class="receipt-qr-secondary">
+              <a href="#" class="btn btn-secondary" data-receipt-pdf-link download>
                 <Icon name="download" size={14} /> Download PDF
               </a>
-              <button type="button" class="btn btn-secondary btn-sm" onclick="window.print()">
-                <Icon name="receipt" size={14} /> Print Enquiry Slip
+              <button type="button" class="btn btn-secondary" onclick="window.print()">
+                <Icon name="receipt" size={14} /> Print slip
               </button>
             </div>
           </div>
+
+          <p class="receipt-qr-hint">
+            <Icon name="info" size={14} />
+            Screenshot this slip or keep this page open for your coordinator.
+          </p>
         </div>
 
         <div class="receipt-actions">
