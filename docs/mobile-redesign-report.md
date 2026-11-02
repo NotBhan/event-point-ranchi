@@ -110,7 +110,8 @@ The baseline was built in an isolated worktree from `HEAD`. The baseline worktre
 - Converted tables to cards at ≤767px and 768–900px, so seven-column admin tables never require pinching or horizontal scrolling.
 - Added mobile-only text to destructive icon buttons (`Delete`) and 44px touch targets.
 - Added safe-area support for the fixed dock, summary bar and detail action bar.
-- Fixed the plan sticky summary covering the submit button; content can scroll clear of it.
+- Fixed the plan sticky summary covering the Continue/Submit controls. The summary now lives in the form flow above the navigation row and sticks there, so it settles above the action buttons instead of intercepting taps.
+- Fixed the step-3 equipment tab rail forcing the plan form to 543px at a 390px viewport; the rail now scrolls inside a 358px form.
 - Added `word-break`/`overflow-wrap` to long emails, references, URLs and money values.
 - Hid the bottom dock on focused flows so it never competes with the plan summary or detail CTA.
 
@@ -162,13 +163,15 @@ Automated Chromium/CDP audit over **19 routes × 6 viewports** (320×640, 360×8
 
 ### 8.3 Interaction checks
 
-**21/21 passed:**
+**23/23 passed:**
 
 - Drawer opens, modal semantics, focus to close, scroll lock
 - Escape closes, inert state restored, focus returns to trigger
+- Step 1 summary yields to the Continue button (hit-test and bar clearance)
 - Plan step 1 validates and advances
 - Mobile summary expands and reports quotation status
 - Mandap selection and equipment quantities update the summary
+- Step 3 equipment rail scrolls without widening the form
 - Draft persists and restores step/selections after reload
 - Sticky summary clears the submit button
 - Gallery lightbox opens/closes, locks scroll, restores focus
@@ -176,7 +179,13 @@ Automated Chromium/CDP audit over **19 routes × 6 viewports** (320×640, 360×8
 - Contact inline validation and first-invalid focus
 - Catalogue search stacks on mobile
 
-### 8.4 Authenticated route audit
+### 8.4 Follow-up: `/plan` Continue button
+
+The initial mobile implementation used a full-width fixed summary bar. At the bottom of the form it covered the Continue button, so taps hit the summary instead; the second tap opened the summary sheet and appeared to make the button disappear.
+
+The summary is now in the form flow **before** the navigation row and uses `position: sticky; bottom: 8px`. It remains visible while filling the form, then settles above Continue/Submit instead of over them. The step-3 form width regression found while testing this fix (543px at 390px) was also corrected.
+
+### 8.5 Authenticated route audit
 
 - Customer `/account`, `/profile`, `/my-bookings`: 320, 390, 768, 1440 — no overflow; 0 sub-44px controls at 320/390/768.
 - Admin operational routes (`bookings`, booking detail, `payments`, payment detail, `enquiries`, enquiry detail, scanner, `customers`, customer detail, `inquiries`): 320, 390, 768, 900 — no overflow and 0 sub-44px controls.
@@ -228,6 +237,8 @@ The pre-existing uncommitted changes in `src/components/skeletons/SkeletonGaller
 ### Commit
 
 Implementation commit: **`cdd192e`** (`feat(mobile): redesign public, account and admin interfaces for phones`)
+
+Follow-up fix commit: **`<pending-fix>`** (`fix(plan): stop the mobile summary covering Continue`)
 
 ---
 

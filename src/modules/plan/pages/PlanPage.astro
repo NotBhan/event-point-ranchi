@@ -767,6 +767,45 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
             </div>
           </section>
 
+          <!-- Compact mobile summary. It sits in the form flow above the
+               navigation row so it can stay sticky without covering the
+               Continue/Submit controls. Pricing is deliberately not calculated
+               here: the server-side quotation is the only authoritative price. -->
+          <div class="plan-mobile-summary" data-plan-mobile-summary>
+            <button
+              type="button"
+              class="plan-mobile-toggle"
+              data-plan-mobile-toggle
+              aria-expanded="false"
+              aria-controls="planMobileSheet"
+            >
+              <span class="plan-mobile-icon"><Icon name="receipt" size={18} /></span>
+              <span class="plan-mobile-copy">
+                <strong data-plan-mobile-count>No selections yet</strong>
+                <span data-plan-mobile-status>Pricing on quotation</span>
+              </span>
+              <span class="plan-mobile-chevron"><Icon name="chevron-down" size={16} /></span>
+            </button>
+
+            <div class="plan-mobile-sheet" id="planMobileSheet" data-plan-mobile-sheet hidden>
+              <div class="plan-mobile-sheet-head">
+                <strong>Your event blueprint</strong>
+                <button type="button" class="plan-mobile-sheet-done" data-plan-mobile-close>Done</button>
+              </div>
+              <div class="plan-mobile-sheet-body" data-plan-live-summary-mobile aria-live="polite">
+                <div class="blueprint-row">
+                  <span class="blueprint-label">Celebration</span>
+                  <strong class="blueprint-value">Not selected yet</strong>
+                </div>
+              </div>
+              <p class="plan-mobile-note">
+                <strong>Pricing status: quotation required.</strong>
+                Your selections are reviewed by the planning team; no amount is charged, no date is
+                held and no inventory is reserved until a written quotation is accepted.
+              </p>
+            </div>
+          </div>
+
           <!-- Navigation Footer -->
           <div class="plan-nav">
             <!-- Validation feedback sits next to the control the visitor just
@@ -874,44 +913,6 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
       </div>
     </div>
   </section>
-
-  <!-- Compact mobile summary. Pricing is deliberately not calculated here:
-       this journey is an enquiry and the server-side quotation is the only
-       authoritative price. -->
-  <div class="plan-mobile-summary" data-plan-mobile-summary>
-    <button
-      type="button"
-      class="plan-mobile-toggle"
-      data-plan-mobile-toggle
-      aria-expanded="false"
-      aria-controls="planMobileSheet"
-    >
-      <span class="plan-mobile-icon"><Icon name="receipt" size={18} /></span>
-      <span class="plan-mobile-copy">
-        <strong data-plan-mobile-count>No selections yet</strong>
-        <span data-plan-mobile-status>Pricing on quotation</span>
-      </span>
-      <span class="plan-mobile-chevron"><Icon name="chevron-down" size={16} /></span>
-    </button>
-
-    <div class="plan-mobile-sheet" id="planMobileSheet" data-plan-mobile-sheet hidden>
-      <div class="plan-mobile-sheet-head">
-        <strong>Your event blueprint</strong>
-        <button type="button" class="plan-mobile-sheet-done" data-plan-mobile-close>Done</button>
-      </div>
-      <div class="plan-mobile-sheet-body" data-plan-live-summary-mobile aria-live="polite">
-        <div class="blueprint-row">
-          <span class="blueprint-label">Celebration</span>
-          <strong class="blueprint-value">Not selected yet</strong>
-        </div>
-      </div>
-      <p class="plan-mobile-note">
-        <strong>Pricing status: quotation required.</strong>
-        Your selections are reviewed by the planning team; no amount is charged, no date is
-        held and no inventory is reserved until a written quotation is accepted.
-      </p>
-    </div>
-  </div>
 
   <!-- Injected Catalogue JSON for Client Logic -->
   <script type="application/json" id="planCatalogue" set:html={catalogueJson}></script>
