@@ -227,7 +227,7 @@ The pre-existing uncommitted changes in `src/components/skeletons/SkeletonGaller
 
 ### Commit
 
-Implementation commit: **`<pending>`**
+Implementation commit: **`cdd192e`** (`feat(mobile): redesign public, account and admin interfaces for phones`)
 
 ---
 
