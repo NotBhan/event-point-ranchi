@@ -1,7 +1,14 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import AdminPager from '../../../components/admin/AdminPager.astro';
-import { formatDate, formatMoney } from '../../../core/http';
+import { formatDate, formatDateTime, formatMoney } from '../../../core/http';
+import {
+  bookingFilterTabs,
+  bookingStatusClass,
+  bookingStatusLabel,
+  paymentStatusClass,
+  paymentStatusLabel,
+} from '../presentation';
 import type { listBookings } from '../service';
 
 interface Props {
@@ -15,63 +22,88 @@ const { items: bookings, pagination, status, query } = Astro.props;
 const csrf = Astro.locals.csrf;
 const pageHref = (page: number) =>
   `/admin/bookings?status=${encodeURIComponent(status)}&q=${encodeURIComponent(query)}&page=${page}`;
-
-const statusClass: Record<string, string> = {
-  draft: 'badge-muted',
-  pending: 'badge-warning',
-  confirmed: 'badge-success',
-  cancelled: 'badge-danger',
-};
-
-const tabs = [
-  ['all', 'All'],
-  ['pending', 'Pending'],
-  ['confirmed', 'Confirmed'],
-  ['cancelled', 'Cancelled'],
-  ['draft', 'Draft'],
-];
+const tabHref = (value: string) =>
+  `/admin/bookings?status=${encodeURIComponent(value)}${query ? `&q=${encodeURIComponent(query)}` : ''}`;
 ---
 
-<AdminLayout title="Bookings" description={`${bookings.length} reservation${bookings.length === 1 ? '' : 's'} matching your filters.`}>
+<AdminLayout
+  title="Bookings"
+  description={`${bookings.length} managed booking${bookings.length === 1 ? '' : 's'} in this view.`}
+>
   <div class="admin-panel">
     <div class="admin-panel-head">
-      <form method="GET" action="/admin/bookings" class="admin-toolbar">
-        <input class="input" type="search" name="q" value={query} placeholder="Search name, phone, event…" />
-        <select class="select" name="status" data-auto-submit>
-          {tabs.map(([value, label]) => (
-            <option value={value} selected={status === value}>{label}</option>
-          ))}
-        </select>
-        <button type="submit" class="btn btn-secondary btn-sm">Filter</button>
-      </form>
-      <div class="admin-subnav">
-        {tabs.map(([value, label]) => (
-          <a href={`/admin/bookings?status=${value}`} class:list={{ active: status === value }}>{label}</a>
-        ))}
+      <div>
+        <h2>Managed bookings</h2>
+        <p>
+          Accepted enquiries and direct bookings live here. Raw unhandled enquiries are in{' '}
+          <a href="/admin/new-enquiries" class="text-link">New Enquiries</a>.
+        </p>
       </div>
+    </div>
+
+    <div class="admin-panel-body">
+      <form method="GET" action="/admin/bookings" class="admin-toolbar">
+        <input
+          class="input"
+          type="search"
+          name="q"
+          value={query}
+          placeholder="Search booking, customer, source enquiry, venue…"
+        />
+        <input type="hidden" name="status" value={status} />
+        <button type="submit" class="btn btn-secondary btn-sm">Search</button>
+      </form>
+    </div>
+
+    <div class="admin-subnav" style="padding: 0 20px 14px;">
+      {bookingFilterTabs.map(([value, label]) => (
+        <a href={tabHref(value)} class:list={{ active: status === value }}>{label}</a>
+      ))}
     </div>
 
     <div class="admin-panel-body flush">
       {bookings.length === 0 ? (
-        <div class="admin-empty">No bookings match these filters.</div>
+        <div class="admin-empty">No managed bookings match these filters.</div>
       ) : (
         <div class="table-wrap">
           <table class="table table-stack">
             <thead>
               <tr>
-                <th>#</th>
+                <th>Booking</th>
+                <th>Source enquiry</th>
                 <th>Customer</th>
                 <th>Event</th>
-                <th>Guests</th>
-                <th>Total</th>
+                <th>Venue</th>
+                <th>Amount</th>
+                <th>Payment</th>
                 <th>Status</th>
+                <th>Admin handling</th>
                 <th style="text-align:right;">Actions</th>
               </tr>
             </thead>
             <tbody>
               {bookings.map((booking) => (
                 <tr>
-                  <td data-label="Booking"><strong>#{booking.id}</strong></td>
+                  <td data-label="Booking">
+                    <a href={`/admin/bookings/${booking.id}`} style="font-weight:600;color:var(--ink);">
+                      #{booking.id}
+                    </a>
+                    <div class="text-xs text-muted">{formatDateTime(booking.created_at)}</div>
+                  </td>
+                  <td data-label="Source enquiry">
+                    {booking.source_reference ? (
+                      <a href={`/admin/new-enquiries/${booking.source_enquiry_id}`} class="text-link">
+                        {booking.source_reference}
+                      </a>
+                    ) : (
+                      <span class="text-xs text-muted">Direct booking</span>
+                    )}
+                    {booking.item_count > 0 && (
+                      <div class="text-xs text-muted">
+                        {booking.item_count} line{booking.item_count === 1 ? '' : 's'}
+                      </div>
+                    )}
+                  </td>
                   <td data-label="Customer">
                     {booking.customer}
                     <div class="text-xs text-muted">{booking.phone}</div>
@@ -79,18 +111,47 @@ const tabs = [
                   <td data-label="Event">
                     {booking.event_type}
                     <div class="text-xs text-muted">{formatDate(booking.event_date)}</div>
+                    <div class="text-xs text-muted">{booking.total_guest} guests</div>
                   </td>
-                  <td data-label="Guests">{booking.total_guest}</td>
-                  <td data-label="Total" class="money">{formatMoney(booking.total_amount)}</td>
-                  <td data-label="Status"><span class:list={['badge', statusClass[booking.status] ?? 'badge-muted']}>{booking.status}</span></td>
+                  <td data-label="Venue" style="max-width:200px;">{booking.venue_location || '—'}</td>
+                  <td data-label="Amount" class="money">{formatMoney(booking.total_amount)}</td>
+                  <td data-label="Payment">
+                    <span class:list={['badge', paymentStatusClass(booking.payment_status)]}>
+                      {paymentStatusLabel(booking.payment_status)}
+                    </span>
+                  </td>
+                  <td data-label="Status">
+                    <span class:list={['badge', bookingStatusClass(booking.status)]}>
+                      {bookingStatusLabel(booking.status)}
+                    </span>
+                  </td>
+                  <td data-label="Admin handling" class="text-xs">
+                    {booking.accepted_by_name ? (
+                      <>
+                        <div>{booking.accepted_by_name}</div>
+                        {booking.accepted_at && <div class="text-muted">{formatDateTime(booking.accepted_at)}</div>}
+                      </>
+                    ) : (
+                      <span class="text-muted">—</span>
+                    )}
+                  </td>
                   <td data-label="Actions">
                     <div class="admin-row-actions">
                       <a href={`/admin/bookings/${booking.id}`} class="btn btn-secondary btn-sm">Open</a>
                       <form method="POST" action={`/admin/bookings/${booking.id}`}>
                         <input type="hidden" name="_csrf" value={csrf} />
                         <input type="hidden" name="action" value="delete" />
-                        <button type="submit" class="icon-btn danger icon-btn-labeled" data-confirm={`Delete booking #${booking.id}? This cannot be undone.`} aria-label="Delete booking">
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                        <button
+                          type="submit"
+                          class="icon-btn danger icon-btn-labeled"
+                          data-confirm={`Delete booking #${booking.id}? This cannot be undone.`}
+                          aria-label="Delete booking"
+                        >
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                            <path d="M3 6h18" />
+                            <path d="M8 6V4h8v2" />
+                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                          </svg>
                           <span class="action-label-mobile">Delete</span>
                         </button>
                       </form>

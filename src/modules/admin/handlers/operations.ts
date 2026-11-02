@@ -1,25 +1,25 @@
 import { requireAdmin } from '../../../core/auth';
 import { endSession, startSession } from '../../../core/auth';
-import { setSuccess } from '../../../core/flash';
-import { getInt, getString, parsePageParams, redirect, safeNext } from '../../../core/http';
+import { setError, setSuccess } from '../../../core/flash';
+import { getInt, getString, parseMoneyToPaise, parsePageParams, redirect, safeNext } from '../../../core/http';
 import type { PageContext } from '../../../core/types';
 import { authenticate } from '../../accounts/service';
 import { loadBookingForViewer } from '../../bookings/service';
+import { acceptEnquiry, rejectEnquiry, setEnquiryWorkflowStatus } from '../enquiry-lifecycle';
 import {
   deleteBooking,
   deleteInquiry,
   listBookings,
   listCustomers,
-  listEventEnquiries,
+  listNewEnquiries,
   listInquiries,
   loadCustomerAdmin,
   loadDashboard,
-  loadEventEnquiry,
+  loadNewEnquiry,
   loadStorageDashboard,
   reconcileStorageAdmin,
   retryCleanupAdmin,
   updateBookingStatus,
-  updateEventEnquiryStatus,
   updateInquiryStatus,
   loadPaymentsAdmin,
   loadPaymentDetailAdmin,
@@ -167,44 +167,118 @@ export async function inquiriesList(ctx: PageContext) {
   return { props: { ...(await listInquiries(status, { page, perPage })), status } };
 }
 
-export async function eventEnquiriesList(ctx: PageContext) {
+export async function newEnquiriesList(ctx: PageContext) {
   const denied = requireAdmin(ctx);
   if (denied) return denied;
 
-  const status = ctx.url.searchParams.get('status') ?? 'all';
+  const requestedStatus = ctx.url.searchParams.get('status') ?? 'active';
+  const allowedStatuses = new Set([
+    'active',
+    'new',
+    'reviewing',
+    'contacted',
+    'accepted',
+    'rejected',
+    'all',
+  ]);
+  const status = allowedStatuses.has(requestedStatus) ? requestedStatus : 'active';
   const query = ctx.url.searchParams.get('q') ?? '';
   const { page, perPage } = parsePageParams(ctx.url, { defaultPerPage: 25 });
 
   return {
     props: {
-      ...(await listEventEnquiries({ status, query }, { page, perPage })),
+      ...(await listNewEnquiries({ status, query }, { page, perPage })),
       status,
       query,
     },
   };
 }
 
-export async function eventEnquiryDetail(ctx: PageContext) {
+export async function newEnquiryDetail(ctx: PageContext) {
   const denied = requireAdmin(ctx);
   if (denied) return denied;
 
   const id = Number(ctx.params.id);
   if (!Number.isInteger(id) || id <= 0) return { props: { notFound: true }, status: 404 };
 
+  const backTo = `/admin/new-enquiries/${id}`;
+  const adminUserId = ctx.auth.user?.id;
+
   if (ctx.request.method === 'POST') {
-    return runFormAction(
-      ctx,
-      {
-        update_status: () => updateEventEnquiryStatus(id, getString(ctx.form, 'status')),
-      },
-      { redirectTo: `/admin/enquiries/${id}`, successMessage: 'Enquiry status updated.' },
-    );
+    const action = getString(ctx.form, 'action');
+    try {
+      if (action === 'mark_reviewing' || action === 'mark_contacted') {
+        if (!adminUserId) throw new Error('An admin user is required.');
+        await setEnquiryWorkflowStatus({
+          enquiryId: id,
+          adminUserId,
+          status: action === 'mark_reviewing' ? 'reviewing' : 'contacted',
+        });
+        setSuccess(
+          ctx.cookies,
+          action === 'mark_reviewing' ? 'Enquiry marked under review.' : 'Enquiry marked contacted.',
+        );
+        return redirect(backTo);
+      }
+
+      if (action === 'reject') {
+        if (!adminUserId) throw new Error('An admin user is required.');
+        await rejectEnquiry({
+          enquiryId: id,
+          adminUserId,
+          reason: getString(ctx.form, 'reason'),
+        });
+        setSuccess(ctx.cookies, 'Enquiry rejected. It remains available in the rejected history.');
+        return redirect(backTo);
+      }
+
+      if (action === 'accept') {
+        if (!adminUserId) throw new Error('An admin user is required.');
+        const finalAmountPaise = parseMoneyToPaise(getString(ctx.form, 'final_amount'));
+        if (finalAmountPaise <= 0) {
+          throw new Error('Enter the final booking amount before accepting the enquiry.');
+        }
+        const result = await acceptEnquiry({
+          enquiryId: id,
+          adminUserId,
+          finalAmountPaise,
+        });
+        setSuccess(ctx.cookies, `Enquiry accepted. Booking #${result.bookingId} has been created.`);
+        return redirect(`/admin/bookings/${result.bookingId}`);
+      }
+
+      throw new Error('Unknown action requested.');
+    } catch (error) {
+      setError(ctx.cookies, error instanceof Error ? error.message : 'The enquiry could not be updated.');
+      return redirect(backTo);
+    }
   }
 
-  const data = await loadEventEnquiry(id);
+  const data = await loadNewEnquiry(id);
   if (!data) return { props: { notFound: true }, status: 404 };
 
   return { props: { data } };
+}
+
+/**
+ * The old event-enquiries list was a second, ambiguous enquiry inbox. Keep
+ * bookmarks working by pointing it at the canonical New Enquiries page.
+ */
+export async function legacyEnquiriesRedirect(ctx: PageContext) {
+  const params = new URLSearchParams(ctx.url.search);
+  const legacyStatus = params.get('status');
+  const mappedStatus =
+    legacyStatus === 'confirmed' ? 'accepted' : legacyStatus === 'archived' ? 'rejected' : legacyStatus === 'quoted' ? 'active' : legacyStatus;
+  if (mappedStatus) params.set('status', mappedStatus);
+  const search = params.toString();
+  return redirect(`/admin/new-enquiries${search ? `?${search}` : ''}`, 301);
+}
+
+/** Old detail links and form posts redirect to the canonical detail route. */
+export async function legacyEnquiryDetailRedirect(ctx: PageContext) {
+  const id = Number(ctx.params.id);
+  if (!Number.isInteger(id) || id <= 0) return redirect('/admin/new-enquiries', 301);
+  return redirect(`/admin/new-enquiries/${id}`, ctx.request.method === 'GET' ? 301 : 308);
 }
 
 export async function paymentsList(ctx: PageContext) {

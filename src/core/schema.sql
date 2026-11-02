@@ -195,7 +195,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   event_type          TEXT NOT NULL DEFAULT 'Wedding',
   total_guest         INTEGER NOT NULL DEFAULT 100,
   special_request     TEXT NOT NULL DEFAULT '',
-  status              TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('draft', 'pending', 'confirmed', 'cancelled')),
+  status              TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('draft', 'pending', 'confirmed', 'completed', 'cancelled', 'closed')),
   total_amount        INTEGER NOT NULL DEFAULT 0,
   advance_amount      INTEGER NOT NULL DEFAULT 0,
   amount_paid         INTEGER NOT NULL DEFAULT 0,
@@ -411,7 +411,7 @@ CREATE TABLE IF NOT EXISTS event_enquiries (
   accommodation_notes  TEXT NOT NULL DEFAULT '',
   decoration_notes     TEXT NOT NULL DEFAULT '',
   preferred_contact    TEXT NOT NULL DEFAULT 'Phone',
-  status               TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'reviewing', 'quoted', 'confirmed', 'archived')),
+  status               TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'reviewing', 'contacted', 'quoted', 'accepted', 'rejected', 'confirmed', 'archived')),
   created_at           TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_event_enquiries_status ON event_enquiries(status);

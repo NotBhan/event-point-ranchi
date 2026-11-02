@@ -1,0 +1,402 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import Icon from '../../../components/Icon.astro';
+import { formatDate, formatDateTime, formatMoney } from '../../../core/http';
+import {
+  bookingStatusLabel,
+  enquiryStatusClass,
+  enquiryStatusLabel,
+  paymentStatusLabel,
+  summariseEnquiryLines,
+} from '../presentation';
+import type { loadNewEnquiry } from '../service';
+import { getEnquiryQrService } from '../../../core/operational/enquiry-qr-service';
+
+interface Props {
+  data?: Awaited<ReturnType<typeof loadNewEnquiry>>;
+  notFound?: boolean;
+}
+
+const { data, notFound = false } = Astro.props;
+const csrf = Astro.locals.csrf;
+
+const enquiry = data?.enquiry;
+const status = enquiry?.status ?? '';
+const hasBooking = Boolean(data?.booking);
+const isWorkflowActive = ['new', 'reviewing', 'contacted', 'quoted'].includes(status) && !hasBooking;
+const canAccept = Boolean(enquiry) && !hasBooking && !['rejected', 'archived'].includes(status);
+const canReject =
+  Boolean(enquiry) && !hasBooking && !['accepted', 'confirmed', 'rejected', 'archived'].includes(status);
+const showActions = isWorkflowActive || canAccept || canReject;
+const selections = summariseEnquiryLines(data?.lines ?? []);
+
+function requestedDimensions(line: {
+  requested_length_ft: number | null;
+  requested_width_ft: number | null;
+  requested_height_ft: number | null;
+}): string {
+  const values = [line.requested_length_ft, line.requested_width_ft, line.requested_height_ft];
+  if (values.every((value) => value === null)) return 'Standard size';
+  return `${line.requested_length_ft ?? '—'} × ${line.requested_width_ft ?? '—'} × ${line.requested_height_ft ?? '—'} ft`;
+}
+
+let qrPayload: any = null;
+if (enquiry) {
+  try {
+    const qrService = getEnquiryQrService(Astro.url.origin);
+    qrPayload = await qrService.getOrCreateEnquiryQr(enquiry.id, enquiry.reference_code, Astro.url.origin);
+  } catch (err: any) {
+    console.warn('[Enquiry QR error]:', err.message);
+  }
+}
+---
+
+{notFound || !data || !enquiry ? (
+  <AdminLayout title="Enquiry not found">
+    <div class="admin-panel">
+      <div class="admin-empty">
+        This event enquiry does not exist.{' '}
+        <a href="/admin/new-enquiries" style="color:var(--gold-ink);font-weight:600;">Back to New Enquiries</a>
+      </div>
+    </div>
+  </AdminLayout>
+) : (
+  <AdminLayout
+    title={enquiry.reference_code}
+    description={`${enquiry.customer_name} · ${enquiry.event_type} · ${formatDate(enquiry.event_date)}`}
+  >
+    <div class="admin-toolbar">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <a href="/admin/new-enquiries" class="btn btn-secondary btn-sm">← New Enquiries</a>
+        <a href="/admin/enquiries/scan" class="btn btn-ghost btn-sm">
+          <Icon name="camera" size={13} /> Open Scanner
+        </a>
+        {data.booking && (
+          <a href={`/admin/bookings/${data.booking.id}`} class="btn btn-primary btn-sm">
+            <Icon name="ticket" size={13} /> Booking #{data.booking.id}
+          </a>
+        )}
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="window.print()">
+          <Icon name="print" size={13} /> Print Enquiry Slip
+        </button>
+        <span class:list={['badge', enquiryStatusClass(status)]}>{enquiryStatusLabel(status)}</span>
+        <span class="text-xs text-muted">Received {formatDateTime(enquiry.created_at)}</span>
+      </div>
+    </div>
+
+    {data.booking && (
+      <div
+        class="admin-panel"
+        style="margin-bottom:20px;padding:16px 20px;border-left:4px solid var(--success,#2e7d32);display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap;"
+      >
+        <div>
+          <strong style="display:block;color:var(--ink);">Converted to managed booking #{data.booking.id}</strong>
+          <span class="text-xs text-muted">
+            {bookingStatusLabel(data.booking.status)} · {paymentStatusLabel(data.booking.payment_status)} ·{' '}
+            {formatMoney(data.booking.total_amount)}
+          </span>
+        </div>
+        <a href={`/admin/bookings/${data.booking.id}`} class="btn btn-secondary btn-sm">Open booking</a>
+      </div>
+    )}
+
+    {enquiry.status === 'rejected' && (
+      <div class="admin-panel" style="margin-bottom:20px;padding:16px 20px;border-left:4px solid var(--danger,#b23b3b);">
+        <strong style="display:block;color:var(--ink);">Enquiry rejected</strong>
+        <span class="text-sm">{enquiry.rejection_reason || 'No rejection reason was recorded.'}</span>
+      </div>
+    )}
+
+    {qrPayload && (
+      <div
+        class="admin-panel print-receipt-card"
+        style="margin-bottom:20px;padding:16px 20px;background:var(--canvas-warm);border:1px solid var(--line);border-radius:var(--r-md);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;"
+      >
+        <div style="display:flex;align-items:center;gap:16px;">
+          <a href={qrPayload.scanUrl} target="_blank" rel="noopener">
+            <img
+              src={qrPayload.qrDataUrl}
+              alt={`QR Code for ${enquiry.reference_code}`}
+              style="width:90px;height:90px;border-radius:var(--r-sm);border:1px solid var(--line);background:#fff;padding:3px;"
+            />
+          </a>
+          <div>
+            <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--gold-ink);display:block;margin-bottom:2px;">
+              Coordinator Dispatch QR Code
+            </span>
+            <strong style="font-size:15px;color:var(--ink);display:block;margin-bottom:4px;">
+              Scan to load enquiry on any mobile device or terminal
+            </strong>
+            <span style="font-size:12px;color:var(--muted);">
+              Reference: <strong style="font-family:var(--font-mono);color:var(--gold-ink);">{enquiry.reference_code}</strong>
+              {' · '}
+              <a href={qrPayload.scanUrl} class="text-link" target="_blank" rel="noopener">Scan URL</a>
+            </span>
+          </div>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="window.print()">
+          <Icon name="print" size={14} /> Print Slip
+        </button>
+      </div>
+    )}
+
+    <div class="admin-grid-3">
+      <div class="admin-panel">
+        <div class="admin-panel-head"><div><h2>Event</h2></div></div>
+        <div class="admin-panel-body">
+          <div class="summary-row"><div class="summary-left"><small>Event type</small><h4>{enquiry.event_type}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Event date</small><h4>{formatDate(enquiry.event_date)}</h4></div></div>
+          {enquiry.end_date && (
+            <div class="summary-row"><div class="summary-left"><small>End date</small><h4>{formatDate(enquiry.end_date)}</h4></div></div>
+          )}
+          <div class="summary-row"><div class="summary-left"><small>Start time</small><h4>{enquiry.event_time || '—'}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Guests</small><h4>{enquiry.guest_count}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Budget range</small><h4>{enquiry.budget_range || '—'}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Venue</small><h4>{enquiry.venue_location}</h4></div></div>
+        </div>
+      </div>
+
+      <div class="admin-panel">
+        <div class="admin-panel-head"><div><h2>Customer</h2></div></div>
+        <div class="admin-panel-body">
+          <div class="summary-row"><div class="summary-left"><small>Name</small><h4>{enquiry.customer_name}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Phone</small><h4>{enquiry.customer_phone}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Email</small><h4>{enquiry.customer_email || '—'}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Preferred contact</small><h4>{enquiry.preferred_contact}</h4></div></div>
+        </div>
+      </div>
+
+      <div class="admin-panel">
+        <div class="admin-panel-head"><div><h2>Accommodation</h2></div></div>
+        <div class="admin-panel-body">
+          <div class="summary-row">
+            <div class="summary-left">
+              <small>Rooms required</small>
+              <h4>{enquiry.requires_rooms ? `Yes — ${enquiry.room_count} rooms` : 'No'}</h4>
+            </div>
+          </div>
+          <div class="summary-row">
+            <div class="summary-left">
+              <small>Accommodation details &amp; notes</small>
+              <h4 style="white-space: pre-line; line-height: 1.4;">{enquiry.accommodation_notes || '—'}</h4>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="admin-panel">
+      <div class="admin-panel-head">
+        <div><h2>Selected requirements</h2><p>Itemised catalogue selections from the enquiry.</p></div>
+      </div>
+      <div class="admin-panel-body">
+        <div class="admin-grid-2">
+          <div>
+            <small class="text-muted">Mandap</small>
+            <h4>{selections.mandap.length ? selections.mandap.join(', ') : 'Not selected'}</h4>
+          </div>
+          <div>
+            <small class="text-muted">Stage</small>
+            <h4>{selections.stage.length ? selections.stage.join(', ') : 'Not selected'}</h4>
+          </div>
+          <div>
+            <small class="text-muted">Furniture &amp; equipment</small>
+            <h4>{selections.furniture.length ? selections.furniture.join(', ') : 'Not selected'}</h4>
+          </div>
+          <div>
+            <small class="text-muted">Catering package</small>
+            <h4>{selections.catering.length ? selections.catering.join(', ') : 'Not selected'}</h4>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="admin-panel">
+      <div class="admin-panel-head">
+        <div><h2>Requirement line items</h2><p>{data.lines.length} item{data.lines.length === 1 ? '' : 's'} submitted.</p></div>
+      </div>
+      <div class="admin-panel-body flush">
+        {data.lines.length === 0 ? (
+          <div class="admin-empty">No catalogue line items submitted.</div>
+        ) : (
+          <div class="table-wrap">
+            <table class="table table-stack">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Item</th>
+                  <th>Qty</th>
+                  <th>Standard dimensions</th>
+                  <th>Requested dimensions</th>
+                  <th>Specifications &amp; notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.lines.map((line) => (
+                  <tr>
+                    <td data-label="Type"><span class="badge badge-muted">{line.item_type}</span></td>
+                    <td data-label="Item">
+                      <strong>{line.item_name_snapshot}</strong>
+                      {line.catalogue_item_id && <div class="text-xs text-muted">Catalogue #{line.catalogue_item_id}</div>}
+                    </td>
+                    <td data-label="Quantity" class="money">{line.quantity}</td>
+                    <td data-label="Standard dimensions" class="text-sm">{line.standard_dimensions_snapshot || '—'}</td>
+                    <td data-label="Requested dimensions" class="text-sm">{requestedDimensions(line)}</td>
+                    <td data-label="Specifications & notes" style="max-width:320px;">
+                      {line.specifications && <div class="text-xs">{line.specifications}</div>}
+                      {line.notes && <div class="text-xs text-muted">Note: {line.notes}</div>}
+                      {!line.specifications && !line.notes && '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+
+    <div class="admin-grid-2">
+      <div class="admin-panel">
+        <div class="admin-panel-head"><div><h2>Styling &amp; event notes</h2></div></div>
+        <div class="admin-panel-body">
+          <div class="muted-box" style="white-space:pre-line;">{enquiry.decoration_notes || 'No styling notes provided.'}</div>
+        </div>
+      </div>
+
+      <div class="admin-panel">
+        <div class="admin-panel-head"><div><h2>Pricing &amp; admin handling</h2></div></div>
+        <div class="admin-panel-body">
+          <div class="summary-row">
+            <div class="summary-left">
+              <small>Pricing status</small>
+              <h4>{data.booking ? 'Quotation accepted' : 'Quotation required'}</h4>
+            </div>
+          </div>
+          <div class="summary-row">
+            <div class="summary-left"><small>Customer budget</small><h4>{enquiry.budget_range || '—'}</h4></div>
+          </div>
+          {data.booking ? (
+            <div class="summary-row">
+              <div class="summary-left">
+                <small>Final booking amount</small>
+                <h4 class="money">{formatMoney(data.booking.total_amount)}</h4>
+                <div class="text-xs text-muted">
+                  {bookingStatusLabel(data.booking.status)} · {paymentStatusLabel(data.booking.payment_status)}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p class="text-sm text-muted">
+              No amount has been charged. Enter the agreed quotation amount to create the booking.
+            </p>
+          )}
+
+          {enquiry.accepted_at && (
+            <div class="summary-row">
+              <div class="summary-left">
+                <small>Accepted</small>
+                <h4>{formatDateTime(enquiry.accepted_at)}</h4>
+                {data.acceptedBy && <div class="text-xs text-muted">by {data.acceptedBy}</div>}
+              </div>
+            </div>
+          )}
+
+          {enquiry.status === 'rejected' && (
+            <div class="summary-row">
+              <div class="summary-left">
+                <small>Rejection reason</small>
+                <h4 style="white-space:pre-line;">{enquiry.rejection_reason || 'No reason recorded'}</h4>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+
+    {showActions && (
+      <div class="admin-panel">
+        <div class="admin-panel-head">
+          <div><h2>Workflow actions</h2><p>These actions do not create a booking unless you accept the enquiry.</p></div>
+        </div>
+        <div class="admin-panel-body">
+          {isWorkflowActive && (
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;">
+            {status !== 'reviewing' && (
+              <form method="POST" action={`/admin/new-enquiries/${enquiry.id}`}>
+                <input type="hidden" name="_csrf" value={csrf} />
+                <input type="hidden" name="action" value="mark_reviewing" />
+                <button type="submit" class="btn btn-secondary btn-sm">Mark under review</button>
+              </form>
+            )}
+            {status !== 'contacted' && (
+              <form method="POST" action={`/admin/new-enquiries/${enquiry.id}`}>
+                <input type="hidden" name="_csrf" value={csrf} />
+                <input type="hidden" name="action" value="mark_contacted" />
+                <button type="submit" class="btn btn-secondary btn-sm">Mark contacted</button>
+              </form>
+            )}
+          </div>
+          )}
+
+          <div class="admin-grid-2">
+            {canAccept && (
+              <form method="POST" action={`/admin/new-enquiries/${enquiry.id}`} class="form-grid">
+                <input type="hidden" name="_csrf" value={csrf} />
+                <input type="hidden" name="action" value="accept" />
+                <div class="field">
+                  <label for="final_amount">Final booking amount (₹) <span class="required-indicator">*</span></label>
+                  <input
+                    class="input"
+                    id="final_amount"
+                    name="final_amount"
+                    type="number"
+                    min="1"
+                    step="0.01"
+                    required
+                    placeholder="e.g. 75000"
+                  />
+                  <span class="hint">This becomes the managed booking total. The original selections stay linked.</span>
+                </div>
+                <button
+                  type="submit"
+                  class="btn btn-primary"
+                  data-confirm="Accept this enquiry and create one managed booking?"
+                >
+                  Accept enquiry &amp; create booking
+                </button>
+              </form>
+            )}
+
+            {canReject && (
+              <form method="POST" action={`/admin/new-enquiries/${enquiry.id}`} class="form-grid">
+                <input type="hidden" name="_csrf" value={csrf} />
+                <input type="hidden" name="action" value="reject" />
+                <div class="field">
+                  <label for="reason">Rejection reason <span class="label-optional">(optional)</span></label>
+                  <textarea
+                    class="input"
+                    id="reason"
+                    name="reason"
+                    rows="3"
+                    maxlength="1000"
+                    placeholder="Why is this enquiry not proceeding?"
+                  ></textarea>
+                </div>
+                <button
+                  type="submit"
+                  class="btn btn-danger-soft"
+                  data-confirm="Reject this enquiry? It will move to rejected history and will not create a booking."
+                >
+                  Reject enquiry
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+  </AdminLayout>
+)}

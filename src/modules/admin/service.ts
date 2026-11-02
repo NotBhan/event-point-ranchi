@@ -6,9 +6,13 @@ import {
   deleteContactInquiry,
   countEventEnquiries,
   deleteBookingRecord,
+  findUserById,
   getBookingStats,
   getBookingsForCustomer,
   getCustomerWithUsername,
+  getBookingForEnquiry,
+  getBookingsForEnquiryIds,
+  getEnquiryLineItemsForIds,
   getEventEnquiryWithItems,
   getHallBookingActivity,
   getRecentBookings,
@@ -19,7 +23,6 @@ import {
   listEventEnquiriesPage,
   setBookingStatus,
   updateContactInquiryStatus as updateContactInquiryStatusNeon,
-  updateEventEnquiryStatus as updateEventEnquiryStatusNeon,
 } from '../../core/operational/service';
 import { buildPagination, getBoolean, getInt, getString, parseMoneyToPaise, uniqueSlug, uniqueSlugAsync } from '../../core/http';
 import * as catalog from '../../core/content/catalog-store';
@@ -70,6 +73,7 @@ import {
   getInvoiceByPaymentId,
   type CustomerRow,
   type PaymentWebhookEventRow,
+  type EnquiryBookingSummary,
 } from '../../core/operational/service';
 import { getNeonClient } from '../../core/operational/neon-client';
 import { getPaymentService } from '../../core/payment/payment-service';
@@ -160,7 +164,7 @@ export async function listBookings(
 }
 
 export async function updateBookingStatus(id: number, status: string): Promise<void> {
-  if (!['draft', 'pending', 'confirmed', 'cancelled'].includes(status)) {
+  if (!['draft', 'pending', 'confirmed', 'completed', 'cancelled', 'closed'].includes(status)) {
     throw new Error('Invalid booking status.');
   }
 
@@ -1317,6 +1321,9 @@ export interface EventEnquiryRow {
   decoration_notes: string;
   preferred_contact: string;
   status: string;
+  accepted_by?: number | null;
+  accepted_at?: string | Date | null;
+  rejection_reason?: string | null;
   // TIMESTAMPTZ from Neon arrives as a Date; the fallback returns a string.
   created_at: string | Date;
 }
@@ -1336,12 +1343,17 @@ export interface EnquiryLineItemRow {
   notes: string;
 }
 
+export interface AdminEnquiryListRow extends EventEnquiryRow {
+  lines: EnquiryLineItemRow[];
+  booking: EnquiryBookingSummary | null;
+}
+
 /**
- * Admin enquiry list. Enquiries are operational records, so they are read from
- * the authoritative Neon PostgreSQL store — the same store the public enquiry
- * form writes to and the QR/receipt verification reads.
+ * New-enquiries inbox. The default `active` filter contains only enquiries
+ * still requiring an admin decision; accepted/rejected records are available
+ * through the history filters.
  */
-export async function listEventEnquiries(
+export async function listNewEnquiries(
   filters: { status?: string; query?: string } = {},
   paging: { page?: number; perPage?: number } = {},
 ) {
@@ -1353,29 +1365,52 @@ export async function listEventEnquiries(
 
   const { items } = await listEventEnquiriesPage(filters, { limit: perPage, offset });
   const enquiries = items as unknown as EventEnquiryRow[];
+  const ids = enquiries.map((enquiry) => Number(enquiry.id));
 
-  return { items: enquiries, pagination: buildPagination(requestedPage, perPage, totalCount, enquiries.length) };
+  const [allLines, bookingMap] = await Promise.all([
+    getEnquiryLineItemsForIds(ids),
+    getBookingsForEnquiryIds(ids),
+  ]);
+
+  const linesByEnquiry = new Map<number, EnquiryLineItemRow[]>();
+  for (const line of allLines) {
+    const list = linesByEnquiry.get(Number(line.enquiry_id)) ?? [];
+    list.push(line as unknown as EnquiryLineItemRow);
+    linesByEnquiry.set(Number(line.enquiry_id), list);
+  }
+
+  const rows: AdminEnquiryListRow[] = enquiries.map((enquiry) => ({
+    ...enquiry,
+    lines: linesByEnquiry.get(Number(enquiry.id)) ?? [],
+    booking: bookingMap.get(Number(enquiry.id)) ?? null,
+  }));
+
+  return {
+    items: rows,
+    pagination: buildPagination(requestedPage, perPage, totalCount, rows.length),
+  };
 }
 
-export async function loadEventEnquiry(
-  id: number,
-): Promise<{ enquiry: EventEnquiryRow; lines: EnquiryLineItemRow[] } | null> {
+export async function loadNewEnquiry(id: number): Promise<{
+  enquiry: EventEnquiryRow;
+  lines: EnquiryLineItemRow[];
+  booking: EnquiryBookingSummary | null;
+  acceptedBy: string | null;
+} | null> {
   const result = await getEventEnquiryWithItems(id);
   if (!result) return null;
+
+  const booking = await getBookingForEnquiry(id);
+  const acceptedByUser = result.enquiry.accepted_by
+    ? await findUserById(Number(result.enquiry.accepted_by))
+    : null;
 
   return {
     enquiry: result.enquiry as unknown as EventEnquiryRow,
     lines: result.lines as unknown as EnquiryLineItemRow[],
+    booking,
+    acceptedBy: acceptedByUser?.first_name || acceptedByUser?.username || null,
   };
-}
-
-export async function updateEventEnquiryStatus(id: number, status: string): Promise<void> {
-  if (!['new', 'reviewing', 'quoted', 'confirmed', 'archived'].includes(status)) {
-    throw new Error('Invalid enquiry status.');
-  }
-
-  const updated = await updateEventEnquiryStatusNeon(id, status);
-  if (!updated) throw new Error('Enquiry not found.');
 }
 
 /* ============================ Payments & Refunds Admin ============================ */

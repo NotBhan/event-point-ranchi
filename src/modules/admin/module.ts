@@ -18,8 +18,10 @@ import {
   customerDetail,
   customersList,
   dashboard,
-  eventEnquiriesList,
-  eventEnquiryDetail,
+  legacyEnquiriesRedirect,
+  legacyEnquiryDetailRedirect,
+  newEnquiriesList,
+  newEnquiryDetail,
   inquiriesList,
   paymentDetail,
   paymentsList,
@@ -33,8 +35,8 @@ import ContentPage from './pages/ContentPage.astro';
 import CustomerDetailPage from './pages/CustomerDetailPage.astro';
 import CustomersPage from './pages/CustomersPage.astro';
 import DashboardPage from './pages/DashboardPage.astro';
-import EventEnquiriesPage from './pages/EventEnquiriesPage.astro';
-import EventEnquiryDetailPage from './pages/EventEnquiryDetailPage.astro';
+import NewEnquiriesPage from './pages/NewEnquiriesPage.astro';
+import NewEnquiryDetailPage from './pages/NewEnquiryDetailPage.astro';
 import GalleryAdminPage from './pages/GalleryAdminPage.astro';
 import HallFormPage from './pages/HallFormPage.astro';
 import HallsPage from './pages/HallsPage.astro';
@@ -52,13 +54,13 @@ export default defineModule({
     { label: 'Dashboard', href: '/admin', icon: 'dashboard', order: 10 },
     { label: 'Bookings', href: '/admin/bookings', icon: 'ticket', order: 20 },
     { label: 'Payments', href: '/admin/payments', icon: 'credit-card', order: 22 },
-    { label: 'Event Enquiries', href: '/admin/enquiries', icon: 'calendar', order: 25 },
-    { label: 'Enquiry QR Scanner', href: '/admin/enquiries/scan', icon: 'camera', order: 26 },
+    { label: 'New Enquiries', href: '/admin/new-enquiries', icon: 'calendar', order: 15 },
+    { label: 'Enquiry QR Scanner', href: '/admin/enquiries/scan', icon: 'camera', order: 16 },
     { label: 'Halls', href: '/admin/halls', icon: 'building', order: 30 },
     { label: 'Catering', href: '/admin/catering', icon: 'utensils', order: 50 },
     { label: 'Gallery', href: '/admin/gallery', icon: 'image', order: 60 },
     { label: 'Customers', href: '/admin/customers', icon: 'users', order: 70 },
-    { label: 'Inquiries', href: '/admin/inquiries', icon: 'mail', order: 80 },
+    { label: 'Contact Messages', href: '/admin/inquiries', icon: 'mail', order: 80 },
     { label: 'Content', href: '/admin/content', icon: 'settings', order: 90 },
   ],
   routes: [
@@ -72,10 +74,12 @@ export default defineModule({
     { path: '/admin/payments', component: PaymentsPage, handle: paymentsList },
     { path: '/admin/payments/:id', component: PaymentDetailPage, handle: paymentDetail },
 
-    { path: '/admin/enquiries', component: EventEnquiriesPage, handle: eventEnquiriesList },
+    { path: '/admin/new-enquiries', component: NewEnquiriesPage, handle: newEnquiriesList },
+    { path: '/admin/new-enquiries/:id', component: NewEnquiryDetailPage, handle: newEnquiryDetail },
     { path: '/admin/enquiries/scan', component: ScanEnquiryPage, handle: scanEnquiry },
     { path: '/admin/scanner', component: ScanEnquiryPage, handle: scanEnquiry },
-    { path: '/admin/enquiries/:id', component: EventEnquiryDetailPage, handle: eventEnquiryDetail },
+    { path: '/admin/enquiries', component: NewEnquiriesPage, handle: legacyEnquiriesRedirect },
+    { path: '/admin/enquiries/:id', component: NewEnquiryDetailPage, handle: legacyEnquiryDetailRedirect },
 
     { path: '/admin/halls', component: HallsPage, handle: hallsList },
 

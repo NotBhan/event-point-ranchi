@@ -108,6 +108,92 @@ const bookingDepositSnapshot: SchemaMigration = {
 };
 
 /**
+ * Link an accepted enquiry to exactly one managed booking, and widen the
+ * enquiry/booking status vocabularies so the admin workflow can distinguish
+ * new/review/contacted/accepted/rejected enquiries from managed bookings.
+ */
+const enquiryBookingLifecycle: SchemaMigration = {
+  id: '005_enquiry_booking_lifecycle',
+  description: 'Link accepted enquiries to one booking and add the enquiry/booking workflow statuses',
+  async up(context) {
+    const { client, dialect } = context;
+
+    if (!(await context.hasColumn('bookings', 'source_enquiry_id'))) {
+      await client.query(
+        dialect === 'postgres'
+          ? 'ALTER TABLE bookings ADD COLUMN source_enquiry_id INTEGER'
+          : 'ALTER TABLE bookings ADD COLUMN source_enquiry_id INTEGER REFERENCES event_enquiries(id) ON DELETE SET NULL',
+      );
+    }
+
+    if (dialect === 'postgres') {
+      const foreignKey = await client.query(
+        `SELECT 1 FROM pg_constraint WHERE conname = 'bookings_source_enquiry_fk' AND conrelid = 'bookings'::regclass`,
+      );
+      if (!foreignKey.rows[0]) {
+        await client.query(
+          `ALTER TABLE bookings
+             ADD CONSTRAINT bookings_source_enquiry_fk
+             FOREIGN KEY (source_enquiry_id) REFERENCES event_enquiries(id) ON DELETE SET NULL`,
+        );
+      }
+    }
+
+    if (!(await context.hasColumn('bookings', 'venue_location'))) {
+      await client.query(`ALTER TABLE bookings ADD COLUMN venue_location TEXT NOT NULL DEFAULT ''`);
+    }
+
+    if (!(await context.hasColumn('event_enquiries', 'accepted_by'))) {
+      await client.query(
+        'ALTER TABLE event_enquiries ADD COLUMN accepted_by INTEGER REFERENCES users(id) ON DELETE SET NULL',
+      );
+    }
+
+    if (!(await context.hasColumn('event_enquiries', 'accepted_at'))) {
+      await client.query(
+        dialect === 'postgres'
+          ? 'ALTER TABLE event_enquiries ADD COLUMN accepted_at TIMESTAMPTZ'
+          : 'ALTER TABLE event_enquiries ADD COLUMN accepted_at TEXT',
+      );
+    }
+
+    if (!(await context.hasColumn('event_enquiries', 'rejection_reason'))) {
+      await client.query(
+        `ALTER TABLE event_enquiries ADD COLUMN rejection_reason TEXT NOT NULL DEFAULT ''`,
+      );
+    }
+
+    // Multiple NULLs are allowed; a non-NULL enquiry id can only ever own one
+    // booking, which makes duplicate/concurrent acceptance impossible.
+    await client.query(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_bookings_source_enquiry ON bookings(source_enquiry_id)',
+    );
+    await client.query(
+      'CREATE INDEX IF NOT EXISTS idx_event_enquiries_accepted_by ON event_enquiries(accepted_by)',
+    );
+
+    // PostgreSQL has CHECK constraints on the existing status columns. SQLite
+    // fallbacks deliberately do not enforce them (the status values are
+    // validated in the application layer).
+    if (dialect === 'postgres') {
+      await client.query(
+        'ALTER TABLE event_enquiries DROP CONSTRAINT IF EXISTS event_enquiries_status_check',
+      );
+      await client.query(
+        `ALTER TABLE event_enquiries ADD CONSTRAINT event_enquiries_status_check
+           CHECK (status IN ('new', 'reviewing', 'contacted', 'quoted', 'accepted', 'rejected', 'confirmed', 'archived'))`,
+      );
+
+      await client.query('ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_status_check');
+      await client.query(
+        `ALTER TABLE bookings ADD CONSTRAINT bookings_status_check
+           CHECK (status IN ('draft', 'pending', 'confirmed', 'completed', 'cancelled', 'closed'))`,
+      );
+    }
+  },
+};
+
+/**
  * Content publication ledger. Previously created lazily by the Content Studio.
  */
 const contentPublications: SchemaMigration = {
@@ -234,6 +320,7 @@ export const SCHEMA_MIGRATIONS: SchemaMigration[] = [
   contentPublications,
   contentReleases,
   contentDrafts,
+  enquiryBookingLifecycle,
 ];
 
 export function migrationDialect(client: MigrationClient): MigrationDialect {

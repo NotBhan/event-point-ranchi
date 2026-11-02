@@ -27,7 +27,7 @@ interface Props {
 const { user, customer, bookings } = Astro.props;
 const csrf = Astro.locals.csrf;
 const statusClass: Record<string, string> = {
-  draft: 'badge-muted', pending: 'badge-warning', confirmed: 'badge-success', cancelled: 'badge-danger',
+  draft: 'badge-muted', pending: 'badge-warning', confirmed: 'badge-success', completed: 'badge-info', cancelled: 'badge-danger', closed: 'badge-muted',
 };
 ---
 <BaseLayout title="My account | Event Point Ranchi" description="Manage your Event Point Ranchi account and bookings." noCart>

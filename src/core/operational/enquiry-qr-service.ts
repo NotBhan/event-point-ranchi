@@ -243,12 +243,11 @@ export class EnquiryQrService {
         outstanding_balance: number;
         payment_status: string;
       }>(
-        `SELECT b.id, b.status, b.total_amount, b.amount_paid, b.outstanding_balance, b.payment_status 
-         FROM bookings b
-         JOIN customers c ON c.id = b.customer_id
-         WHERE c.phone = $1 OR c.email = $2
-         ORDER BY b.id DESC LIMIT 1`,
-        [enquiryRow.customer_phone, enquiryRow.customer_email || '']
+        `SELECT b.id, b.status, b.total_amount, b.amount_paid, b.outstanding_balance, b.payment_status
+           FROM bookings b
+          WHERE b.source_enquiry_id = $1
+          LIMIT 1`,
+        [enquiryRow.id],
       );
       if (bookingRes.rows[0]) {
         const b = bookingRes.rows[0];

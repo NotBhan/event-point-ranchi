@@ -40,19 +40,22 @@ CREATE TABLE IF NOT EXISTS bookings (
   event_type          VARCHAR(100) NOT NULL DEFAULT 'Wedding',
   total_guest         INTEGER NOT NULL DEFAULT 100,
   special_request     TEXT NOT NULL DEFAULT '',
-  status              VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('draft', 'pending', 'confirmed', 'cancelled')),
+  status              VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('draft', 'pending', 'confirmed', 'completed', 'cancelled', 'closed')),
   total_amount        BIGINT NOT NULL DEFAULT 0,
   advance_amount      BIGINT NOT NULL DEFAULT 0,
   amount_paid         BIGINT NOT NULL DEFAULT 0,
   outstanding_balance BIGINT NOT NULL DEFAULT 0,
   payment_status      VARCHAR(30) NOT NULL DEFAULT 'unpaid' CHECK (payment_status IN ('unpaid', 'partially_paid', 'paid', 'refunded')),
   deposit_type        VARCHAR(20) NOT NULL DEFAULT 'percentage',
-  deposit_value       BIGINT NOT NULL DEFAULT 25
+  deposit_value       BIGINT NOT NULL DEFAULT 25,
+  source_enquiry_id   INTEGER UNIQUE,
+  venue_location      TEXT NOT NULL DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS idx_bookings_customer ON bookings(customer_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_event_date ON bookings(event_date);
 CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings(status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bookings_source_enquiry ON bookings(source_enquiry_id);
 
 CREATE TABLE IF NOT EXISTS booking_items (
   id            SERIAL PRIMARY KEY,
@@ -86,13 +89,17 @@ CREATE TABLE IF NOT EXISTS event_enquiries (
   accommodation_notes  TEXT NOT NULL DEFAULT '',
   decoration_notes     TEXT NOT NULL DEFAULT '',
   preferred_contact    VARCHAR(50) NOT NULL DEFAULT 'Phone',
-  status               VARCHAR(20) NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'reviewing', 'quoted', 'confirmed', 'archived')),
-  created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  status               VARCHAR(20) NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'reviewing', 'contacted', 'quoted', 'accepted', 'rejected', 'confirmed', 'archived')),
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  accepted_by          INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  accepted_at          TIMESTAMPTZ,
+  rejection_reason     TEXT NOT NULL DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS idx_event_enquiries_status ON event_enquiries(status);
 CREATE INDEX IF NOT EXISTS idx_event_enquiries_date ON event_enquiries(event_date);
 CREATE INDEX IF NOT EXISTS idx_event_enquiries_ref ON event_enquiries(reference_code);
+CREATE INDEX IF NOT EXISTS idx_event_enquiries_accepted_by ON event_enquiries(accepted_by);
 
 CREATE TABLE IF NOT EXISTS enquiry_line_items (
   id                           SERIAL PRIMARY KEY,

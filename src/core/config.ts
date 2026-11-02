@@ -21,10 +21,19 @@ export const site = {
   ],
 } as const;
 
-export const bookingStatuses = ['draft', 'pending', 'confirmed', 'cancelled'] as const;
+export const bookingStatuses = ['draft', 'pending', 'confirmed', 'completed', 'cancelled', 'closed'] as const;
 export type BookingStatus = (typeof bookingStatuses)[number];
 
-export const enquiryStatuses = ['new', 'reviewing', 'quoted', 'confirmed', 'archived'] as const;
+export const enquiryStatuses = [
+  'new',
+  'reviewing',
+  'contacted',
+  'quoted',
+  'accepted',
+  'rejected',
+  'confirmed',
+  'archived',
+] as const;
 export type EnquiryStatus = (typeof enquiryStatuses)[number];
 
 export const eventTypes = [

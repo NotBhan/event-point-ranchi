@@ -43,7 +43,18 @@ export interface EventEnquiryRow {
   accommodation_notes: string;
   decoration_notes: string;
   preferred_contact: string;
-  status: 'new' | 'reviewing' | 'quoted' | 'confirmed' | 'archived';
+  status:
+    | 'new'
+    | 'reviewing'
+    | 'contacted'
+    | 'quoted'
+    | 'accepted'
+    | 'rejected'
+    | 'confirmed'
+    | 'archived';
+  accepted_by?: number | null;
+  accepted_at?: string | null;
+  rejection_reason?: string | null;
   created_at: string;
 }
 
@@ -70,12 +81,14 @@ export interface BookingRow {
   event_type: string;
   total_guest: number;
   special_request: string;
-  status: 'draft' | 'pending' | 'confirmed' | 'cancelled';
+  status: 'draft' | 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'closed';
   total_amount: number;
   advance_amount: number;
   amount_paid: number;
   outstanding_balance: number;
   payment_status: 'unpaid' | 'partially_paid' | 'paid' | 'refunded';
+  source_enquiry_id?: number | null;
+  venue_location?: string | null;
   /** Snapshot of the deposit policy that produced `advance_amount`. */
   deposit_type?: DepositType;
   deposit_value?: number;
@@ -447,12 +460,6 @@ export async function getEventEnquiryById(id: number): Promise<{ enquiry: EventE
   return { enquiry, lineItems: liRes.rows };
 }
 
-export async function updateEventEnquiryStatus(id: number, status: string): Promise<boolean> {
-  const neon = getNeonClient();
-  const res = await neon.query('UPDATE event_enquiries SET status = $1 WHERE id = $2', [status, id]);
-  return res.rowCount > 0;
-}
-
 export interface NewEventEnquiryInput {
   customerName: string;
   customerPhone: string;
@@ -645,18 +652,40 @@ export async function countEventEnquiries(
   return Number(res.rows[0]?.count ?? 0);
 }
 
+/** Enquiries still requiring an admin decision. */
+export const ACTIVE_ENQUIRY_STATUSES = ['new', 'reviewing', 'contacted', 'quoted'] as const;
+
+const ENQUIRY_STATUS_GROUPS: Record<string, readonly string[]> = {
+  active: ACTIVE_ENQUIRY_STATUSES,
+  history: ['accepted', 'confirmed', 'rejected', 'archived'],
+  accepted: ['accepted', 'confirmed'],
+  rejected: ['rejected', 'archived'],
+};
+
 function buildEnquiryFilter(filters: { status?: string; query?: string }): { where: string; params: unknown[] } {
   const clauses: string[] = [];
   const params: unknown[] = [];
 
   if (filters.status && filters.status !== 'all') {
-    params.push(filters.status);
-    clauses.push(`status = $${params.length}`);
+    const group = ENQUIRY_STATUS_GROUPS[filters.status];
+    const statuses = group ?? [filters.status];
+    const placeholders = statuses.map((status) => {
+      params.push(status);
+      return `$${params.length}`;
+    });
+    clauses.push(`status IN (${placeholders.join(', ')})`);
   }
 
   if (filters.query) {
     const like = `%${filters.query.toLowerCase()}%`;
-    const columns = ['reference_code', 'customer_name', 'customer_phone', 'event_type', 'venue_location'];
+    const columns = [
+      'reference_code',
+      'customer_name',
+      'customer_phone',
+      'customer_email',
+      'event_type',
+      'venue_location',
+    ];
     const placeholders = columns.map((column) => {
       params.push(like);
       return `LOWER(${column}) LIKE $${params.length}`;
@@ -691,6 +720,78 @@ export async function getEventEnquiryWithItems(
       catalogue_item_id: line.catalogue_item_id === null ? null : Number(line.catalogue_item_id),
     })),
   };
+}
+
+export async function getEnquiryLineItemsForIds(ids: number[]): Promise<EnquiryLineItemRecord[]> {
+  const cleanIds = [...new Set(ids.map(Number).filter((id) => Number.isInteger(id) && id > 0))];
+  if (cleanIds.length === 0) return [];
+
+  const neon = getNeonClient();
+  const placeholders = cleanIds.map((_, index) => `$${index + 1}`).join(', ');
+  const res = await neon.query<EnquiryLineItemRecord>(
+    `SELECT * FROM enquiry_line_items
+      WHERE enquiry_id IN (${placeholders})
+      ORDER BY enquiry_id ASC, id ASC`,
+    cleanIds,
+  );
+
+  return res.rows.map((line) => ({
+    ...line,
+    requested_length_ft: optionalNumber(line.requested_length_ft),
+    requested_width_ft: optionalNumber(line.requested_width_ft),
+    requested_height_ft: optionalNumber(line.requested_height_ft),
+    quantity: Number(line.quantity ?? 0),
+    catalogue_item_id: line.catalogue_item_id === null ? null : Number(line.catalogue_item_id),
+  }));
+}
+
+export interface EnquiryBookingSummary {
+  id: number;
+  status: string;
+  total_amount: number;
+  payment_status: string;
+  created_at: string;
+}
+
+export async function getBookingForEnquiry(enquiryId: number): Promise<EnquiryBookingSummary | null> {
+  const neon = getNeonClient();
+  const res = await neon.query<EnquiryBookingSummary>(
+    `SELECT id, status, total_amount, payment_status, created_at
+       FROM bookings
+      WHERE source_enquiry_id = $1
+      LIMIT 1`,
+    [enquiryId],
+  );
+  const row = res.rows[0];
+  return row ? { ...row, total_amount: Number(row.total_amount ?? 0) } : null;
+}
+
+export async function getBookingsForEnquiryIds(
+  enquiryIds: number[],
+): Promise<Map<number, EnquiryBookingSummary>> {
+  const cleanIds = [...new Set(enquiryIds.map(Number).filter((id) => Number.isInteger(id) && id > 0))];
+  const result = new Map<number, EnquiryBookingSummary>();
+  if (cleanIds.length === 0) return result;
+
+  const neon = getNeonClient();
+  const placeholders = cleanIds.map((_, index) => `$${index + 1}`).join(', ');
+  const res = await neon.query<EnquiryBookingSummary & { source_enquiry_id: number }>(
+    `SELECT source_enquiry_id, id, status, total_amount, payment_status, created_at
+       FROM bookings
+      WHERE source_enquiry_id IN (${placeholders})`,
+    cleanIds,
+  );
+
+  for (const row of res.rows) {
+    result.set(Number(row.source_enquiry_id), {
+      id: Number(row.id),
+      status: row.status,
+      total_amount: Number(row.total_amount ?? 0),
+      payment_status: row.payment_status,
+      created_at: row.created_at,
+    });
+  }
+  return result;
 }
 
 /** `requires_rooms` is BOOLEAN in Postgres and INTEGER in the SQLite fallback. */
@@ -908,7 +1009,7 @@ export async function createBooking(data: {
   event_time?: string | null;
   total_guest?: number;
   special_request?: string;
-  status?: 'draft' | 'pending' | 'confirmed' | 'cancelled';
+  status?: 'draft' | 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'closed';
   total_amount: number;
   advance_amount?: number;
   amount_paid?: number;
@@ -959,7 +1060,7 @@ export async function updateBookingFinancials(
   amountPaid: number,
   outstandingBalance: number,
   paymentStatus: 'unpaid' | 'partially_paid' | 'paid' | 'refunded',
-  bookingStatus?: 'draft' | 'pending' | 'confirmed' | 'cancelled'
+  bookingStatus?: 'draft' | 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'closed'
 ): Promise<boolean> {
   const neon = getNeonClient();
   if (bookingStatus) {
@@ -1085,30 +1186,50 @@ function buildBookingFilter(filters: BookingListFilters): { where: string; param
   const clauses: string[] = [];
   const params: unknown[] = [];
 
-  if (filters.status && filters.status !== 'all') {
-    params.push(filters.status);
-    clauses.push(`b.status = $${params.length}`);
+  const status = filters.status;
+  if (status && status !== 'all') {
+    if (status === 'pending_payment') {
+      clauses.push(`b.status IN ('pending', 'confirmed')`);
+      clauses.push(`b.payment_status IN ('unpaid', 'partially_paid')`);
+    } else if (status === 'in_progress') {
+      clauses.push(`b.status IN ('pending', 'confirmed')`);
+    } else {
+      params.push(status);
+      clauses.push(`b.status = $${params.length}`);
+    }
   }
 
   if (filters.query) {
     const like = `%${filters.query.toLowerCase()}%`;
-    for (const expression of ['c.name', 'c.phone', 'CAST(b.id AS TEXT)', 'b.event_type']) {
+    const expressions = [
+      'c.name',
+      'c.phone',
+      'CAST(b.id AS TEXT)',
+      'b.event_type',
+      'b.venue_location',
+      'e.reference_code',
+    ];
+    const orGroup = expressions.map((expression) => {
       params.push(like);
-      clauses.push(`LOWER(${expression}) LIKE $${params.length}`);
-    }
-    // The four predicates above belong to one OR group.
-    const orGroup = clauses.splice(clauses.length - 4, 4);
+      return `LOWER(${expression}) LIKE $${params.length}`;
+    });
     clauses.push(`(${orGroup.join(' OR ')})`);
   }
 
   return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', params };
 }
 
+const BOOKING_JOINS = `
+  FROM bookings b
+  JOIN customers c ON c.id = b.customer_id
+  LEFT JOIN event_enquiries e ON e.id = b.source_enquiry_id
+  LEFT JOIN users u ON u.id = e.accepted_by`;
+
 export async function countBookings(filters: BookingListFilters = {}): Promise<number> {
   const neon = getNeonClient();
   const { where, params } = buildBookingFilter(filters);
   const res = await neon.query<{ count: number | string }>(
-    `SELECT COUNT(*) AS count FROM bookings b JOIN customers c ON c.id = b.customer_id ${where}`,
+    `SELECT COUNT(*) AS count ${BOOKING_JOINS} ${where}`,
     params,
   );
   return Number(res.rows[0]?.count ?? 0);
@@ -1123,7 +1244,14 @@ export interface BookingListRow {
   total_guest: number;
   total_amount: number;
   status: string;
+  payment_status: string;
   created_at: string;
+  source_enquiry_id: number | null;
+  source_reference: string | null;
+  venue_location: string | null;
+  accepted_by_name: string | null;
+  accepted_at: string | null;
+  item_count: number;
 }
 
 export async function listBookingsPage(
@@ -1137,8 +1265,12 @@ export async function listBookingsPage(
 
   const res = await neon.query<BookingListRow>(
     `SELECT b.id, c.name AS customer, c.phone AS phone, b.event_date, b.event_type,
-            b.total_guest, b.total_amount, b.status, b.created_at
-       FROM bookings b JOIN customers c ON c.id = b.customer_id
+            b.total_guest, b.total_amount, b.status, b.payment_status, b.created_at,
+            b.source_enquiry_id, b.venue_location,
+            e.reference_code AS source_reference, e.accepted_at,
+            COALESCE(NULLIF(u.first_name, ''), u.username) AS accepted_by_name,
+            (SELECT COUNT(*) FROM booking_items bi WHERE bi.booking_id = b.id) AS item_count
+       ${BOOKING_JOINS}
        ${where}
       ORDER BY b.id DESC
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
@@ -1149,6 +1281,8 @@ export async function listBookingsPage(
     ...row,
     total_guest: Number(row.total_guest ?? 0),
     total_amount: Number(row.total_amount ?? 0),
+    source_enquiry_id: row.source_enquiry_id === null ? null : Number(row.source_enquiry_id),
+    item_count: Number(row.item_count ?? 0),
   }));
 }
 

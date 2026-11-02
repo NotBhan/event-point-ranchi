@@ -121,7 +121,9 @@ export class NeonOperationalClient {
         outstanding_balance INTEGER NOT NULL DEFAULT 0,
         payment_status      TEXT NOT NULL DEFAULT 'unpaid',
         deposit_type        TEXT NOT NULL DEFAULT 'percentage',
-        deposit_value       INTEGER NOT NULL DEFAULT 25
+        deposit_value       INTEGER NOT NULL DEFAULT 25,
+        source_enquiry_id   INTEGER UNIQUE REFERENCES event_enquiries(id) ON DELETE SET NULL,
+        venue_location      TEXT NOT NULL DEFAULT ''
       );
 
       CREATE TABLE IF NOT EXISTS booking_items (
@@ -155,7 +157,10 @@ export class NeonOperationalClient {
         decoration_notes     TEXT NOT NULL DEFAULT '',
         preferred_contact    TEXT NOT NULL DEFAULT 'Phone',
         status               TEXT NOT NULL DEFAULT 'new',
-        created_at           TEXT NOT NULL DEFAULT (datetime('now'))
+        created_at           TEXT NOT NULL DEFAULT (datetime('now')),
+        accepted_by          INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        accepted_at          TEXT,
+        rejection_reason     TEXT NOT NULL DEFAULT ''
       );
 
       CREATE TABLE IF NOT EXISTS enquiry_line_items (

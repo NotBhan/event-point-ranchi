@@ -1,6 +1,14 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import { formatDate, formatDateTime, formatMoney } from '../../../core/http';
+import { bookingStatuses } from '../../../core/config';
+import {
+  bookingStatusClass,
+  bookingStatusLabel,
+  enquiryStatusLabel,
+  paymentStatusClass,
+  paymentStatusLabel,
+} from '../presentation';
 import type { QuotationData } from '../../bookings/service';
 
 interface Props {
@@ -10,7 +18,7 @@ interface Props {
 
 const { data, notFound = false } = Astro.props;
 const csrf = Astro.locals.csrf;
-const statuses = ['pending', 'confirmed', 'cancelled', 'draft'];
+const statuses = bookingStatuses;
 ---
 
 {notFound || !data ? (
@@ -24,9 +32,18 @@ const statuses = ['pending', 'confirmed', 'cancelled', 'draft'];
 ) : (
   <AdminLayout title={`Booking #${data.booking.id}`} description={`${data.customer.name} · ${data.booking.event_type}`}>
     <div class="admin-toolbar">
-      <a href="/admin/bookings" class="btn btn-secondary btn-sm">← All bookings</a>
-      <a href={`/booking/${data.booking.id}/quotation`} class="btn btn-secondary btn-sm" target="_blank" rel="noopener">Open invoice</a>
-      <span class="badge">{data.booking.status}</span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <a href="/admin/bookings" class="btn btn-secondary btn-sm">← All bookings</a>
+        {data.booking.source_enquiry_id && (
+          <a href={`/admin/new-enquiries/${data.booking.source_enquiry_id}`} class="btn btn-secondary btn-sm">
+            Source enquiry
+          </a>
+        )}
+        <a href={`/booking/${data.booking.id}/quotation`} class="btn btn-secondary btn-sm" target="_blank" rel="noopener">
+          Open invoice
+        </a>
+      </div>
+      <span class:list={['badge', bookingStatusClass(data.booking.status)]}>{bookingStatusLabel(data.booking.status)}</span>
     </div>
 
     <div class="admin-grid-3">
@@ -37,6 +54,7 @@ const statuses = ['pending', 'confirmed', 'cancelled', 'draft'];
           <div class="summary-row"><div class="summary-left"><small>Start time</small><h4>{data.booking.event_time || '—'}</h4></div></div>
           <div class="summary-row"><div class="summary-left"><small>Type</small><h4>{data.booking.event_type}</h4></div></div>
           <div class="summary-row"><div class="summary-left"><small>Guests</small><h4>{data.booking.total_guest}</h4></div></div>
+          <div class="summary-row"><div class="summary-left"><small>Venue</small><h4>{data.booking.venue_location || '—'}</h4></div></div>
           <div class="summary-row"><div class="summary-left"><small>Created</small><h4>{formatDateTime(data.booking.created_at)}</h4></div></div>
         </div>
       </div>
@@ -61,7 +79,9 @@ const statuses = ['pending', 'confirmed', 'cancelled', 'draft'];
               <label for="status">Booking status</label>
               <select class="select" id="status" name="status">
                 {statuses.map((status) => (
-                  <option value={status} selected={data.booking.status === status}>{status}</option>
+                  <option value={status} selected={data.booking.status === status}>
+                    {bookingStatusLabel(status)}
+                  </option>
                 ))}
               </select>
             </div>
@@ -79,6 +99,101 @@ const statuses = ['pending', 'confirmed', 'cancelled', 'draft'];
       </div>
     </div>
 
+    <div class="admin-panel">
+      <div class="admin-panel-head">
+        <div><h2>Source &amp; admin handling</h2><p>How this managed booking was created.</p></div>
+      </div>
+      <div class="admin-panel-body">
+        <div class="admin-grid-2">
+          <div>
+            <small class="text-muted">Source enquiry</small>
+            <h4>
+              {data.sourceEnquiry ? (
+                <a href={`/admin/new-enquiries/${data.sourceEnquiry.id}`} class="text-link">
+                  {data.sourceEnquiry.reference}
+                </a>
+              ) : (
+                'Direct booking'
+              )}
+            </h4>
+            {data.sourceEnquiry && (
+              <div class="text-xs text-muted">
+                {enquiryStatusLabel(data.sourceEnquiry.status)} · {formatDateTime(data.sourceEnquiry.acceptedAt)}
+              </div>
+            )}
+          </div>
+          <div>
+            <small class="text-muted">Accepted by</small>
+            <h4>{data.sourceEnquiry?.acceptedBy || '—'}</h4>
+            {data.sourceEnquiry?.acceptedAt && (
+              <div class="text-xs text-muted">{formatDateTime(data.sourceEnquiry.acceptedAt)}</div>
+            )}
+          </div>
+          <div>
+            <small class="text-muted">Event venue</small>
+            <h4>{data.booking.venue_location || data.sourceEnquiry?.venue || '—'}</h4>
+          </div>
+          <div>
+            <small class="text-muted">Booking status</small>
+            <h4>{bookingStatusLabel(data.booking.status)}</h4>
+            <div class="text-xs text-muted">{paymentStatusLabel(data.booking.payment_status)}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {data.sourceEnquiry && (
+      <div class="admin-panel">
+        <div class="admin-panel-head">
+          <div>
+            <h2>Source enquiry selections</h2>
+            <p>Preserved from the accepted enquiry; these are not re-created from the browser.</p>
+          </div>
+          <a href={`/admin/new-enquiries/${data.sourceEnquiry.id}`} class="btn btn-secondary btn-sm">
+            Open source enquiry
+          </a>
+        </div>
+        <div class="admin-panel-body flush">
+          {data.sourceEnquiry.lines.length === 0 ? (
+            <div class="admin-empty">No catalogue line items were attached to the source enquiry.</div>
+          ) : (
+            <div class="table-wrap">
+              <table class="table table-stack">
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th>Item</th>
+                    <th>Qty</th>
+                    <th>Dimensions</th>
+                    <th>Specifications &amp; notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.sourceEnquiry.lines.map((line) => (
+                    <tr>
+                      <td data-label="Type"><span class="badge badge-muted">{line.itemType}</span></td>
+                      <td data-label="Item">
+                        <strong>{line.name}</strong>
+                        {line.catalogueItemId && (
+                          <div class="text-xs text-muted">Catalogue #{line.catalogueItemId}</div>
+                        )}
+                      </td>
+                      <td data-label="Quantity">{line.quantity}</td>
+                      <td data-label="Dimensions" class="text-sm">{line.dimensions || '—'}</td>
+                      <td data-label="Specifications & notes" class="text-sm">
+                        {line.specifications || '—'}
+                        {line.notes && <div class="text-xs text-muted">Note: {line.notes}</div>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
+
     <!-- Financial Breakdown & Deposit Configuration -->
     <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(320px, 100%), 1fr));gap:20px;margin-bottom:24px;">
       <!-- Financial Overview -->
@@ -88,8 +203,8 @@ const statuses = ['pending', 'confirmed', 'cancelled', 'draft'];
             <h2>Financial Breakdown</h2>
             <p>Ledger balances and payment health</p>
           </div>
-          <span class={`badge ${(data.booking.payment_status || 'unpaid') === 'paid' ? 'badge-success' : (data.booking.payment_status || 'unpaid') === 'partially_paid' ? 'badge-info' : 'badge-gold'}`}>
-            {(data.booking.payment_status || 'unpaid').toUpperCase()}
+          <span class:list={['badge', paymentStatusClass(data.booking.payment_status)]}>
+            {paymentStatusLabel(data.booking.payment_status)}
           </span>
         </div>
         <div class="admin-panel-body">

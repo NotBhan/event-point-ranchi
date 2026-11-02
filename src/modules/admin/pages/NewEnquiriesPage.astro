@@ -1,0 +1,193 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import AdminPager from '../../../components/admin/AdminPager.astro';
+import { formatDate, formatDateTime, formatMoney } from '../../../core/http';
+import {
+  bookingStatusLabel,
+  enquiryFilterTabs,
+  enquiryStatusClass,
+  enquiryStatusLabel,
+  paymentStatusLabel,
+  summariseEnquiryLines,
+} from '../presentation';
+import type { listNewEnquiries } from '../service';
+
+interface Props {
+  items: Awaited<ReturnType<typeof listNewEnquiries>>['items'];
+  pagination: Awaited<ReturnType<typeof listNewEnquiries>>['pagination'];
+  status: string;
+  query: string;
+}
+
+const { items: enquiries, pagination, status, query } = Astro.props;
+
+const pageHref = (page: number) =>
+  `/admin/new-enquiries?status=${encodeURIComponent(status)}&q=${encodeURIComponent(query)}&page=${page}`;
+const tabHref = (value: string) =>
+  `/admin/new-enquiries?status=${encodeURIComponent(value)}${query ? `&q=${encodeURIComponent(query)}` : ''}`;
+const listDescription =
+  status === 'active'
+    ? `${enquiries.length} enquir${enquiries.length === 1 ? 'y' : 'ies'} awaiting an admin decision.`
+    : `${enquiries.length} enquir${enquiries.length === 1 ? 'y' : 'ies'} in this view.`;
+
+function namesSummary(names: string[]): string {
+  if (names.length <= 2) return names.join(', ');
+  return `${names.slice(0, 2).join(', ')} +${names.length - 2}`;
+}
+---
+
+<AdminLayout title="New Enquiries" description={listDescription}>
+  <div class="admin-panel">
+    <div class="admin-panel-head">
+      <div>
+        <h2>Incoming enquiry inbox</h2>
+        <p>
+          New customer enquiries awaiting review. Accepting an enquiry creates a managed booking;
+          viewing or contacting an enquiry does not.
+        </p>
+      </div>
+      <a href="/admin/enquiries/scan" class="btn btn-secondary btn-sm">Scan enquiry QR</a>
+    </div>
+
+    <div class="admin-panel-body">
+      <form method="GET" action="/admin/new-enquiries" class="admin-toolbar">
+        <input
+          class="input"
+          type="search"
+          name="q"
+          value={query}
+          placeholder="Search reference, name, phone, email, venue…"
+        />
+        <input type="hidden" name="status" value={status} />
+        <button type="submit" class="btn btn-secondary btn-sm">Search</button>
+      </form>
+      <p class="text-xs text-muted" style="margin: 10px 0 0;">Newest first.</p>
+    </div>
+
+    <div class="admin-subnav" style="padding: 0 20px 14px;">
+      {enquiryFilterTabs.map(([value, label]) => (
+        <a href={tabHref(value)} class:list={{ active: status === value }}>{label}</a>
+      ))}
+    </div>
+
+    <div class="admin-panel-body flush">
+      {enquiries.length === 0 ? (
+        <div class="admin-empty">
+          No enquiries in this view.
+          {status === 'active' && ' New customer enquiries will appear here.'}
+        </div>
+      ) : (
+        <div class="table-wrap">
+          <table class="table table-stack">
+            <thead>
+              <tr>
+                <th>Reference</th>
+                <th>Customer</th>
+                <th>Event</th>
+                <th>Venue</th>
+                <th>Selections</th>
+                <th>Pricing</th>
+                <th>Received</th>
+                <th>Status</th>
+                <th style="text-align:right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {enquiries.map((enquiry) => {
+                const selections = summariseEnquiryLines(enquiry.lines);
+                return (
+                  <tr>
+                    <td data-label="Reference">
+                      <a href={`/admin/new-enquiries/${enquiry.id}`} style="font-weight:600;color:var(--ink);">
+                        {enquiry.reference_code}
+                      </a>
+                      <div class="text-xs text-muted">#{enquiry.id}</div>
+                    </td>
+                    <td data-label="Customer">
+                      <strong>{enquiry.customer_name}</strong>
+                      <div class="text-xs text-muted">{enquiry.customer_phone}</div>
+                      {enquiry.customer_email && <div class="text-xs text-muted">{enquiry.customer_email}</div>}
+                    </td>
+                    <td data-label="Event">
+                      {enquiry.event_type}
+                      <div class="text-xs text-muted">
+                        {formatDate(enquiry.event_date)}
+                        {enquiry.end_date ? ` – ${formatDate(enquiry.end_date)}` : ''}
+                      </div>
+                      <div class="text-xs text-muted">{enquiry.guest_count} guests</div>
+                    </td>
+                    <td data-label="Venue" style="max-width:220px;">{enquiry.venue_location}</td>
+                    <td data-label="Selections" style="max-width:300px;">
+                      {selections.hasSelections ? (
+                        <div class="text-xs" style="display:grid;gap:4px;">
+                          {selections.mandap.length > 0 && (
+                            <div><span class="text-muted">Mandap:</span> {namesSummary(selections.mandap)}</div>
+                          )}
+                          {selections.stage.length > 0 && (
+                            <div><span class="text-muted">Stage:</span> {namesSummary(selections.stage)}</div>
+                          )}
+                          {selections.furniture.length > 0 && (
+                            <div><span class="text-muted">Furniture &amp; equipment:</span> {namesSummary(selections.furniture)}</div>
+                          )}
+                          {selections.catering.length > 0 ? (
+                            <div><span class="text-muted">Catering:</span> {namesSummary(selections.catering)}</div>
+                          ) : (
+                            <div class="text-muted">Catering: not selected</div>
+                          )}
+                        </div>
+                      ) : (
+                        <span class="text-xs text-muted">No catalogue selections</span>
+                      )}
+                    </td>
+                    <td data-label="Pricing">
+                      <span class="text-sm">
+                        {enquiry.booking ? 'Final booking amount' : 'Pricing on quotation'}
+                      </span>
+                      <div class="text-xs text-muted">Budget: {enquiry.budget_range || '—'}</div>
+                      {enquiry.booking && (
+                        <div class="text-xs" style="margin-top:4px;">
+                          <a href={`/admin/bookings/${enquiry.booking.id}`} class="text-link">
+                            Booking #{enquiry.booking.id} · {formatMoney(enquiry.booking.total_amount)}
+                          </a>
+                          <div class="text-muted">
+                            {bookingStatusLabel(enquiry.booking.status)} · {paymentStatusLabel(enquiry.booking.payment_status)}
+                          </div>
+                        </div>
+                      )}
+                    </td>
+                    <td data-label="Received" class="text-xs">{formatDateTime(enquiry.created_at)}</td>
+                    <td data-label="Status">
+                      <span class:list={['badge', enquiryStatusClass(enquiry.status)]}>
+                        {enquiryStatusLabel(enquiry.status)}
+                      </span>
+                      {enquiry.booking && (
+                        <div class="text-xs text-muted" style="margin-top:4px;">Converted to booking</div>
+                      )}
+                    </td>
+                    <td data-label="Actions">
+                      <div class="admin-row-actions">
+                        <a href={`/admin/new-enquiries/${enquiry.id}`} class="btn btn-secondary btn-sm">Open</a>
+                        {enquiry.booking && (
+                          <a href={`/admin/bookings/${enquiry.booking.id}`} class="btn btn-ghost btn-sm">Booking</a>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <AdminPager
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          totalCount={pagination.totalCount}
+          startItem={pagination.startItem}
+          endItem={pagination.endItem}
+          label="enquiries"
+          href={pageHref}
+        />
+      )}
+    </div>
+  </div>
+</AdminLayout>

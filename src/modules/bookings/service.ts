@@ -167,9 +167,29 @@ export interface QuotationData {
     outstanding_balance?: number;
     payment_status?: string;
     access_token?: string;
+    source_enquiry_id?: number | null;
+    venue_location?: string | null;
   };
   customer: { name: string; phone: string; email: string; address: string };
   lines: BookingLine[];
+  /** Original enquiry selections for a booking created by accepting an enquiry. */
+  sourceEnquiry?: {
+    id: number;
+    reference: string;
+    status: string;
+    venue: string;
+    acceptedAt: string | null;
+    acceptedBy: string | null;
+    lines: Array<{
+      itemType: string;
+      catalogueItemId: number | null;
+      name: string;
+      quantity: number;
+      dimensions: string;
+      specifications: string;
+      notes: string;
+    }>;
+  } | null;
   /**
    * True for bookings created before line items were stored in the operational
    * database. Their itemised breakdown is unrecoverable, so the page must say so
@@ -186,6 +206,7 @@ const LINE_LABELS: Record<string, string> = {
   furniture: 'Furniture & seating',
   service: 'Additional service',
   catering: 'Catering package',
+  quotation: 'Accepted quotation',
 };
 
 function metadataFor(item: BookingItemRow): Record<string, any> {
@@ -201,6 +222,24 @@ function describeBookingLine(item: BookingItemRow): BookingLine {
   const meta = metadataFor(item);
   const label = LINE_LABELS[item.category] ?? item.category;
   const unitInr = (Number(item.unit_price) / 100).toLocaleString('en-IN');
+
+  if (item.category === 'quotation') {
+    const reference = typeof meta.sourceEnquiryReference === 'string' ? meta.sourceEnquiryReference : '';
+    const sourceItems = Array.isArray(meta.sourceItems) ? meta.sourceItems : [];
+    const summary = sourceItems
+      .map((entry: any) => {
+        const name = String(entry?.name ?? '').trim();
+        const quantity = Math.max(1, Number(entry?.quantity ?? 1));
+        return name ? `${name}${quantity > 1 ? ` × ${quantity}` : ''}` : '';
+      })
+      .filter(Boolean)
+      .join(' · ');
+    return {
+      label,
+      detail: `${reference ? `Quotation for ${reference}` : 'Quotation accepted by the admin'}${summary ? ` — ${summary}` : ''}`,
+      amount: Number(item.subtotal),
+    };
+  }
 
   if (item.category === 'furniture') {
     return { label, detail: `${item.item_name} × ${item.quantity}`, amount: Number(item.subtotal) };
@@ -258,6 +297,8 @@ export async function loadBookingForViewer(
     access_token: string;
     customer_id: number;
     user_id: number | null;
+    source_enquiry_id?: number | null;
+    venue_location?: string | null;
   }>(
     `SELECT b.*, c.user_id AS user_id
        FROM bookings b
@@ -283,6 +324,63 @@ export async function loadBookingForViewer(
   const lines = items.map(describeBookingLine);
   const isLegacy = lines.length === 0 && Number(booking.total_amount) > 0;
 
+  let sourceEnquiry: QuotationData['sourceEnquiry'] = null;
+  if (booking.source_enquiry_id) {
+    const enquiryRes = await neon.query<{
+      id: number;
+      reference_code: string;
+      status: string;
+      venue_location: string;
+      accepted_at: string | null;
+      accepted_by_name: string | null;
+    }>(
+      `SELECT e.id, e.reference_code, e.status, e.venue_location, e.accepted_at,
+              COALESCE(NULLIF(u.first_name, ''), u.username) AS accepted_by_name
+         FROM event_enquiries e
+         LEFT JOIN users u ON u.id = e.accepted_by
+        WHERE e.id = $1
+        LIMIT 1`,
+      [booking.source_enquiry_id],
+    );
+    const enquiry = enquiryRes.rows[0];
+    if (enquiry) {
+      const sourceLines = await neon.query<{
+        item_type: string;
+        catalogue_item_id: number | null;
+        item_name_snapshot: string;
+        quantity: number;
+        standard_dimensions_snapshot: string;
+        specifications: string;
+        notes: string;
+      }>(
+        `SELECT item_type, catalogue_item_id, item_name_snapshot, quantity,
+                standard_dimensions_snapshot, specifications, notes
+           FROM enquiry_line_items
+          WHERE enquiry_id = $1
+          ORDER BY id ASC`,
+        [enquiry.id],
+      );
+
+      sourceEnquiry = {
+        id: Number(enquiry.id),
+        reference: enquiry.reference_code,
+        status: enquiry.status,
+        venue: enquiry.venue_location,
+        acceptedAt: enquiry.accepted_at,
+        acceptedBy: enquiry.accepted_by_name,
+        lines: sourceLines.rows.map((line) => ({
+          itemType: line.item_type,
+          catalogueItemId: line.catalogue_item_id === null ? null : Number(line.catalogue_item_id),
+          name: line.item_name_snapshot,
+          quantity: Number(line.quantity ?? 0),
+          dimensions: line.standard_dimensions_snapshot || '',
+          specifications: line.specifications || '',
+          notes: line.notes || '',
+        })),
+      };
+    }
+  }
+
   return {
     booking: {
       ...booking,
@@ -299,6 +397,7 @@ export async function loadBookingForViewer(
       address: customerRow?.address ?? '',
     },
     lines,
+    sourceEnquiry,
     isLegacy,
     legacyReason: isLegacy
       ? 'This booking was recorded before itemised line items were stored. The total is correct; the original breakdown is no longer available.'

@@ -28,10 +28,10 @@ const tabs = [
 ];
 ---
 
-<AdminLayout title="Inquiries" description={`${inquiries.length} enquiries from the contact form.`}>
+<AdminLayout title="Contact Messages" description={`${inquiries.length} message${inquiries.length === 1 ? '' : 's'} from the website contact form.`}>
   <div class="admin-panel">
     <div class="admin-panel-head">
-      <div><h2>Contact enquiries</h2><p>Call customers, then mark them contacted or closed.</p></div>
+      <div><h2>Contact messages</h2><p>Messages from the website contact form, separate from event enquiries. Call customers, then mark them contacted or closed.</p></div>
       <div class="admin-subnav">
         {tabs.map(([value, label]) => (
           <a href={`/admin/inquiries?status=${value}`} class:list={{ active: status === value }}>{label}</a>
@@ -41,7 +41,7 @@ const tabs = [
 
     <div class="admin-panel-body flush">
       {inquiries.length === 0 ? (
-        <div class="admin-empty">No inquiries in this view.</div>
+        <div class="admin-empty">No contact messages in this view.</div>
       ) : (
         <div class="table-wrap">
           <table class="table table-stack">

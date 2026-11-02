@@ -11,7 +11,7 @@ const { initialToken = '' } = Astro.props;
 
 <AdminLayout title="Enquiry QR Scanner" description="Instant smartphone & webcam QR decoder for customer event enquiries.">
   <div class="admin-toolbar">
-    <a href="/admin/enquiries" class="btn btn-secondary btn-sm">← All event enquiries</a>
+    <a href="/admin/new-enquiries" class="btn btn-secondary btn-sm">← New Enquiries</a>
     <span class="text-xs text-muted">Admin Quick Dispatch Desk</span>
   </div>
 
@@ -505,7 +505,7 @@ const { initialToken = '' } = Astro.props;
             <!-- Linked Booking Info (if converted) -->
             ${enq.linkedBooking ? `
               <div style="background:rgba(46,125,50,0.08);border:1px solid rgba(46,125,50,0.25);border-radius:var(--r-md);padding:12px 16px;font-size:13px;">
-                <strong style="color:#2e7d32;display:block;margin-bottom:4px;">Linked Active Booking #${esc(enq.linkedBooking.id)}</strong>
+                <strong style="color:#2e7d32;display:block;margin-bottom:4px;">Linked booking <a href="/admin/bookings/${esc(enq.linkedBooking.id)}" style="color:#2e7d32;text-decoration:underline;">#${esc(enq.linkedBooking.id)}</a></strong>
                 <div style="display:flex;justify-content:space-between;font-size:12.5px;">
                   <span>Payment Status: <strong style="text-transform:uppercase;">${esc(enq.linkedBooking.paymentStatus)}</strong></span>
                   <span>Balance: <strong>₹${(Number(enq.linkedBooking.outstandingBalance) / 100).toLocaleString('en-IN')}</strong></span>
@@ -515,7 +515,7 @@ const { initialToken = '' } = Astro.props;
 
             <!-- Quick Action Dispatch Buttons -->
             <div style="display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:16px;">
-              <a href="/admin/enquiries/${esc(enq.id)}" class="btn btn-primary btn-sm">
+              <a href="/admin/new-enquiries/${esc(enq.id)}" class="btn btn-primary btn-sm">
                 View Full Enquiry &rarr;
               </a>
               ${cleanPhone ? `

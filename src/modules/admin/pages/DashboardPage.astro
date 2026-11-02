@@ -19,7 +19,9 @@ const statusClass: Record<string, string> = {
   draft: 'badge-muted',
   pending: 'badge-warning',
   confirmed: 'badge-success',
+  completed: 'badge-info',
   cancelled: 'badge-danger',
+  closed: 'badge-muted',
 };
 
 const levelBadge: Record<string, string> = {
@@ -42,7 +44,7 @@ const stats = [
   { label: 'Total bookings', value: counts.bookings, icon: 'ticket', hint: `${counts.pending} awaiting confirmation` },
   { label: 'Pipeline value', value: formatMoney(counts.revenue), icon: 'receipt', hint: 'Pending + confirmed bookings' },
   { label: 'Active venues', value: counts.halls, icon: 'building', hint: `${counts.packages} catering packages` },
-  { label: 'Customers', value: counts.customers, icon: 'users', hint: `${counts.inquiries} new inquiries` },
+  { label: 'Customers', value: counts.customers, icon: 'users', hint: `${counts.inquiries} new contact messages` },
 ];
 ---
 
