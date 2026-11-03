@@ -2,13 +2,18 @@
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import Icon from '../../../components/Icon.astro';
 import { getSiteSettings } from '../../../core/content/service';
-import { getReceiptService, formatINR } from '../../../core/payment/receipt-service';
+import { paymentsEnabled } from '../../../core/features';
 
 // Payment receipts contain customer and transaction details. Token-gated access
 // does not make the HTML safe to store in a shared or browser cache.
 Astro.response.headers.set('Cache-Control', 'private, no-store');
 Astro.response.headers.set('Pragma', 'no-cache');
 
+if (!paymentsEnabled()) {
+  return new Response('Not found', { status: 404, headers: { 'content-type': 'text/plain' } });
+}
+
+const { getReceiptService, formatINR } = await import('../../../core/payment/receipt-service');
 const settings = await getSiteSettings();
 const brandName = settings.name || 'Event Point Ranchi';
 

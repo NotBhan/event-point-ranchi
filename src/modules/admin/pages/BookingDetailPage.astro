@@ -88,13 +88,6 @@ const statuses = bookingStatuses;
             <button type="submit" class="btn btn-primary">Save status</button>
           </form>
 
-          <form method="POST" action={`/admin/bookings/${data.booking.id}`} style="margin-top:16px;">
-            <input type="hidden" name="_csrf" value={csrf} />
-            <input type="hidden" name="action" value="delete" />
-            <button type="submit" class="btn btn-danger-soft btn-block" data-confirm="Delete this booking permanently?">
-              Delete booking
-            </button>
-          </form>
         </div>
       </div>
     </div>

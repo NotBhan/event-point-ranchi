@@ -1,7 +1,8 @@
 import type { APIRoute } from 'astro';
-import { getPaymentService } from '../../../core/payment/payment-service';
+import { paymentsEnabled } from '../../../core/features';
 
 export const POST: APIRoute = async ({ request }) => {
+  if (!paymentsEnabled()) return notFound();
   try {
     let body: any = {};
     try {
@@ -25,6 +26,7 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
+    const { getPaymentService } = await import('../../../core/payment/payment-service');
     const paymentService = getPaymentService();
     const result = await paymentService.verifyAndFulfillPayment({
       provider,
@@ -78,3 +80,10 @@ export const POST: APIRoute = async ({ request }) => {
     );
   }
 };
+
+function notFound(): Response {
+  return new Response(JSON.stringify({ status: 'error', message: 'Not found.' }), {
+    status: 404,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}

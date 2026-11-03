@@ -1,7 +1,9 @@
 import type { APIRoute } from 'astro';
-import { getReceiptService } from '../../../../core/payment/receipt-service';
+import { paymentsEnabled } from '../../../../core/features';
 
 export const GET: APIRoute = async ({ url }) => {
+  if (!paymentsEnabled()) return notFound();
+  const { getReceiptService } = await import('../../../../core/payment/receipt-service');
   const token = url.searchParams.get('token');
   const receiptNumber = url.searchParams.get('receiptNumber');
   const paymentIdParam = url.searchParams.get('paymentId');
@@ -47,3 +49,10 @@ export const GET: APIRoute = async ({ url }) => {
     );
   }
 };
+
+function notFound(): Response {
+  return new Response(JSON.stringify({ error: 'Not found.' }), {
+    status: 404,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}

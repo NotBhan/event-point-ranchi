@@ -23,7 +23,8 @@ const email = settings.email || 'info@eventpointranchi.com';
       <span class="eyebrow">Legal & Compliance</span>
       <h1>Payment & Booking Policy</h1>
       <p>
-        How booking advances, partial payments, server-side verification, and receipts work at {brandName}.
+        Payment arrangements during the current core launch are handled directly by our team.
+        Online checkout, gateway verification, payment receipts and refunds are not currently available.
       </p>
     </div>
   </section>
@@ -31,6 +32,13 @@ const email = settings.email || 'info@eventpointranchi.com';
   <section class="section">
     <div class="container-narrow policy-content">
       <PolicyNav current="payment-policy" />
+
+      <div class="panel mb-8" style="padding:20px;background:var(--danger-soft);border:1px solid var(--line);border-radius:var(--r-md);">
+        <p style="margin:0;font-size:13.5px;color:var(--body);">
+          <strong>Phase 1 availability:</strong> Online payment checkout, gateway verification, payment receipts and refunds are currently unavailable.
+          Please contact {brandName} to arrange payment. The policy below describes the planned online-payment process for a future phase.
+        </p>
+      </div>
 
       <div class="panel mb-8" style="padding:20px;background:var(--canvas-warm);border:1px solid var(--line);border-radius:var(--r-md);">
         <p style="margin:0;font-size:13.5px;color:var(--muted);">
@@ -60,9 +68,9 @@ const email = settings.email || 'info@eventpointranchi.com';
       </article>
 
       <article id="supported-payment-methods">
-        <h2>2. Supported Payment Gateways & Instruments</h2>
+        <h2>2. Planned Payment Gateways & Instruments</h2>
         <p>
-          We accept payments via India's trusted RBI-licensed Payment Aggregator <strong>PhonePe</strong>:
+          When online payments are enabled, the planned provider is the RBI-licensed Payment Aggregator <strong>PhonePe</strong>.
         </p>
         <ul class="spec-list">
           <li><Icon name="check-circle" size={15} /> <strong>UPI (Unified Payments Interface):</strong> Instant, zero-surcharge payments via Google Pay, PhonePe, Paytm, BHIM, Cred, and all BHIM-UPI applications.</li>

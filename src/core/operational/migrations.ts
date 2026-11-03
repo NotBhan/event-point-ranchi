@@ -75,6 +75,203 @@ async function ensureMigrationTable(context: MigrationContext): Promise<void> {
   );
 }
 
+const BOOKING_DEPOSIT_INDEX = 'idx_bookings_deposit_type';
+
+interface DepositColumnDefinition {
+  type: string;
+  length: number | null;
+  nullable: boolean;
+  default: string | null;
+}
+
+interface PostgresIndexDefinition {
+  table_name: string;
+  method: string;
+  is_unique: boolean;
+  is_valid: boolean;
+  is_ready: boolean;
+  has_predicate: boolean;
+  has_expressions: boolean;
+  key_count: number;
+  total_count: number;
+  key_column: string | null;
+}
+
+function normalizeDefault(value: string | null): string | null {
+  if (value === null) return null;
+
+  let normalized = value.trim();
+  let unwrapped = true;
+  while (unwrapped && normalized.startsWith('(') && normalized.endsWith(')')) {
+    normalized = normalized.slice(1, -1).trim();
+    unwrapped = normalized.startsWith('(') && normalized.endsWith(')');
+  }
+  normalized = normalized.replace(/::[a-z_][a-z0-9_ ]*(?:\(\d+\))?/gi, '').trim();
+  return normalized.replace(/\s+/g, ' ');
+}
+
+async function readDepositColumn(
+  client: MigrationClient,
+  dialect: MigrationDialect,
+  column: 'deposit_type' | 'deposit_value',
+): Promise<DepositColumnDefinition | null> {
+  if (dialect === 'postgres') {
+    const result = await client.query<{
+      data_type: string;
+      character_maximum_length: number | null;
+      is_nullable: string;
+      column_default: string | null;
+    }>(
+      `SELECT data_type, character_maximum_length, is_nullable, column_default
+         FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'bookings' AND column_name = $1`,
+      [column],
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      type: row.data_type,
+      length: row.character_maximum_length === null ? null : Number(row.character_maximum_length),
+      nullable: row.is_nullable !== 'NO',
+      default: row.column_default,
+    };
+  }
+
+  const result = await client.query<{
+    name: string;
+    type: string;
+    notnull: number;
+    dflt_value: string | null;
+  }>('PRAGMA table_info(bookings)');
+  const row = result.rows.find((candidate) => candidate.name === column);
+  if (!row) return null;
+  return {
+    type: row.type,
+    length: null,
+    nullable: Number(row.notnull) !== 1,
+    default: row.dflt_value,
+  };
+}
+
+function assertDepositColumn(
+  column: DepositColumnDefinition,
+  dialect: MigrationDialect,
+  name: 'deposit_type' | 'deposit_value',
+): void {
+  const expectedType =
+    dialect === 'postgres'
+      ? name === 'deposit_type'
+        ? 'character varying'
+        : 'bigint'
+      : name === 'deposit_type'
+        ? 'TEXT'
+        : 'INTEGER';
+  const expectedLength = dialect === 'postgres' && name === 'deposit_type' ? 20 : null;
+  const expectedDefault = name === 'deposit_type' ? "'percentage'" : '25';
+  const expectedDefinition =
+    dialect === 'postgres'
+      ? name === 'deposit_type'
+        ? "varchar(20) NOT NULL DEFAULT 'percentage'"
+        : 'bigint NOT NULL DEFAULT 25'
+      : name === 'deposit_type'
+        ? "TEXT NOT NULL DEFAULT 'percentage'"
+        : 'INTEGER NOT NULL DEFAULT 25';
+
+  const actualType =
+    dialect === 'postgres'
+      ? `${column.type}${column.length === null ? '' : `(${column.length})`}`
+      : column.type;
+  const typeMismatch = column.type !== expectedType || (expectedLength !== null && column.length !== expectedLength);
+  const defaultMismatch = normalizeDefault(column.default) !== expectedDefault;
+
+  if (typeMismatch || column.nullable || defaultMismatch) {
+    throw new Error(
+      `Migration 001 schema drift: bookings.${name} is ${actualType}${column.nullable ? ' NULL' : ' NOT NULL'} DEFAULT ${column.default ?? 'none'}, expected ${expectedDefinition}.`,
+    );
+  }
+}
+
+async function assertDepositIndexCompatible(
+  client: MigrationClient,
+  dialect: MigrationDialect,
+): Promise<boolean> {
+  if (dialect === 'postgres') {
+    const result = await client.query<PostgresIndexDefinition>(
+      `SELECT t.relname AS table_name,
+              am.amname AS method,
+              ix.indisunique AS is_unique,
+              ix.indisvalid AS is_valid,
+              ix.indisready AS is_ready,
+              ix.indpred IS NOT NULL AS has_predicate,
+              ix.indexprs IS NOT NULL AS has_expressions,
+              ix.indnkeyatts AS key_count,
+              ix.indnatts AS total_count,
+              a.attname AS key_column
+         FROM pg_class i
+         JOIN pg_index ix ON ix.indexrelid = i.oid
+         JOIN pg_class t ON t.oid = ix.indrelid
+         JOIN pg_am am ON am.oid = i.relam
+         LEFT JOIN pg_attribute a
+           ON a.attrelid = t.oid AND a.attnum = ix.indkey[0]
+        WHERE i.relname = $1
+          AND i.relnamespace = 'public'::regnamespace`,
+      [BOOKING_DEPOSIT_INDEX],
+    );
+
+    if (result.rows.length === 0) return false;
+
+    const index = result.rows[0];
+    const compatible =
+      result.rows.length === 1 &&
+      index.table_name === 'bookings' &&
+      index.method === 'btree' &&
+      index.is_unique === false &&
+      index.is_valid === true &&
+      index.is_ready === true &&
+      index.has_predicate === false &&
+      index.has_expressions === false &&
+      Number(index.key_count) === 1 &&
+      Number(index.total_count) === 1 &&
+      index.key_column === 'deposit_type';
+
+    if (!compatible) {
+      throw new Error(
+        `Migration 001 schema drift: index ${BOOKING_DEPOSIT_INDEX} exists but is not the expected non-unique btree index on bookings(deposit_type).`,
+      );
+    }
+    return true;
+  }
+
+  const master = await client.query<{ tbl_name: string; sql: string | null }>(
+    `SELECT tbl_name, sql FROM sqlite_master WHERE type = 'index' AND name = ?`,
+    [BOOKING_DEPOSIT_INDEX],
+  );
+  if (!master.rows[0]) return false;
+
+  const listed = await client.query<{ name: string; unique: number; partial: number }>(
+    'PRAGMA index_list(bookings)',
+  );
+  const index = listed.rows.find((candidate) => candidate.name === BOOKING_DEPOSIT_INDEX);
+  const info = await client.query<{ name: string | null }>(
+    `PRAGMA index_info(${BOOKING_DEPOSIT_INDEX})`,
+  );
+  const compatible =
+    master.rows[0].tbl_name === 'bookings' &&
+    Boolean(master.rows[0].sql) &&
+    Boolean(index) &&
+    Number(index?.unique) === 0 &&
+    Number(index?.partial) === 0 &&
+    info.rows.length === 1 &&
+    info.rows[0].name === 'deposit_type';
+
+  if (!compatible) {
+    throw new Error(
+      `Migration 001 schema drift: index ${BOOKING_DEPOSIT_INDEX} exists but is not the expected non-unique index on bookings(deposit_type).`,
+    );
+  }
+  return true;
+}
+
 /**
  * Deposit policy snapshot on a booking (see commit 2b860cf). Previously applied
  * lazily from `createBooking()`, which required DDL rights on a user request.
@@ -85,25 +282,43 @@ const bookingDepositSnapshot: SchemaMigration = {
   async up(context) {
     const { client, dialect } = context;
 
-    if (!(await context.hasColumn('bookings', 'deposit_type'))) {
+    const depositType = await readDepositColumn(client, dialect, 'deposit_type');
+    const depositValue = await readDepositColumn(client, dialect, 'deposit_value');
+    const indexExists = await assertDepositIndexCompatible(client, dialect);
+
+    if (!depositType && !depositValue) {
+      if (indexExists) {
+        throw new Error(
+          `Migration 001 schema drift: index ${BOOKING_DEPOSIT_INDEX} exists while both deposit columns are absent.`,
+        );
+      }
+
       await client.query(
         dialect === 'postgres'
           ? `ALTER TABLE bookings ADD COLUMN deposit_type VARCHAR(20) NOT NULL DEFAULT 'percentage'`
           : `ALTER TABLE bookings ADD COLUMN deposit_type TEXT NOT NULL DEFAULT 'percentage'`,
       );
-    }
-
-    if (!(await context.hasColumn('bookings', 'deposit_value'))) {
       await client.query(
         dialect === 'postgres'
           ? 'ALTER TABLE bookings ADD COLUMN deposit_value BIGINT NOT NULL DEFAULT 25'
           : 'ALTER TABLE bookings ADD COLUMN deposit_value INTEGER NOT NULL DEFAULT 25',
       );
+    } else if (!depositType || !depositValue) {
+      const present = depositType ? 'deposit_type' : 'deposit_value';
+      const missing = depositType ? 'deposit_value' : 'deposit_type';
+      throw new Error(
+        `Migration 001 schema drift: bookings.${present} exists while bookings.${missing} is missing. Both fields must be absent or both must be present and correct.`,
+      );
+    } else {
+      assertDepositColumn(depositType, dialect, 'deposit_type');
+      assertDepositColumn(depositValue, dialect, 'deposit_value');
     }
 
-    await client.query(
-      'CREATE INDEX IF NOT EXISTS idx_bookings_deposit_type ON bookings(deposit_type)',
-    );
+    if (!indexExists) {
+      await client.query(
+        `CREATE INDEX IF NOT EXISTS ${BOOKING_DEPOSIT_INDEX} ON bookings(deposit_type)`,
+      );
+    }
   },
 };
 

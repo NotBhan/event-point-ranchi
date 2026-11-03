@@ -552,3 +552,8 @@ export function getPaymentService(): PaymentService {
   }
   return paymentServiceInstance;
 }
+
+/** Test/verification probe: true only after a provider-backed service is requested. */
+export function isPaymentServiceInitialized(): boolean {
+  return paymentServiceInstance !== null;
+}

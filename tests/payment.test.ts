@@ -351,26 +351,33 @@ test('4. Refund Accounting & Over-Refund Prevention', async () => {
 });
 
 test('5. Admin RBAC Security - Unauthenticated Requests Denied', async () => {
-  const unauthenticatedContext: any = {
-    auth: { isAuthenticated: false, user: null },
-    url: new URL('http://localhost:4321/admin/payments'),
-    request: new Request('http://localhost:4321/admin/payments'),
-    cookies: new Map(),
-    params: {},
-  };
+  const previous = process.env.PAYMENTS_ENABLED;
+  process.env.PAYMENTS_ENABLED = 'true';
+  try {
+    const unauthenticatedContext: any = {
+      auth: { isAuthenticated: false, user: null },
+      url: new URL('http://localhost:4321/admin/payments'),
+      request: new Request('http://localhost:4321/admin/payments'),
+      cookies: new Map(),
+      params: {},
+    };
 
-  const listResponse = await paymentsList(unauthenticatedContext);
-  assert.ok(
-    listResponse instanceof Response && (listResponse.status === 302 || listResponse.status === 303 || listResponse.status === 403),
-    'Unauthenticated admin payment listing must be rejected'
-  );
+    const listResponse = await paymentsList(unauthenticatedContext);
+    assert.ok(
+      listResponse instanceof Response && (listResponse.status === 302 || listResponse.status === 303 || listResponse.status === 403),
+      'Unauthenticated admin payment listing must be rejected'
+    );
 
-  const detailResponse = await paymentDetail({
-    ...unauthenticatedContext,
-    params: { id: '1' },
-  });
-  assert.ok(
-    detailResponse instanceof Response && (detailResponse.status === 302 || detailResponse.status === 303 || detailResponse.status === 403),
-    'Unauthenticated admin payment detail must be rejected'
-  );
+    const detailResponse = await paymentDetail({
+      ...unauthenticatedContext,
+      params: { id: '1' },
+    });
+    assert.ok(
+      detailResponse instanceof Response && (detailResponse.status === 302 || detailResponse.status === 303 || detailResponse.status === 403),
+      'Unauthenticated admin payment detail must be rejected'
+    );
+  } finally {
+    if (previous === undefined) delete process.env.PAYMENTS_ENABLED;
+    else process.env.PAYMENTS_ENABLED = previous;
+  }
 });

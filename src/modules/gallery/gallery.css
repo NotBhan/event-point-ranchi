@@ -1,4 +1,7 @@
-/* Gallery Filter Bar */
+/* ---------------------------------------------------------------
+   Video showcase filters (also styled by styles/wedding.css).
+   Left untouched so the catalogue pages keep their pill language.
+   --------------------------------------------------------------- */
 .filter-bar {
   display: flex;
   flex-wrap: wrap;
@@ -56,427 +59,471 @@
   color: #fff;
 }
 
-/* Gallery Toolbar with generous breathing room */
-.gallery-toolbar {
+/* ---------------------------------------------------------------
+   The collection — contact-sheet language.
+   One control band (typographic rail + page meta) introducing an
+   even grid of bare plates. No chip row, no toolbar slab, no card
+   chrome: the photographs are the only framed objects.
+   --------------------------------------------------------------- */
+.collection-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 14px;
-  margin-bottom: 38px;
-  padding: 16px 24px;
-  border-radius: var(--r-xl, 16px);
-  background: var(--surface-warm);
-  border: 1px solid var(--line);
   flex-wrap: wrap;
-  gap: 16px;
-  box-shadow: 0 1px 4px rgba(42, 20, 25, 0.03);
+  gap: 6px 28px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
 }
 
-.gallery-count-badge {
-  font-size: 14px;
-  color: var(--body);
+.collection-rail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 26px;
+}
+
+.rail-link {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  letter-spacing: 0.01em;
-}
-
-.gallery-count-badge strong {
-  color: var(--ink);
-  font-weight: 600;
-}
-
-.gallery-view-options {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.page-size-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 13.5px;
-  color: var(--body);
-  font-weight: 500;
-}
-
-.page-size-select {
-  padding: 6px 14px;
-  border-radius: var(--r-pill);
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  outline: none;
-  transition: border-color 0.16s var(--ease), box-shadow 0.16s var(--ease);
-}
-
-.page-size-select:hover {
-  border-color: var(--brand-maroon);
-}
-
-.page-size-select:focus {
-  border-color: var(--brand-maroon);
-  box-shadow: 0 0 0 3px rgba(114, 18, 36, 0.1);
-}
-
-/* Pinterest Masonry Grid */
-.pinterest-masonry {
-  column-count: 4;
-  column-gap: 24px;
-  width: 100%;
-  margin-top: 0;
-  margin-bottom: 36px;
-}
-
-@media (max-width: 1200px) {
-  .pinterest-masonry {
-    column-count: 3;
-    column-gap: 20px;
-  }
-}
-
-@media (max-width: 768px) {
-  .pinterest-masonry {
-    column-count: 2;
-    column-gap: 16px;
-  }
-}
-
-@media (max-width: 480px) {
-  .pinterest-masonry {
-    column-count: 1;
-    column-gap: 16px;
-  }
-}
-
-/* Pinterest Pin Card */
-.pinterest-pin {
-  display: inline-block; /* Essential for CSS multi-column: avoids splitting across columns */
-  width: 100%;
-  margin-bottom: 22px;
-  break-inside: avoid;
-  -webkit-column-break-inside: avoid;
-  page-break-inside: avoid;
-  background: var(--surface);
-  border-radius: 18px;
-  border: 1px solid var(--line);
-  box-shadow: 0 2px 10px rgba(42, 20, 25, 0.04), 0 1px 2px rgba(42, 20, 25, 0.02);
-  overflow: hidden;
-  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
-              box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1),
-              border-color 0.28s var(--ease);
-  cursor: pointer;
-  text-align: left;
-  position: relative;
-  vertical-align: top;
-  padding: 0;
-}
-
-.pinterest-pin:hover,
-.pinterest-pin:focus-visible {
-  transform: translateY(-5px);
-  box-shadow: 0 16px 36px rgba(114, 18, 36, 0.14), 0 4px 12px rgba(42, 20, 25, 0.06);
-  border-color: rgba(200, 162, 81, 0.45);
-  outline: none;
-}
-
-.pinterest-pin:focus-visible {
-  outline: 2px solid var(--brand-maroon);
-  outline-offset: 2px;
-}
-
-/* Pin Media & Responsive Image */
-.pin-media-wrapper {
-  position: relative;
-  overflow: hidden;
-  background: var(--surface-2);
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  border-radius: 18px 18px 0 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.pin-media-wrapper img {
-  display: block;
-  width: 100%;
-  min-width: 100%;
-  max-width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.pinterest-pin:hover .pin-media-wrapper img {
-  transform: scale(1.04);
-}
-
-/* Pinterest Floating Hover Overlay */
-.pin-hover-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  background: linear-gradient(180deg, rgba(20, 10, 12, 0.32) 0%, rgba(20, 10, 12, 0) 45%, rgba(20, 10, 12, 0.7) 100%);
-  opacity: 0;
-  transition: opacity 0.24s var(--ease);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 14px;
-  pointer-events: none;
-}
-
-.pinterest-pin:hover .pin-hover-overlay,
-.pinterest-pin:focus-visible .pin-hover-overlay {
-  opacity: 1;
-}
-
-.pin-overlay-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
   gap: 8px;
-}
-
-.pin-category-pill {
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  font-family: var(--font-mono);
-  color: var(--gold-bright);
+  min-height: 44px;
+  font-size: 12.5px;
   font-weight: 600;
-  background: rgba(42, 20, 25, 0.82);
-  padding: 3px 9px;
-  border-radius: var(--r-pill);
-  border: 1px solid rgba(200, 162, 81, 0.45);
-  backdrop-filter: blur(6px);
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  text-decoration: none;
+  transition: color 0.16s var(--ease);
 }
 
-.pin-zoom-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 12px;
-  border-radius: var(--r-pill);
-  background: rgba(255, 255, 255, 0.95);
+/* Active marker sits on the rule line, not around the word, so the
+   rail reads as a table of contents instead of a row of buttons. */
+.rail-link::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 9px;
+  height: 2px;
+  background: var(--gold-deep);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.22s var(--ease), background 0.22s var(--ease);
+}
+
+.rail-link:hover {
   color: var(--brand-maroon);
-  font-size: 12px;
-  font-weight: 600;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
-  backdrop-filter: blur(8px);
-  transform: translateY(-2px);
-  transition: transform 0.22s var(--ease);
 }
 
-.pinterest-pin:hover .pin-zoom-pill {
-  transform: translateY(0);
+.rail-link:hover::after {
+  transform: scaleX(1);
+  background: var(--line-strong);
 }
 
-.pin-overlay-bottom {
-  display: flex;
-  justify-content: flex-end;
+.rail-link.is-active {
+  color: var(--brand-maroon);
 }
 
-.pin-tap-hint {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.9);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
-  font-weight: 500;
+.rail-link.is-active::after {
+  transform: scaleX(1);
 }
 
-/* Pin Content Typography */
-.pin-content {
-  padding: 14px 16px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.pin-category-text {
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--gold-ink);
+.rail-count {
   font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  transition: color 0.16s var(--ease);
 }
 
-.pin-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--ink);
-  line-height: 1.35;
-  margin: 0;
+.rail-link.is-active .rail-count {
+  color: var(--gold-deep);
 }
 
-.pin-footer {
+.collection-meta {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-top: 6px;
-  padding-top: 8px;
-  border-top: 1px solid var(--line);
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.collection-range {
+  font-family: var(--font-mono);
   font-size: 11.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   color: var(--muted);
 }
 
-.pin-location {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+.collection-range strong {
+  font-weight: 600;
+  color: var(--ink);
 }
 
-.pin-action-icon {
+.page-size {
   display: inline-flex;
   align-items: center;
-  color: var(--brand-maroon);
-  opacity: 0.7;
-  transition: opacity 0.2s, transform 0.2s;
+  gap: 10px;
+  min-height: 44px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
-.pinterest-pin:hover .pin-action-icon {
+.page-size-select {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 34px;
+  padding: 0 22px 0 6px;
+  border: 0;
+  border-bottom: 1px solid var(--line-strong);
+  border-radius: 0;
+  background-color: transparent;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-2) 50%),
+    linear-gradient(135deg, var(--ink-2) 50%, transparent 50%);
+  background-position: calc(100% - 10px) 53%, calc(100% - 5px) 53%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: border-color 0.16s var(--ease);
+}
+
+.page-size-select:hover {
+  border-color: var(--ink-2);
+}
+
+.page-size-select:focus-visible {
+  outline: 2px solid var(--brand-maroon-light);
+  outline-offset: 3px;
+  border-color: var(--brand-maroon);
+}
+
+/* Plates ------------------------------------------------------- */
+.plate-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 30px 24px;
+  margin-top: 48px;
+}
+
+.plate {
+  position: relative;
+  cursor: pointer;
+  outline-offset: 5px;
+}
+
+.plate-media {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--r-xs);
+  background: var(--surface-2);
+}
+
+/* Higher specificity than the skeleton sheet so the zoom keeps its
+   easing while the load fade is preserved. */
+.plate .plate-media img {
+  transition: transform 0.55s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s ease-in-out;
+}
+
+.plate:hover .plate-media img,
+.plate:focus-visible .plate-media img {
+  transform: scale(1.05);
+}
+
+.plate-media::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: linear-gradient(180deg, rgba(26, 10, 14, 0) 45%, rgba(26, 10, 14, 0.62) 100%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s var(--ease);
+}
+
+.plate:hover .plate-media::after,
+.plate:focus-visible .plate-media::after {
   opacity: 1;
-  transform: translateX(2px);
 }
 
-/* Pagination Navigation with generous spacing */
-.gallery-pagination {
-  display: flex;
+.plate-action {
+  position: absolute;
+  z-index: 4;
+  left: 14px;
+  bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #fff;
+  opacity: 0;
+  transform: translateY(4px);
+  pointer-events: none;
+  transition: opacity 0.24s var(--ease), transform 0.24s var(--ease);
+}
+
+.plate:hover .plate-action,
+.plate:focus-visible .plate-action {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Persistent, quiet affordance: every plate reads as openable even
+   without a pointer, and without a row of overlay chrome. */
+.plate-expand {
+  position: absolute;
+  z-index: 4;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  margin-top: 56px;
-  margin-bottom: 24px;
-  padding-top: 36px;
-  border-top: 1px solid var(--line);
-  flex-wrap: wrap;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(26, 10, 14, 0.52);
+  color: #fff;
+  opacity: 0.6;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+  transition: opacity 0.2s var(--ease), background 0.2s var(--ease);
 }
 
-.pagination-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-pill);
-  background: var(--surface);
+.plate:hover .plate-expand,
+.plate:focus-visible .plate-expand {
+  opacity: 1;
+  background: rgba(26, 10, 14, 0.78);
+}
+
+.plate-caption {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 14px;
+}
+
+.plate-category {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold-deep);
+}
+
+.plate-title {
+  margin: 0;
+  min-height: 2.56em;
+  font-family: var(--font-serif);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.28;
   color: var(--ink);
-  font-size: 13.5px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s var(--ease);
+  transition: color 0.18s var(--ease);
 }
 
-.pagination-btn:hover:not(:disabled) {
-  border-color: var(--brand-maroon);
+.plate:hover .plate-title,
+.plate:focus-visible .plate-title {
   color: var(--brand-maroon);
-  background: var(--canvas-warm);
 }
 
-.pagination-btn:disabled {
-  opacity: 0.38;
-  cursor: not-allowed;
-  pointer-events: none;
+/* Pager -------------------------------------------------------- */
+.gallery-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin-top: 52px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
 }
 
-.pagination-btn.is-disabled {
-  opacity: 0.38;
-  cursor: not-allowed;
-  pointer-events: none;
+.pager-range {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
-a.pagination-btn,
-a.page-num-btn {
-  text-decoration: none;
-}
-
-.pagination-pages {
+.pager-controls {
   display: flex;
   align-items: center;
   gap: 6px;
+  margin-left: auto;
 }
 
-.page-num-btn {
-  min-width: 38px;
-  height: 38px;
+.pager-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
   padding: 0 10px;
-  border-radius: var(--r-pill);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 600;
-  font-family: var(--font-mono);
-  border: 1px solid var(--line);
-  background: var(--surface);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   color: var(--ink-2);
-  cursor: pointer;
-  transition: all 0.18s var(--ease);
+  text-decoration: none;
+  transition: color 0.16s var(--ease);
 }
 
-.page-num-btn:hover {
-  border-color: var(--brand-maroon);
+.pager-step:hover {
   color: var(--brand-maroon);
-  background: var(--canvas-warm);
 }
 
-.page-num-btn.active {
-  background: var(--brand-maroon);
-  border-color: var(--brand-maroon);
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(114, 18, 36, 0.25);
+.pager-step.is-disabled {
+  color: var(--muted);
+  opacity: 0.5;
+  pointer-events: none;
 }
 
-/* Empty State */
-.gallery-empty-state {
-  text-align: center;
-  padding: 64px 20px;
-  border-radius: var(--r-lg);
-  background: var(--surface);
-  border: 1px dashed var(--line-strong);
-  margin-top: 24px;
+.pager-numbers {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
-.gallery-empty-state .empty-icon {
+.pager-number {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
+  min-width: 40px;
+  height: 40px;
+  border-radius: var(--r-xs);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  text-decoration: none;
+  transition: background 0.16s var(--ease), color 0.16s var(--ease);
+}
+
+.pager-number:hover {
   background: var(--surface-2);
   color: var(--brand-maroon);
+}
+
+.pager-number[aria-current='page'] {
+  background: var(--brand-maroon);
+  color: #fff;
+}
+
+.pager-gap {
+  min-width: 22px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Empty state -------------------------------------------------- */
+.gallery-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 72px 24px;
+  margin-top: 34px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xs);
+  background: var(--surface);
+}
+
+.gallery-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
   margin-bottom: 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  color: var(--gold-deep);
 }
 
-.gallery-empty-state h3 {
-  font-size: 18px;
+.gallery-empty h3 {
+  margin: 0 0 6px;
+  font-family: var(--font-serif);
+  font-size: 1.15rem;
   color: var(--ink);
-  margin-bottom: 6px;
 }
 
-.gallery-empty-state p {
-  font-size: 14px;
-  color: var(--body);
-  margin-bottom: 18px;
+.gallery-empty p {
+  max-width: 46ch;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--muted);
 }
 
-/* Legacy fallback support */
-.gallery-grid {
-  margin-top: 28px;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 20px;
+/* Responsive --------------------------------------------------- */
+@media (max-width: 900px) {
+  .plate-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 26px 16px;
+  }
+
+  .collection-rail {
+    gap: 0 20px;
+  }
+
+  .gallery-pager {
+    margin-top: 40px;
+  }
 }
-.gallery-tile {
-  transition: transform 0.22s var(--ease), box-shadow 0.22s var(--ease);
+
+@media (max-width: 560px) {
+  .plate-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px 14px;
+  }
+
+  .collection-rail {
+    gap: 0 18px;
+  }
+
+  .rail-link {
+    font-size: 11px;
+    letter-spacing: 0.1em;
+  }
+
+  .gallery-empty {
+    padding: 56px 20px;
+  }
+
+  .pager-controls {
+    width: 100%;
+    margin-left: 0;
+    justify-content: space-between;
+  }
 }
-.gallery-tile:hover {
-  box-shadow: var(--shadow-md);
+
+@media (prefers-reduced-motion: reduce) {
+  .plate .plate-media img {
+    transition: opacity 0.2s ease;
+  }
+
+  .plate:hover .plate-media img,
+  .plate:focus-visible .plate-media img {
+    transform: none;
+  }
+
+  .rail-link::after,
+  .plate-media::after,
+  .plate-action {
+    transition: none;
+  }
 }

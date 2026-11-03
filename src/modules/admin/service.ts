@@ -5,7 +5,6 @@ import {
   countCustomers,
   deleteContactInquiry,
   countEventEnquiries,
-  deleteBookingRecord,
   findUserById,
   getBookingStats,
   getBookingsForCustomer,
@@ -77,7 +76,7 @@ import {
   type EnquiryBookingSummary,
 } from '../../core/operational/service';
 import { getNeonClient } from '../../core/operational/neon-client';
-import { getPaymentService } from '../../core/payment/payment-service';
+import { paymentsEnabled } from '../../core/features';
 
 export { UploadError };
 
@@ -171,11 +170,6 @@ export async function updateBookingStatus(id: number, status: string): Promise<v
 
   const updated = await setBookingStatus(id, status);
   if (!updated) throw new Error(`Booking #${id} was not found.`);
-}
-
-export async function deleteBooking(id: number): Promise<void> {
-  const deleted = await deleteBookingRecord(id);
-  if (!deleted) throw new Error(`Booking #${id} was not found.`);
 }
 
 /* ============================ Halls ============================ */
@@ -1481,11 +1475,13 @@ export async function loadPaymentsAdmin(filters?: {
   limit?: number;
   offset?: number;
 }) {
+  if (!paymentsEnabled()) throw new Error('Payments are not available during the core launch.');
   const [metrics, listResult] = await Promise.all([getPaymentMetrics(), listPayments(filters)]);
   return { metrics, payments: listResult.payments, total: listResult.total };
 }
 
 export async function loadPaymentDetailAdmin(paymentId: number) {
+  if (!paymentsEnabled()) throw new Error('Payments are not available during the core launch.');
   const payment = await getPaymentById(paymentId);
   if (!payment) return null;
 
@@ -1522,6 +1518,8 @@ export async function processRefundAdmin(
   reason: string,
   adminUserId?: number
 ) {
+  if (!paymentsEnabled()) throw new Error('Payments are not available during the core launch.');
+  const { getPaymentService } = await import('../../core/payment/payment-service');
   const paymentService = getPaymentService();
   return paymentService.initiateRefund({
     paymentId,

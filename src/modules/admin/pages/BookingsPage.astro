@@ -19,7 +19,6 @@ interface Props {
 }
 
 const { items: bookings, pagination, status, query } = Astro.props;
-const csrf = Astro.locals.csrf;
 const pageHref = (page: number) =>
   `/admin/bookings?status=${encodeURIComponent(status)}&q=${encodeURIComponent(query)}&page=${page}`;
 const tabHref = (value: string) =>
@@ -138,23 +137,7 @@ const tabHref = (value: string) =>
                   <td data-label="Actions">
                     <div class="admin-row-actions">
                       <a href={`/admin/bookings/${booking.id}`} class="btn btn-secondary btn-sm">Open</a>
-                      <form method="POST" action={`/admin/bookings/${booking.id}`}>
-                        <input type="hidden" name="_csrf" value={csrf} />
-                        <input type="hidden" name="action" value="delete" />
-                        <button
-                          type="submit"
-                          class="icon-btn danger icon-btn-labeled"
-                          data-confirm={`Delete booking #${booking.id}? This cannot be undone.`}
-                          aria-label="Delete booking"
-                        >
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                            <path d="M3 6h18" />
-                            <path d="M8 6V4h8v2" />
-                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                          </svg>
-                          <span class="action-label-mobile">Delete</span>
-                        </button>
-                      </form>
+
                     </div>
                   </td>
                 </tr>

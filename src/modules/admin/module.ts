@@ -1,4 +1,5 @@
 import { defineModule } from '../../core/define-module';
+import { paymentsEnabled } from '../../core/features';
 import {
   cateringForm,
   cateringList,
@@ -53,7 +54,7 @@ export default defineModule({
   adminNav: [
     { label: 'Dashboard', href: '/admin', icon: 'dashboard', order: 10 },
     { label: 'Bookings', href: '/admin/bookings', icon: 'ticket', order: 20 },
-    { label: 'Payments', href: '/admin/payments', icon: 'credit-card', order: 22 },
+    ...(paymentsEnabled() ? [{ label: 'Payments', href: '/admin/payments', icon: 'credit-card', order: 22 }] : []),
     { label: 'New Enquiries', href: '/admin/new-enquiries', icon: 'calendar', order: 15 },
     { label: 'Enquiry QR Scanner', href: '/admin/enquiries/scan', icon: 'camera', order: 16 },
     { label: 'Halls', href: '/admin/halls', icon: 'building', order: 30 },
@@ -71,8 +72,12 @@ export default defineModule({
     { path: '/admin/bookings', component: BookingsPage, handle: bookingsList },
     { path: '/admin/bookings/:id', component: BookingDetailPage, handle: bookingDetail },
 
-    { path: '/admin/payments', component: PaymentsPage, handle: paymentsList },
-    { path: '/admin/payments/:id', component: PaymentDetailPage, handle: paymentDetail },
+    ...(paymentsEnabled()
+      ? [
+          { path: '/admin/payments', component: PaymentsPage, handle: paymentsList },
+          { path: '/admin/payments/:id', component: PaymentDetailPage, handle: paymentDetail },
+        ]
+      : []),
 
     { path: '/admin/new-enquiries', component: NewEnquiriesPage, handle: newEnquiriesList },
     { path: '/admin/new-enquiries/:id', component: NewEnquiryDetailPage, handle: newEnquiryDetail },

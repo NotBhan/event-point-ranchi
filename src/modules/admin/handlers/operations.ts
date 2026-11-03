@@ -1,4 +1,5 @@
 import { requireAdmin } from '../../../core/auth';
+import { paymentsEnabled } from '../../../core/features';
 import { endSession, startSession } from '../../../core/auth';
 import { setError, setSuccess } from '../../../core/flash';
 import { getInt, getString, parseMoneyToPaise, parsePageParams, redirect, safeNext } from '../../../core/http';
@@ -12,7 +13,6 @@ import {
   setEnquiryWorkflowStatus,
 } from '../enquiry-lifecycle';
 import {
-  deleteBooking,
   deleteInquiry,
   listBookings,
   listCustomers,
@@ -122,7 +122,6 @@ export async function bookingDetail(ctx: PageContext) {
             adminUserId: ctx.auth.user?.id,
           });
         },
-        delete: () => deleteBooking(id),
       },
       { redirectTo: backTo, successMessage: 'Booking details updated successfully.' },
     );
@@ -329,6 +328,7 @@ export async function legacyEnquiryDetailRedirect(ctx: PageContext) {
 }
 
 export async function paymentsList(ctx: PageContext) {
+  if (!paymentsEnabled()) return new Response('Not found', { status: 404 });
   const denied = requireAdmin(ctx);
   if (denied) return denied;
 
@@ -360,6 +360,7 @@ export async function paymentsList(ctx: PageContext) {
 }
 
 export async function paymentDetail(ctx: PageContext) {
+  if (!paymentsEnabled()) return new Response('Not found', { status: 404 });
   const denied = requireAdmin(ctx);
   if (denied) return denied;
 
