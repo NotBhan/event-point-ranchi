@@ -1297,13 +1297,10 @@ function showReceipt(
 if (state && form) {
   state.activeEquipmentCategory = state.catalogue.equipment[0]?.slug ?? '';
 
-  // Package selections may arrive once from a catalogue page. They are
-  // consumed into memory and removed from sessionStorage immediately.
-  consumeRequirementsForPlan();
-
-  // The listeners below must always be attached. A failure while painting the
-  // package selections must never leave the wizard inert.
+  // The listeners below must always be attached. A failure while restoring or
+  // painting package selections must never leave the wizard inert.
   try {
+    consumeRequirementsForPlan();
     syncSelectionInputs('mandap');
     syncSelectionInputs('stage');
     syncMandapCardSelection();
@@ -1540,4 +1537,10 @@ if (state && form) {
   window.addEventListener('pageshow', (event) => {
     if (event.persisted) window.location.reload();
   });
+
+  const nextButton = document.querySelector<HTMLButtonElement>('[data-plan-next]');
+  if (nextButton) {
+    nextButton.disabled = false;
+    nextButton.removeAttribute('aria-disabled');
+  }
 }

@@ -124,6 +124,35 @@ test('package selections live in sessionStorage and are consumed once by the Pla
   );
 });
 
+test('a blocked sessionStorage does not abort requirement initialization', () => {
+  const originalRemove = session.removeItem;
+  session.removeItem = () => {
+    throw new Error('storage blocked');
+  };
+
+  try {
+    assert.doesNotThrow(() => requirements.consumeRequirementsForPlan());
+    assert.doesNotThrow(() => requirements.clearRequirements());
+  } finally {
+    session.removeItem = originalRemove;
+    requirements.clearRequirements();
+  }
+});
+
+test('wizard initialization guards requirement handoff before attaching navigation listeners', () => {
+  const source = fs.readFileSync(path.resolve(process.cwd(), 'src/client/plan-wizard.ts'), 'utf8');
+  const initStart = source.indexOf('if (state && form)');
+  const init = source.slice(initStart);
+  const tryIndex = init.indexOf('try {');
+  const consumeIndex = init.indexOf('consumeRequirementsForPlan()');
+  const listenerIndex = init.indexOf("form.addEventListener('input'");
+
+  assert.ok(initStart >= 0, 'wizard initialization block must exist');
+  assert.ok(tryIndex >= 0, 'wizard initialization must be guarded');
+  assert.ok(consumeIndex > tryIndex, 'requirement handoff must run inside the guarded initialization');
+  assert.ok(listenerIndex > consumeIndex, 'listeners must attach even if handoff restoration fails');
+});
+
 test('legacy Plan draft storage is purged and the wizard never reads browser storage', () => {
   local.setItem(LEGACY_DRAFT_KEY, JSON.stringify({ customerName: 'Previous Visitor', customerPhone: '9999999999' }));
 
