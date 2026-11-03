@@ -66,6 +66,22 @@ function sessionStore(): StorageLike | null {
   }
 }
 
+function removeSessionItem(key: string): void {
+  try {
+    sessionStore()?.removeItem(key);
+  } catch {
+    // Storage can be unavailable or blocked by browser privacy settings.
+  }
+}
+
+function writeSessionItem(key: string, value: string): void {
+  try {
+    sessionStore()?.setItem(key, value);
+  } catch {
+    // In-memory requirements remain usable when storage is unavailable.
+  }
+}
+
 function clone(state: RequirementsState): RequirementsState {
   return JSON.parse(JSON.stringify(state)) as RequirementsState;
 }
@@ -86,13 +102,13 @@ function readHandoff(): RequirementsState {
 
     const savedAt = Number(envelope.savedAt);
     if (!Number.isFinite(savedAt) || Date.now() - savedAt > HANDOFF_TTL_MS) {
-      store.removeItem(REQUIREMENTS_STORAGE_KEY);
+      removeSessionItem(REQUIREMENTS_STORAGE_KEY);
       return emptyRequirements();
     }
 
     return normalizeRequirements(envelope.state);
   } catch {
-    store.removeItem(REQUIREMENTS_STORAGE_KEY);
+    removeSessionItem(REQUIREMENTS_STORAGE_KEY);
     return emptyRequirements();
   }
 }
@@ -195,7 +211,7 @@ export function readRequirements(): RequirementsState {
  */
 export function consumeRequirementsForPlan(): RequirementsState {
   const state = readRequirements();
-  sessionStore()?.removeItem(REQUIREMENTS_STORAGE_KEY);
+  removeSessionItem(REQUIREMENTS_STORAGE_KEY);
   return clone(state);
 }
 
@@ -205,9 +221,7 @@ export function consumeRequirementsForPlan(): RequirementsState {
  */
 export function prepareRequirementsHandoff(): void {
   if (!memoryState) return;
-  const store = sessionStore();
-  if (!store) return;
-  store.setItem(
+  writeSessionItem(
     REQUIREMENTS_STORAGE_KEY,
     JSON.stringify({ state: memoryState, savedAt: Date.now() }),
   );
@@ -227,9 +241,9 @@ function commit(state: RequirementsState): RequirementsState {
     if (planPageIsOpen()) {
       // The Plan page must never persist its selections. Memory is enough for
       // step navigation; a reload starts blank.
-      store.removeItem(REQUIREMENTS_STORAGE_KEY);
+      removeSessionItem(REQUIREMENTS_STORAGE_KEY);
     } else {
-      store.setItem(
+      writeSessionItem(
         REQUIREMENTS_STORAGE_KEY,
         JSON.stringify({ state: memoryState, savedAt: Date.now() }),
       );
@@ -343,7 +357,7 @@ export function clearRequirements(): void {
   // Return to the cold-start state: the next read checks (now empty) session
   // storage instead of reusing a previous in-memory selection.
   memoryState = null;
-  sessionStore()?.removeItem(REQUIREMENTS_STORAGE_KEY);
+  removeSessionItem(REQUIREMENTS_STORAGE_KEY);
 
   if (typeof localStorage !== 'undefined') {
     try {
