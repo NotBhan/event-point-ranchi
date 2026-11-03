@@ -1,8 +1,9 @@
 import type { APIRoute } from 'astro';
-import { getPaymentService } from '../../../core/payment/payment-service';
+import { paymentsEnabled } from '../../../core/features';
 import type { PaymentGatewayProvider } from '../../../core/payment/types';
 
 export const POST: APIRoute = async ({ request, url }) => {
+  if (!paymentsEnabled()) return notFound();
   try {
     let body: any = {};
     try {
@@ -35,6 +36,7 @@ export const POST: APIRoute = async ({ request, url }) => {
 
     const originUrl = url.origin || `${url.protocol}//${url.host}`;
 
+    const { getPaymentService } = await import('../../../core/payment/payment-service');
     const paymentService = getPaymentService();
     const result = await paymentService.initiateBookingPayment({
       bookingId,
@@ -64,3 +66,10 @@ export const POST: APIRoute = async ({ request, url }) => {
     );
   }
 };
+
+function notFound(): Response {
+  return new Response(JSON.stringify({ status: 'error', message: 'Not found.' }), {
+    status: 404,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}

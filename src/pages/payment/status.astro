@@ -4,9 +4,15 @@ import Icon from '../../components/Icon.astro';
 import { formatMoney } from '../../core/http';
 import { getSiteSettings } from '../../core/content/service';
 import { getBookingById, getPaymentByInternalRef, getInvoiceByPaymentId, getPaymentsByBookingId } from '../../core/operational/service';
-import { getPaymentService } from '../../core/payment/payment-service';
+import { paymentsEnabled } from '../../core/features';
 import { getNeonClient } from '../../core/operational/neon-client';
 
+if (!paymentsEnabled()) {
+  return new Response('Not found', { status: 404, headers: { 'content-type': 'text/plain' } });
+}
+
+const { getPaymentService } = await import('../../core/payment/payment-service');
+const { getReceiptService } = await import('../../core/payment/receipt-service');
 const settings = await getSiteSettings();
 const brandName = settings.name || 'Event Point Ranchi';
 const phone = settings.phone || '+91 98765 43210';
@@ -51,8 +57,6 @@ if (payment && (payment.status === 'created' || payment.status === 'pending')) {
     console.warn('[Payment Status Check]:', err.message);
   }
 }
-
-import { getReceiptService } from '../../core/payment/receipt-service';
 
 if (payment) {
   booking = await getBookingById(payment.booking_id);

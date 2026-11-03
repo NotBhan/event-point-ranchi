@@ -1554,12 +1554,6 @@ export async function setBookingStatus(id: number, status: string): Promise<bool
   return res.rowCount > 0;
 }
 
-export async function deleteBookingRecord(id: number): Promise<boolean> {
-  const neon = getNeonClient();
-  const res = await neon.query('DELETE FROM bookings WHERE id = $1', [id]);
-  return res.rowCount > 0;
-}
-
 export async function getCustomerBookingsForUser(userId: number): Promise<Array<{
   id: number;
   event_date: string | null;

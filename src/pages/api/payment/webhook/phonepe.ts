@@ -1,7 +1,8 @@
 import type { APIRoute } from 'astro';
-import { getPaymentService } from '../../../../core/payment/payment-service';
+import { paymentsEnabled } from '../../../../core/features';
 
 export const POST: APIRoute = async ({ request }) => {
+  if (!paymentsEnabled()) return notFound();
   try {
     const rawBody = await request.text();
 
@@ -10,6 +11,7 @@ export const POST: APIRoute = async ({ request }) => {
       headers[k.toLowerCase()] = v;
     }
 
+    const { getPaymentService } = await import('../../../../core/payment/payment-service');
     const paymentService = getPaymentService();
     const result = await paymentService.handleWebhook('phonepe', headers, rawBody);
 
@@ -28,3 +30,10 @@ export const POST: APIRoute = async ({ request }) => {
     );
   }
 };
+
+function notFound(): Response {
+  return new Response(JSON.stringify({ status: 'error', message: 'Not found.' }), {
+    status: 404,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}

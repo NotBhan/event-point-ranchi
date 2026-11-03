@@ -196,6 +196,7 @@ test('acceptance creates one linked booking and preserves the enquiry selections
   const neon = getNeonClient();
   const seeded = await seedEnquiry();
   const quote = await prepareQuote(seeded.id);
+  const paymentsBefore = await neon.query<{ n: number }>('SELECT COUNT(*) AS n FROM payments');
   const result = await acceptQuote(seeded.id, quote.quotationId);
 
   const booking = await neon.query<{
@@ -205,15 +206,23 @@ test('acceptance creates one linked booking and preserves the enquiry selections
     status: string;
     total_amount: number;
     advance_amount: number;
+    amount_paid: number;
+    outstanding_balance: number;
     payment_status: string;
+    source_quotation_id: number;
   }>('SELECT * FROM bookings WHERE id = $1', [result.bookingId]);
   const row = booking.rows[0]!;
   assert.equal(Number(row.source_enquiry_id), seeded.id);
+  assert.equal(Number(row.source_quotation_id), quote.quotationId);
   assert.equal(row.venue_location, 'Harmu Ground, Ranchi');
   assert.equal(row.status, 'pending');
   assert.equal(Number(row.total_amount), quote.totalPaise);
   assert.equal(Number(row.advance_amount), Math.round(quote.totalPaise * 0.25));
+  assert.equal(Number(row.amount_paid), 0);
+  assert.equal(Number(row.outstanding_balance), quote.totalPaise);
   assert.equal(row.payment_status, 'unpaid');
+  const paymentsAfter = await neon.query<{ n: number }>('SELECT COUNT(*) AS n FROM payments');
+  assert.equal(Number(paymentsAfter.rows[0]?.n), Number(paymentsBefore.rows[0]?.n), 'acceptance must not create payment rows');
 
   const enquiry = await neon.query<{
     status: string;

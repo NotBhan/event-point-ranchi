@@ -219,6 +219,10 @@
   display: block;
   width: 100%;
   text-align: left;
+  transition: transform 0.22s var(--ease), box-shadow 0.22s var(--ease);
+}
+.gallery-tile:hover {
+  box-shadow: var(--shadow-md);
 }
 .gallery-tile .gallery-tile-media {
   position: absolute;
