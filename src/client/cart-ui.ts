@@ -9,11 +9,9 @@ import {
   readCart,
   removeCatering,
   removeFurniture,
-  removeHall,
   removeRoom,
   removeService,
   setFurniture,
-  setHall,
   setRoomQuantity,
   setStage,
   updateCateringGuests,
@@ -65,22 +63,12 @@ function renderSidebar(): void {
       <div class="cart-empty">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 2-1.6L21 8H6"/></svg>
         <p>Your cart is empty</p>
-        <small>Browse halls, catering and decor to build your event.</small>
+        <small>Browse catering and decor to build your event.</small>
       </div>`;
     return;
   }
 
   let html = '';
-
-  if (cart.hall) {
-    html += sidebarItem(
-      'Hall',
-      cart.hall.id,
-      cart.hall.name,
-      cart.hall.capacity ? `Capacity ${cart.hall.capacity} guests` : '',
-      cart.hall.price,
-    );
-  }
 
   for (const room of cart.rooms) {
     html += sidebarItem(
@@ -153,7 +141,6 @@ function closeSidebar(): void {
 }
 
 function handleRemove(kind: string, id: string): void {
-  if (kind === 'Hall') removeHall();
   if (kind === 'Room') removeRoom(id);
   if (kind === 'Catering') removeCatering();
   if (kind === 'Stage') setStage(null);
@@ -219,19 +206,6 @@ document.addEventListener('click', (event) => {
         .filter((entry) => entry.quantity > 0);
       setFurniture(updated);
     }
-    return;
-  }
-
-  const addHallButton = target.closest<HTMLElement>('[data-add-hall]');
-  if (addHallButton) {
-    event.preventDefault();
-    setHall({
-      id: addHallButton.dataset.id ?? '',
-      name: addHallButton.dataset.name ?? 'Selected hall',
-      price: Number(addHallButton.dataset.price ?? 0),
-      capacity: addHallButton.dataset.capacity,
-    });
-    openSidebar();
     return;
   }
 

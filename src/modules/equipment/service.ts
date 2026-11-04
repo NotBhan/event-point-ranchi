@@ -17,7 +17,11 @@ export interface EquipmentItemRow {
   name: string;
   slug: string;
   description: string;
+  full_description?: string;
   image: string | null;
+  image_alt?: string;
+  price_paise?: number;
+  gallery?: Array<{ id: number; image_url: string; alt_text: string; sort_order: number }>;
   unit: string;
   specifications: string;
   min_quantity: number;
@@ -35,6 +39,40 @@ export interface EquipmentPageData {
   groups: EquipmentGroup[];
   category: string;
   totalItems: number;
+}
+
+export type EquipmentDetail = Omit<EquipmentItemRow, 'gallery' | 'price_paise'> & {
+  full_description: string;
+  image_alt: string;
+  gallery: string[];
+  price_paise: number;
+};
+
+export async function loadEquipmentDetail(slug: string): Promise<EquipmentDetail | null> {
+  const [rawCategories, rawItems] = await Promise.all([getFurnitureCategories(), getFurnitureItems()]);
+  const item = rawItems.find((entry) => entry.slug === slug);
+  if (!item) return null;
+  const category = rawCategories.find((entry) => entry.id === item.category_id);
+  return {
+    id: item.id,
+    category_id: item.category_id,
+    category: category?.name || 'Equipment',
+    category_slug: category?.slug || '',
+    category_icon: category?.icon || 'chair',
+    name: item.name,
+    slug: item.slug,
+    description: item.description,
+    full_description: item.full_description || '',
+    image: item.image_url || null,
+    image_alt: item.image_alt || '',
+    price_paise: item.price_paise,
+    unit: item.pricing_unit,
+    specifications: item.specifications,
+    min_quantity: item.min_quantity,
+    default_quantity: item.default_quantity,
+    sort: item.sort_order,
+    gallery: (item.gallery ?? []).map((entry) => entry.image_url),
+  };
 }
 
 export async function loadEquipmentPage(options: { category?: string } = {}): Promise<EquipmentPageData> {
@@ -63,7 +101,11 @@ export async function loadEquipmentPage(options: { category?: string } = {}): Pr
       name: i.name,
       slug: i.slug,
       description: i.description,
+      full_description: i.full_description,
       image: i.image_url || null,
+      image_alt: i.image_alt,
+      price_paise: i.price_paise,
+      gallery: i.gallery,
       unit: i.pricing_unit,
       specifications: i.specifications,
       min_quantity: i.min_quantity,

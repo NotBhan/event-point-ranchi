@@ -2,6 +2,7 @@
 import { ClientRouter } from 'astro:transitions';
 import { getAdminNav } from '../core/registry';
 import Icon from '../components/Icon.astro';
+import Toast from '../components/Toast.astro';
 import { site } from '../core/config';
 import '../styles/fonts.css';
 import '../styles/tokens.css';
@@ -25,6 +26,13 @@ const nav = getAdminNav();
 const path = Astro.url.pathname;
 const isEditorOnly = user.role === 'editor';
 const visibleNav = isEditorOnly ? nav.filter((item) => item.href === '/admin/content') : nav;
+const navGroups = [...visibleNav.reduce((groups, item) => {
+  const group = item.group ?? (isEditorOnly ? 'Content Studio' : 'Operations');
+  const current = groups.get(group) ?? [];
+  current.push(item);
+  groups.set(group, current);
+  return groups;
+}, new Map<string, typeof nav>()).entries()];
 
 const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path.startsWith(href));
 ---
@@ -57,11 +65,15 @@ const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path
         </div>
 
         <nav class="admin-nav" aria-label="Admin sections">
-          <span class="admin-nav-label">{isEditorOnly ? 'Content Studio' : 'Operations'}</span>
-          {visibleNav.map((item) => (
-            <a href={item.href} class:list={{ active: isActive(item.href) }}>
-              <Icon name={item.icon} size={15} /> {item.label}
-            </a>
+          {navGroups.map(([group, items]) => (
+            <div class="admin-nav-group">
+              <span class="admin-nav-label">{group}</span>
+              {items.map((item) => (
+                <a href={item.href} class:list={{ active: isActive(item.href) }}>
+                  <Icon name={item.icon} size={15} /> {item.label}
+                </a>
+              ))}
+            </div>
           ))}
         </nav>
 
@@ -112,6 +124,8 @@ const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path
         </div>
       </div>
     </div>
+
+    <Toast flash={Astro.locals.flash} />
 
     <script>
       import '../client/admin';

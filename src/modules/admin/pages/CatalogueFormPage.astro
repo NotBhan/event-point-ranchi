@@ -1,0 +1,278 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import ImageUploadDropzone from '../../../components/admin/ImageUploadDropzone.astro';
+import { formatCataloguePrice } from '../../bookings/pricing-core';
+import type { CatalogueKind } from '../../../core/content/catalogue-admin-store';
+import { CATALOGUE_LABELS, catalogueBasePath } from '../catalogue-service';
+
+interface Props {
+  kind: CatalogueKind;
+  id: number | null;
+  item: Record<string, unknown> | null;
+  images: Array<{ id: number; image_url: string; alt_text: string; sort_order: number }>;
+  categories: Array<{ value: string; label: string }>;
+}
+
+const { kind, id, item, images, categories } = Astro.props;
+const label = CATALOGUE_LABELS[kind];
+const singular = kind === 'mandaps' ? 'Mandap' : kind === 'stages' ? 'Stage' : 'Equipment item';
+const base = catalogueBasePath(kind);
+const csrf = Astro.locals.csrf;
+const value = (key: string, fallback = '') => String(item?.[key] ?? fallback);
+const numberValue = (key: string, fallback = 0) => Number(item?.[key] ?? fallback);
+const checked = (key: string, fallback = false) => (item ? Boolean(Number(item[key])) : fallback);
+const price = item ? numberValue('price_starting_paise', numberValue('price_paise', 0)) : 0;
+const features = (() => {
+  try {
+    const parsed = JSON.parse(value('features_json', '[]'));
+    return Array.isArray(parsed) ? parsed.join('\n') : '';
+  } catch {
+    return '';
+  }
+})();
+const status = item ? (Number(item.is_archived) ? 'archived' : Number(item.is_visible) ? 'active' : 'draft') : 'draft';
+const categoryValue = kind === 'equipment' ? value('category_id') : kind === 'stages' ? value('style_category') : value('category');
+const action = id ? `${base}/${id}` : `${base}/new`;
+const preview = kind === 'mandaps' ? `/mandaps/${value('slug')}` : kind === 'stages' ? `/stages/${value('slug')}` : `/equipment?item=${encodeURIComponent(value('slug'))}`;
+---
+
+<AdminLayout title={id ? `Edit ${value('name', label)}` : `Add ${singular}`} description="Catalogue records publish to the public snapshot through Content Studio.">
+  <div class="admin-toolbar">
+    <a href={base} class="btn btn-secondary btn-sm">← All {label}</a>
+    {id && <a href={preview} target="_blank" rel="noopener" class="btn btn-secondary btn-sm">Preview</a>}
+  </div>
+
+  <form method="POST" action={action} enctype="multipart/form-data" class="admin-grid-3 catalogue-editor">
+    <input type="hidden" name="_csrf" value={csrf} />
+
+    <div class="catalogue-editor-main">
+      <div class="admin-panel">
+        <div class="admin-panel-head"><div><h2>Basic information</h2></div></div>
+        <div class="admin-panel-body">
+          <div class="admin-form-grid">
+            <div class="admin-form-grid" style="grid-template-columns:2fr 1fr;">
+              <div class="field">
+                <label for="name">Name *</label>
+                <input class="input" id="name" name="name" required value={value('name')} placeholder={`${label.slice(0, -1)} name`} />
+              </div>
+              <div class="field">
+                <label for="slug">Slug</label>
+                <input class="input" id="slug" name="slug" value={value('slug')} placeholder="generated-from-name" />
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="description">Short description</label>
+              <textarea class="textarea" id="description" name="description" rows="3" placeholder="Used in catalogue cards.">{value('description')}</textarea>
+            </div>
+            <div class="field">
+              <label for="full_description">Full description</label>
+              <textarea class="textarea" id="full_description" name="full_description" rows="5" placeholder="Used on the item detail page.">{value('full_description')}</textarea>
+            </div>
+
+            {kind === 'equipment' ? (
+              <div class="field">
+                <label for="category_id">Category *</label>
+                <select class="select" id="category_id" name="category_id" required>
+                  <option value="">Select category</option>
+                  {categories.map((category) => <option value={category.value} selected={categoryValue === category.value}>{category.label}</option>)}
+                </select>
+              </div>
+            ) : (
+              <div class="field">
+                <label for={kind === 'stages' ? 'style_category' : 'category'}>{kind === 'stages' ? 'Stage category' : 'Mandap category'}</label>
+                <input class="input" id={kind === 'stages' ? 'style_category' : 'category'} name={kind === 'stages' ? 'style_category' : 'category'} value={categoryValue} placeholder={kind === 'stages' ? 'Royal Reception' : 'Traditional Royal'} />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-panel">
+        <div class="admin-panel-head"><div><h2>Category &amp; specifications</h2></div></div>
+        <div class="admin-panel-body">
+          <div class="admin-form-grid">
+            {kind === 'equipment' ? (
+              <>
+                <div class="admin-form-grid" style="grid-template-columns:1fr 1fr;">
+                  <div class="field"><label for="pricing_unit">Pricing unit</label><input class="input" id="pricing_unit" name="pricing_unit" value={value('pricing_unit', 'per item')} /></div>
+                  <div class="field"><label for="dimensions">Dimensions</label><input class="input" id="dimensions" name="dimensions" value={value('dimensions')} placeholder="e.g. 8 × 8 ft" /></div>
+                </div>
+                <div class="admin-form-grid" style="grid-template-columns:1fr 1fr;">
+                  <div class="field"><label for="min_quantity">Minimum quantity</label><input class="input" id="min_quantity" name="min_quantity" type="number" min="1" value={numberValue('min_quantity', 1)} /></div>
+                  <div class="field"><label for="default_quantity">Default quantity</label><input class="input" id="default_quantity" name="default_quantity" type="number" min="1" value={numberValue('default_quantity', 10)} /></div>
+                </div>
+                <div class="field"><label for="specifications">Specifications</label><textarea class="textarea" id="specifications" name="specifications" rows="4" placeholder="Materials, finish, dimensions and operational notes.">{value('specifications')}</textarea></div>
+              </>
+            ) : (
+              <>
+                <div class="admin-form-grid" style="grid-template-columns:repeat(3, 1fr);">
+                  <div class="field"><label for="length_ft">Length (ft)</label><input class="input" id="length_ft" name="length_ft" type="number" min="1" step="0.5" value={numberValue('length_ft', kind === 'stages' ? 24 : 16)} /></div>
+                  <div class="field"><label for="width_ft">Width (ft)</label><input class="input" id="width_ft" name="width_ft" type="number" min="1" step="0.5" value={numberValue('width_ft', 16)} /></div>
+                  <div class="field"><label for="height_ft">Height (ft)</label><input class="input" id="height_ft" name="height_ft" type="number" min="1" step="0.5" value={numberValue('height_ft', kind === 'stages' ? 14 : 12)} /></div>
+                </div>
+                {kind === 'mandaps' ? (
+                  <>
+                    <div class="admin-form-grid" style="grid-template-columns:1fr 1fr;">
+                      <div class="field"><label for="dimension_unit">Dimension unit</label><input class="input" id="dimension_unit" name="dimension_unit" value={value('dimension_unit', 'ft')} /></div>
+                      <div class="field"><label for="capacity">Guest capacity</label><input class="input" id="capacity" name="capacity" type="number" min="0" value={numberValue('capacity', 0)} /></div>
+                    </div>
+                    <div class="field"><label for="material_specs">Material specifications</label><textarea class="textarea" id="material_specs" name="material_specs" rows="4">{value('material_specs')}</textarea></div>
+                    <div class="field"><label for="features">Features &amp; highlights</label><textarea class="textarea" id="features" name="features" rows="4" placeholder="One per line">{features}</textarea></div>
+                  </>
+                ) : (
+                  <div class="field"><label for="decoration_notes">Decoration notes</label><textarea class="textarea" id="decoration_notes" name="decoration_notes" rows="5">{value('decoration_notes')}</textarea></div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-panel">
+        <div class="admin-panel-head"><div><h2>Pricing</h2><p>Enter 0 or select Price on request for items without a fixed price.</p></div></div>
+        <div class="admin-panel-body">
+          <div class="admin-form-grid" style="grid-template-columns:1fr 1fr;">
+            <div class="field">
+              <label for="price">Price (₹)</label>
+              <input class="input" id="price" name="price" inputmode="decimal" value={price ? (price / 100).toString() : ''} placeholder="0" />
+              <span class="hint">Current display: {formatCataloguePrice(price)}</span>
+            </div>
+            <div class="field">
+              <label>Pricing mode</label>
+              <label class="switch"><input type="radio" name="pricing_mode" value="fixed" checked={price > 0} /> Fixed price</label>
+              <label class="switch"><input type="radio" name="pricing_mode" value="on_request" checked={price <= 0} /> Price on request</label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="catalogue-editor-side">
+      <div class="admin-panel">
+        <div class="admin-panel-head"><div><h2>Primary image</h2></div></div>
+        <div class="admin-panel-body">
+          <ImageUploadDropzone name="image" id="image" label="Featured image" currentImage={value('image_url') || null} fallbackName="image_path" hint="JPG, PNG or WebP. 8 MB maximum." aspectHeight="160px" />
+          <div class="field">
+            <label for="image_alt">Image alt text</label>
+            <input class="input" id="image_alt" name="image_alt" value={value('image_alt')} placeholder="Describe the image for accessibility" />
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-panel">
+        <div class="admin-panel-head"><div><h2>Publication</h2></div></div>
+        <div class="admin-panel-body">
+          <div class="field">
+            <label for="status">Status</label>
+            <select class="select" id="status" name="status">
+              <option value="draft" selected={status === 'draft'}>Draft — not public</option>
+              <option value="active" selected={status === 'active'}>Active — public</option>
+              <option value="archived" selected={status === 'archived'}>Archived</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="sort_order">Display order</label>
+            <input class="input" id="sort_order" name="sort_order" type="number" value={numberValue('sort_order', 0)} />
+          </div>
+          <label class="switch"><input type="checkbox" name="is_featured" checked={checked('is_featured')} /> Feature on homepage</label>
+          <button type="submit" name="action" value="save" class="btn btn-primary btn-block" style="margin-top:16px;">{id ? 'Save changes' : 'Create item'}</button>
+          <a href={base} class="btn btn-secondary btn-block" style="margin-top:8px;">Cancel</a>
+        </div>
+      </div>
+
+      {id && (
+        <div class="admin-panel">
+          <div class="admin-panel-head"><div><h2>Actions</h2></div></div>
+          <div class="admin-panel-body">
+            <div class="admin-row-actions">
+              {status === 'archived' ? (
+                <button type="submit" name="action" value="activate" class="btn btn-secondary btn-sm" formnovalidate>Reactivate</button>
+              ) : (
+                <button type="submit" name="action" value="archive" class="btn btn-danger-soft btn-sm" formnovalidate data-confirm="Archive this item?">Archive</button>
+              )}
+              <button type="submit" name="action" value="duplicate" class="btn btn-secondary btn-sm" formnovalidate>Duplicate</button>
+            </div>          </div>
+        </div>
+      )}
+    </div>
+  </form>
+
+  {id && (
+    <div class="admin-panel">
+      <div class="admin-panel-head"><div><h2>Additional images</h2><p>Alt text, ordering and safe removal for the detail gallerys.</p></div></div>
+      <div class="admin-panel-body">
+        {images.length > 0 ? (
+          <div class="catalogue-image-list">
+            {images.map((image) => (
+              <div class="catalogue-image-row">
+                <img class="admin-thumb" src={image.image_url} width="56" height="56" alt={image.alt_text} loading="lazy" />
+                <form method="POST" action={action} class="catalogue-image-form">
+                  <input type="hidden" name="_csrf" value={csrf} />
+                  <input type="hidden" name="action" value="edit_image" />
+                  <input type="hidden" name="image_id" value={image.id} />
+                  <input class="input" name="alt_text" value={image.alt_text} placeholder="Alt text" />
+                  <button class="btn btn-secondary btn-sm" type="submit">Save alt</button>
+                </form>
+                <form method="POST" action={action}>
+                  <input type="hidden" name="_csrf" value={csrf} />
+                  <input type="hidden" name="action" value="reorder_image" />
+                  <input type="hidden" name="image_id" value={image.id} />
+                  <input type="hidden" name="direction" value="up" />
+                  <button class="btn btn-secondary btn-xs" type="submit" aria-label="Move image up">↑</button>
+                </form>
+                <form method="POST" action={action}>
+                  <input type="hidden" name="_csrf" value={csrf} />
+                  <input type="hidden" name="action" value="reorder_image" />
+                  <input type="hidden" name="image_id" value={image.id} />
+                  <input type="hidden" name="direction" value="down" />
+                  <button class="btn btn-secondary btn-xs" type="submit" aria-label="Move image down">↓</button>
+                </form>
+                <form method="POST" action={action}>
+                  <input type="hidden" name="_csrf" value={csrf} />
+                  <input type="hidden" name="action" value="delete_image" />
+                  <input type="hidden" name="image_id" value={image.id} />
+                  <button class="btn btn-danger-soft btn-sm" type="submit" data-confirm="Remove this image reference? The media object is retained for safety.">Remove</button>
+                </form>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p class="text-sm text-muted">No additional images yet.</p>
+        )}
+
+        <form method="POST" action={action} enctype="multipart/form-data" class="admin-inline-form" style="margin-top:16px;">
+          <input type="hidden" name="_csrf" value={csrf} />
+          <input type="hidden" name="action" value="add_image" />
+          <div class="field" style="flex:1;">
+            <label for="gallery_image">Add image</label>
+            <input class="input" id="gallery_image" name="image" type="file" accept="image/jpeg,image/png,image/webp" required />
+          </div>
+          <div class="field" style="flex:1;">
+            <label for="gallery_alt">Alt text</label>
+            <input class="input" id="gallery_alt" name="alt_text" placeholder="Describe this image" />
+          </div>
+          <button class="btn btn-secondary btn-sm" type="submit">Upload image</button>
+        </form>
+      </div>
+    </div>
+  )}
+</AdminLayout>
+
+<script>
+  import '../../../client/catalogue-admin';
+</script>
+
+<style>
+  .catalogue-editor { align-items:start; }
+  .catalogue-editor-main, .catalogue-editor-side { display:flex; flex-direction:column; gap:20px; min-width:0; }
+  .catalogue-editor-main { grid-column: span 2; }
+  .catalogue-image-list { display:flex; flex-direction:column; gap:10px; }
+  .catalogue-image-row { display:flex; align-items:center; gap:10px; padding:8px; border:1px solid var(--line); border-radius:10px; flex-wrap:wrap; }
+  .catalogue-image-form { display:flex; align-items:center; gap:8px; flex:1; min-width:220px; }
+  .catalogue-image-form .input { flex:1; }
+  @media (max-width: 1000px) {
+    .catalogue-editor-main { grid-column: auto; }
+    .catalogue-editor-side { grid-column: auto; }
+  }
+</style>

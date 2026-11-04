@@ -34,10 +34,14 @@ export interface CateringPackageRow {
   slug: string;
   description: string;
   badge: string;
+  category?: string;
   image_url: string;
+  full_description?: string;
+  image_alt?: string;
   price_per_plate_paise: number;
   show_on_home: number;
   is_visible: number;
+  is_archived?: number;
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -123,7 +127,7 @@ export async function fetchGalleryCatalog(): Promise<GalleryCatalog> {
 export async function fetchCateringCatalog(): Promise<CateringCatalog> {
   const d1 = getD1Client();
   const [packages, features, bannerFeatures, guestPricing, sections, categories, items] = await d1.batch<any>([
-    { sql: 'SELECT * FROM catering_packages WHERE is_visible = 1 ORDER BY sort_order ASC, id ASC' },
+    { sql: 'SELECT * FROM catering_packages WHERE is_visible = 1 AND is_archived = 0 ORDER BY sort_order ASC, id ASC' },
     { sql: 'SELECT id, package_id, name FROM catering_features ORDER BY id ASC' },
     { sql: 'SELECT id, package_id, name FROM banner_features ORDER BY id ASC' },
     { sql: 'SELECT id, package_id, guest_count, price_per_plate_paise, sort FROM guest_pricing ORDER BY sort ASC, guest_count ASC' },
@@ -281,8 +285,9 @@ export async function listCateringAdminRows(page: number, perPage: number): Prom
   const [total, items] = await getD1Client().batch<any>([
     { sql: 'SELECT COUNT(*) AS count FROM catering_packages' },
     {
-      sql: `SELECT cp.id, cp.name, cp.slug, cp.description, cp.badge, cp.image_url, cp.price_per_plate_paise,
-                   cp.show_on_home, cp.is_visible, cp.sort_order,
+      sql: `SELECT cp.id, cp.name, cp.slug, cp.description, cp.full_description, cp.category, cp.image_alt,
+                   cp.badge, cp.image_url, cp.price_per_plate_paise,
+                   cp.show_on_home, cp.is_visible, cp.is_archived, cp.sort_order,
                    COALESCE(ms.section_count, 0) AS section_count,
                    COALESCE(mi.item_count, 0) AS item_count
             FROM catering_packages cp
@@ -397,25 +402,33 @@ export interface CateringPackageInput {
   imageUrl: string | null;
   pricePaise: number;
   description: string;
+  fullDescription?: string;
+  category?: string;
+  imageAlt?: string;
   badge: string;
   showOnHome: number;
   isVisible: number;
+  sortOrder?: number;
 }
 
 export async function insertCateringPackage(input: CateringPackageInput): Promise<number> {
   const res = await getD1Client().query(
     `INSERT INTO catering_packages
-       (name, slug, description, badge, image_url, price_per_plate_paise, show_on_home, is_visible)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+       (name, slug, description, full_description, category, image_url, image_alt, price_per_plate_paise, badge, show_on_home, is_visible, sort_order)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       input.name,
       input.slug,
       input.description,
-      input.badge,
+      input.fullDescription ?? '',
+      input.category ?? 'Signature',
       input.imageUrl,
+      input.imageAlt ?? '',
       input.pricePaise,
+      input.badge,
       input.showOnHome,
       input.isVisible,
+      input.sortOrder ?? 0,
     ],
   );
   return Number(res.meta.last_row_id ?? 0);
@@ -423,18 +436,23 @@ export async function insertCateringPackage(input: CateringPackageInput): Promis
 
 export async function updateCateringPackage(id: number, input: CateringPackageInput): Promise<void> {
   await getD1Client().query(
-    `UPDATE catering_packages SET name = ?, slug = ?, description = ?, badge = ?, image_url = ?,
-       price_per_plate_paise = ?, show_on_home = ?, is_visible = ?, updated_at = datetime('now')
+    `UPDATE catering_packages SET name = ?, slug = ?, description = ?, full_description = ?, category = ?,
+       image_url = ?, image_alt = ?, badge = ?, price_per_plate_paise = ?, show_on_home = ?, is_visible = ?,
+       sort_order = ?, updated_at = datetime('now')
      WHERE id = ?`,
     [
       input.name,
       input.slug,
       input.description,
-      input.badge,
+      input.fullDescription ?? '',
+      input.category ?? 'Signature',
       input.imageUrl,
+      input.imageAlt ?? '',
+      input.badge,
       input.pricePaise,
       input.showOnHome,
       input.isVisible,
+      input.sortOrder ?? 0,
       id,
     ],
   );
@@ -459,6 +477,20 @@ export async function deleteCateringPackage(id: number): Promise<void> {
 export async function toggleCateringVisibility(id: number): Promise<void> {
   await getD1Client().query(
     'UPDATE catering_packages SET is_visible = CASE is_visible WHEN 1 THEN 0 ELSE 1 END WHERE id = ?',
+    [id],
+  );
+}
+
+export async function archiveCateringPackage(id: number): Promise<void> {
+  await getD1Client().query(
+    "UPDATE catering_packages SET is_visible = 0, is_archived = 1, archived_at = datetime('now'), updated_at = datetime('now') WHERE id = ?",
+    [id],
+  );
+}
+
+export async function activateCateringPackage(id: number): Promise<void> {
+  await getD1Client().query(
+    "UPDATE catering_packages SET is_visible = 1, is_archived = 0, archived_at = NULL, updated_at = datetime('now') WHERE id = ?",
     [id],
   );
 }

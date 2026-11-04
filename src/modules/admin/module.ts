@@ -6,11 +6,8 @@ import {
   cateringListAction,
   contentAdmin,
   galleryAdmin,
-  hallDelete,
-  hallForm,
-  hallToggle,
-  hallsList,
 } from './handlers/catalog';
+import { catalogueAction, catalogueForm, catalogueList } from './handlers/catalogue';
 import {
   adminLogin,
   adminLogout,
@@ -32,6 +29,8 @@ import BookingDetailPage from './pages/BookingDetailPage.astro';
 import BookingsPage from './pages/BookingsPage.astro';
 import CateringFormPage from './pages/CateringFormPage.astro';
 import CateringPage from './pages/CateringPage.astro';
+import CatalogueFormPage from './pages/CatalogueFormPage.astro';
+import CatalogueListPage from './pages/CatalogueListPage.astro';
 import ContentPage from './pages/ContentPage.astro';
 import CustomerDetailPage from './pages/CustomerDetailPage.astro';
 import CustomersPage from './pages/CustomersPage.astro';
@@ -39,8 +38,6 @@ import DashboardPage from './pages/DashboardPage.astro';
 import NewEnquiriesPage from './pages/NewEnquiriesPage.astro';
 import NewEnquiryDetailPage from './pages/NewEnquiryDetailPage.astro';
 import GalleryAdminPage from './pages/GalleryAdminPage.astro';
-import HallFormPage from './pages/HallFormPage.astro';
-import HallsPage from './pages/HallsPage.astro';
 import InquiriesPage from './pages/InquiriesPage.astro';
 import LoginPage from './pages/LoginPage.astro';
 import PaymentDetailPage from './pages/PaymentDetailPage.astro';
@@ -57,8 +54,10 @@ export default defineModule({
     ...(paymentsEnabled() ? [{ label: 'Payments', href: '/admin/payments', icon: 'credit-card', order: 22 }] : []),
     { label: 'New Enquiries', href: '/admin/new-enquiries', icon: 'calendar', order: 15 },
     { label: 'Enquiry QR Scanner', href: '/admin/enquiries/scan', icon: 'camera', order: 16 },
-    { label: 'Halls', href: '/admin/halls', icon: 'building', order: 30 },
-    { label: 'Catering', href: '/admin/catering', icon: 'utensils', order: 50 },
+    { label: 'Mandaps', href: '/admin/mandaps', icon: 'building', order: 31, group: 'Catalogue' },
+    { label: 'Stages', href: '/admin/stages', icon: 'sparkles', order: 32, group: 'Catalogue' },
+    { label: 'Equipment', href: '/admin/equipment', icon: 'chair', order: 33, group: 'Catalogue' },
+    { label: 'Catering', href: '/admin/catering', icon: 'utensils', order: 34, group: 'Catalogue' },
     { label: 'Gallery', href: '/admin/gallery', icon: 'image', order: 60 },
     { label: 'Customers', href: '/admin/customers', icon: 'users', order: 70 },
     { label: 'Contact Messages', href: '/admin/inquiries', icon: 'mail', order: 80 },
@@ -86,12 +85,18 @@ export default defineModule({
     { path: '/admin/enquiries', component: NewEnquiriesPage, handle: legacyEnquiriesRedirect },
     { path: '/admin/enquiries/:id', component: NewEnquiryDetailPage, handle: legacyEnquiryDetailRedirect },
 
-    { path: '/admin/halls', component: HallsPage, handle: hallsList },
-
-    { path: '/admin/halls/new', component: HallFormPage, handle: hallForm },
-    { path: '/admin/halls/:id', component: HallFormPage, handle: hallForm },
-    { path: '/admin/halls/:id/toggle', component: HallsPage, handle: hallToggle },
-    { path: '/admin/halls/:id/delete', component: HallsPage, handle: hallDelete },
+    { path: '/admin/mandaps', component: CatalogueListPage, handle: (ctx) => catalogueList(ctx, 'mandaps') },
+    { path: '/admin/mandaps/new', component: CatalogueFormPage, handle: (ctx) => catalogueForm(ctx, 'mandaps') },
+    { path: '/admin/mandaps/:id/action', component: CatalogueListPage, handle: (ctx) => catalogueAction(ctx, 'mandaps') },
+    { path: '/admin/mandaps/:id', component: CatalogueFormPage, handle: (ctx) => catalogueForm(ctx, 'mandaps') },
+    { path: '/admin/stages', component: CatalogueListPage, handle: (ctx) => catalogueList(ctx, 'stages') },
+    { path: '/admin/stages/new', component: CatalogueFormPage, handle: (ctx) => catalogueForm(ctx, 'stages') },
+    { path: '/admin/stages/:id/action', component: CatalogueListPage, handle: (ctx) => catalogueAction(ctx, 'stages') },
+    { path: '/admin/stages/:id', component: CatalogueFormPage, handle: (ctx) => catalogueForm(ctx, 'stages') },
+    { path: '/admin/equipment', component: CatalogueListPage, handle: (ctx) => catalogueList(ctx, 'equipment') },
+    { path: '/admin/equipment/new', component: CatalogueFormPage, handle: (ctx) => catalogueForm(ctx, 'equipment') },
+    { path: '/admin/equipment/:id/action', component: CatalogueListPage, handle: (ctx) => catalogueAction(ctx, 'equipment') },
+    { path: '/admin/equipment/:id', component: CatalogueFormPage, handle: (ctx) => catalogueForm(ctx, 'equipment') },
 
     { path: '/admin/catering', component: CateringPage, handle: cateringList },
     { path: '/admin/catering/action', component: CateringPage, handle: cateringListAction },

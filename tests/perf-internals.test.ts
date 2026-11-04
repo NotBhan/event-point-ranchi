@@ -128,8 +128,6 @@ test('5. page cache only covers marketing routes without POST forms or CSRF toke
     'src/modules/gallery/pages/GalleryPage.astro',
     'src/modules/catering/pages/CateringPage.astro',
     'src/modules/catering/pages/PackageDetailPage.astro',
-    'src/modules/halls/pages/HallsPage.astro',
-    'src/modules/halls/pages/HallDetailPage.astro',
   ];
 
   for (const relativePath of componentFiles) {

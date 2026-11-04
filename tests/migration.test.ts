@@ -69,8 +69,8 @@ test('1. edge delivery endpoint returns 200 with proper headers for existing obj
 
 test('2. edge delivery endpoint returns 304 Not Modified when ETag matches If-None-Match', async () => {
   const client = getFilebaseClient();
-  const testKey = 'assets/halls/1/primary.webp';
-  const testBody = Buffer.from('RIFF....WEBPprimaryhall1');
+  const testKey = 'assets/mandaps/1/primary.webp';
+  const testBody = Buffer.from('RIFF....WEBPprimarymandap1');
 
   const { etag } = await client.putObject({
     key: testKey,
@@ -156,7 +156,7 @@ test('7. fresh seedDatabase populates /storage/ URLs and initial storage objects
 
   // Check storage_objects
   const countRow = freshDb.prepare('SELECT COUNT(*) as c FROM storage_objects').get() as { c: number };
-  assert.ok(countRow.c >= 88, `Expected at least 88 storage objects, found ${countRow.c}`);
+  assert.ok(countRow.c >= 76, `Expected at least 76 storage objects, found ${countRow.c}`);
 
   // Check that all mandap images start with /storage/
   const mandapImages = freshDb.prepare('SELECT image FROM mandaps').all() as Array<{ image: string }>;
@@ -170,14 +170,6 @@ test('7. fresh seedDatabase populates /storage/ URLs and initial storage objects
   assert.ok(stageImages.length > 0);
   for (const row of stageImages) {
     assert.ok(row.image.startsWith('/storage/'), `Expected /storage/ path, got: ${row.image}`);
-  }
-
-  // Check that all hall images start with /storage/
-  const hallImages = freshDb.prepare('SELECT image, banner_image FROM halls').all() as Array<{ image: string; banner_image: string }>;
-  assert.ok(hallImages.length > 0);
-  for (const row of hallImages) {
-    assert.ok(row.image.startsWith('/storage/'), `Expected /storage/ path, got: ${row.image}`);
-    assert.ok(row.banner_image.startsWith('/storage/'), `Expected /storage/ banner, got: ${row.banner_image}`);
   }
 
   // Check that rooms table is removed
@@ -203,14 +195,14 @@ test('7. fresh seedDatabase populates /storage/ URLs and initial storage objects
   }
 });
 
-test('8. initial storage objects metadata contains 90 registered items with valid categories', () => {
-  assert.equal(INITIAL_STORAGE_OBJECTS.length, 90);
+test('8. initial storage objects metadata contains 76 registered items with valid categories', () => {
+  assert.equal(INITIAL_STORAGE_OBJECTS.length, 76);
 
   const galleryObjs = INITIAL_STORAGE_OBJECTS.filter((o) => o.storage_category === 'gallery');
   const assetObjs = INITIAL_STORAGE_OBJECTS.filter((o) => o.storage_category === 'asset');
 
   assert.equal(galleryObjs.length, 11);
-  assert.equal(assetObjs.length, 79);
+  assert.equal(assetObjs.length, 65);
 
   const galleryBytes = galleryObjs.reduce((acc, o) => acc + o.size_bytes, 0);
   const assetBytes = assetObjs.reduce((acc, o) => acc + o.size_bytes, 0);

@@ -14,7 +14,6 @@ import {
   getEnquiryLineItemsForIds,
   listEnquiryQuotations,
   getEventEnquiryWithItems,
-  getHallBookingActivity,
   getRecentBookings,
   getUpcomingBookings,
   listBookingsPage,
@@ -24,7 +23,7 @@ import {
   setBookingStatus,
   updateContactInquiryStatus as updateContactInquiryStatusNeon,
 } from '../../core/operational/service';
-import { buildPagination, getBoolean, getInt, getString, parseMoneyToPaise, uniqueSlug, uniqueSlugAsync } from '../../core/http';
+import { buildPagination, getBoolean, getInt, getString, parseMoneyToPaise, uniqueSlugAsync } from '../../core/http';
 import * as catalog from '../../core/content/catalog-store';
 import { formatBytes } from '../../core/storage/config';
 import type { StorageDriver } from '../../core/storage/filebase';
@@ -102,19 +101,12 @@ async function visibleCateringPackageCount(): Promise<number> {
  * they are read from Neon — the same store the booking API writes to.
  */
 export async function loadDashboard() {
-  const localCounts = one<{
-    halls: number;
-  }>(
-    `SELECT (SELECT COUNT(*) FROM halls WHERE is_active = 1) AS halls`,
-  ) ?? { halls: 0 };
-
   const bookingStats = await getBookingStats();
   const counts = {
     bookings: bookingStats.bookings,
     pending: bookingStats.pending,
     confirmed: bookingStats.confirmed,
     revenue: bookingStats.revenue,
-    halls: Number(localCounts.halls ?? 0),
     packages: 0,
     customers: await countCustomers(),
     inquiries: await countContactInquiries('new'),
@@ -126,22 +118,7 @@ export async function loadDashboard() {
   const recentBookings = await getRecentBookings(8);
   const upcoming = await getUpcomingBookings(6);
 
-  // Hall usage comes from booking_items in Neon; hall names stay in the
-  // catalogue copy, so they are joined in memory.
-  const hallActivity = await getHallBookingActivity();
-  const hallNames = new Map(
-    all<{ id: number; name: string }>('SELECT id, name FROM halls').map((hall) => [Number(hall.id), hall.name]),
-  );
-  const topHalls = hallActivity
-    .map((entry) => ({
-      name: hallNames.get(entry.hallId) ?? `Hall #${entry.hallId}`,
-      bookings: entry.bookings,
-      revenue: entry.revenue,
-    }))
-    .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 5);
-
-  return { counts, recentBookings, upcoming, topHalls };
+  return { counts, recentBookings, upcoming };
 }
 
 /* ============================ Bookings ============================ */
@@ -172,121 +149,6 @@ export async function updateBookingStatus(id: number, status: string): Promise<v
   if (!updated) throw new Error(`Booking #${id} was not found.`);
 }
 
-/* ============================ Halls ============================ */
-
-export async function listHallsAdmin(paging: { page?: number; perPage?: number } = {}) {
-  const perPage = Math.max(1, Math.min(100, paging.perPage ?? 25));
-  const requestedPage = Math.max(1, paging.page ?? 1);
-
-  const totalRow = one<{ count: number }>('SELECT COUNT(*) AS count FROM halls');
-  const totalCount = Number(totalRow?.count ?? 0);
-  const offset = buildPagination(requestedPage, perPage, totalCount, 0).offset;
-
-  // Booking counts come from the operational store; hall records stay in the
-  // catalogue copy, so the two are merged in memory.
-  const hallActivity = new Map((await getHallBookingActivity()).map((entry) => [entry.hallId, entry.bookings]));
-
-  const rows = all<{
-    id: number;
-    name: string;
-    slug: string;
-    image: string | null;
-    price_paise: number;
-    capacity: number;
-    location: string;
-    is_active: number;
-    is_featured: number;
-  }>(
-    `SELECT h.id, h.name, h.slug, h.image, h.price_paise, h.capacity, h.location, h.is_active, h.is_featured
-     FROM halls h
-     ORDER BY h.is_active DESC, h.id
-     LIMIT ? OFFSET ?`,
-    [perPage, offset],
-  );
-
-  const items = rows.map((hall) => ({ ...hall, booking_count: hallActivity.get(Number(hall.id)) ?? 0 }));
-
-  return { items, pagination: buildPagination(requestedPage, perPage, totalCount, items.length) };
-}
-
-export function loadHallAdmin(id: number) {
-  return one<Record<string, unknown>>('SELECT * FROM halls WHERE id = ?', [id]);
-}
-
-export async function saveHall(form: FormData | null, id?: number): Promise<number> {
-  const name = getString(form, 'name');
-  if (!name) throw new Error('Hall name is required.');
-
-  const slugInput = getString(form, 'slug') || name;
-  const existingId = id ?? 0;
-  const slug = uniqueSlug(slugInput, (candidate) => {
-    const clash = one<{ id: number }>('SELECT id FROM halls WHERE slug = ? AND id != ?', [candidate, existingId]);
-    return Boolean(clash);
-  });
-
-  const uploadedImage = await saveUploadedImage(form, 'image', 'halls');
-  const uploadedBanner = await saveUploadedImage(form, 'banner_image', 'halls');
-
-  const values = {
-    name,
-    slug,
-    description: getString(form, 'description'),
-    image: (uploadedImage ?? getString(form, 'image_path')) || null,
-    banner_image: (uploadedBanner ?? getString(form, 'banner_path')) || null,
-    price_paise: parseMoneyToPaise(getString(form, 'price')),
-    capacity: getInt(form, 'capacity', 0),
-    location: getString(form, 'location'),
-    parking_capacity: getInt(form, 'parking_capacity', 0),
-    is_ac: getBoolean(form, 'is_ac') ? 1 : 0,
-    is_wifi: getBoolean(form, 'is_wifi') ? 1 : 0,
-    is_featured: getBoolean(form, 'is_featured') ? 1 : 0,
-    show_badge: getBoolean(form, 'show_badge') ? 1 : 0,
-    is_active: getBoolean(form, 'is_active') ? 1 : 0,
-  };
-
-  const params = [
-    values.name,
-    values.slug,
-    values.description,
-    values.image,
-    values.banner_image,
-    values.price_paise,
-    values.capacity,
-    values.location,
-    values.parking_capacity,
-    values.is_ac,
-    values.is_wifi,
-    values.is_featured,
-    values.show_badge,
-    values.is_active,
-  ];
-
-  if (id) {
-    run(
-      `UPDATE halls SET name = ?, slug = ?, description = ?, image = ?, banner_image = ?, price_paise = ?,
-       capacity = ?, location = ?, parking_capacity = ?, is_ac = ?, is_wifi = ?, is_featured = ?, show_badge = ?,
-       is_active = ?, updated_at = datetime('now') WHERE id = ?`,
-      [...params, id],
-    );
-    return id;
-  }
-
-  return run(
-    `INSERT INTO halls (name, slug, description, image, banner_image, price_paise, capacity, location,
-       parking_capacity, is_ac, is_wifi, is_featured, show_badge, is_active)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    params,
-  ).lastId;
-}
-
-export function deleteHall(id: number): void {
-  run('DELETE FROM halls WHERE id = ?', [id]);
-}
-
-export function toggleHall(id: number): void {
-  run('UPDATE halls SET is_active = CASE is_active WHEN 1 THEN 0 ELSE 1 END WHERE id = ?', [id]);
-}
-
 /* ============================ Catering ============================ */
 
 /** D1 rows use their own column names; the admin pages keep the legacy view model. */
@@ -298,10 +160,14 @@ function toCateringAdminItem(
     name: row.name,
     slug: row.slug,
     description: row.description,
+    full_description: row.full_description ?? '',
+    category: row.category ?? 'Signature',
+    image_alt: row.image_alt ?? '',
     badge: row.badge,
     image: row.image_url,
     price_paise: row.price_per_plate_paise,
     is_active: row.is_visible,
+    is_archived: row.is_archived ?? 0,
     show_on_home: row.show_on_home,
     section_count: Number(row.section_count ?? 0),
     item_count: Number(row.item_count ?? 0),
@@ -360,9 +226,13 @@ export async function saveCatering(form: FormData | null, id?: number): Promise<
     imageUrl: (uploaded ?? getString(form, 'image_path')) || null,
     pricePaise: parseMoneyToPaise(getString(form, 'price')),
     description: getString(form, 'description'),
+    fullDescription: getString(form, 'full_description'),
+    category: getString(form, 'category') || 'Signature',
+    imageAlt: getString(form, 'image_alt'),
     badge: getString(form, 'badge'),
     showOnHome: getBoolean(form, 'show_on_home') ? 1 : 0,
     isVisible: getBoolean(form, 'is_active') ? 1 : 0,
+    sortOrder: getInt(form, 'sort_order', 0),
   };
 
   if (id) {
@@ -382,6 +252,14 @@ export async function deleteCatering(id: number): Promise<void> {
 
 export async function toggleCatering(id: number): Promise<void> {
   await catalog.toggleCateringVisibility(id);
+}
+
+export async function archiveCatering(id: number): Promise<void> {
+  await catalog.archiveCateringPackage(id);
+}
+
+export async function activateCatering(id: number): Promise<void> {
+  await catalog.activateCateringPackage(id);
 }
 
 export async function toggleCateringHome(id: number): Promise<void> {

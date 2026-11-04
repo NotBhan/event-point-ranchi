@@ -167,7 +167,7 @@ test('legacy Plan draft storage is purged and the wizard never reads browser sto
   assert.equal(wizardSource.includes('eventPointPlanDraft'), false, 'plan wizard must not reference the legacy draft key');
 });
 
-test('catering and hall selections are tab-scoped and do not use legacy localStorage', () => {
+test('catering selections are tab-scoped and do not use legacy localStorage', () => {
   local.setItem(LEGACY_CART_KEY, JSON.stringify({ catering: { ...catering, name: 'Leaked legacy catering' } }));
 
   assert.deepEqual(cart.readCart(), cart.emptyCart(), 'legacy cart must never be restored');

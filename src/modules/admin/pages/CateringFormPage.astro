@@ -57,8 +57,26 @@ const action = id ? `/admin/catering/${id}` : '/admin/catering/new';
             </div>
           </div>
           <div class="field">
-            <label for="description">Description</label>
+            <label for="description">Short description</label>
             <textarea class="textarea" id="description" name="description" rows="3">{value('description')}</textarea>
+          </div>
+          <div class="field">
+            <label for="full_description">Full description</label>
+            <textarea class="textarea" id="full_description" name="full_description" rows="4">{value('full_description')}</textarea>
+          </div>
+          <div class="admin-form-grid" style="grid-template-columns:1fr 1fr;">
+            <div class="field">
+              <label for="category">Package category</label>
+              <input class="input" id="category" name="category" value={value('category', 'Signature')} placeholder="Signature" />
+            </div>
+            <div class="field">
+              <label for="image_alt">Primary image alt text</label>
+              <input class="input" id="image_alt" name="image_alt" value={value('image_alt')} placeholder="Describe the package image" />
+            </div>
+            <div class="field">
+              <label for="sort_order">Display order</label>
+              <input class="input" id="sort_order" name="sort_order" type="number" value={packageData ? Number(packageData.sort_order ?? 0) : 0} />
+            </div>
           </div>
           <ImageUploadDropzone
             name="image"

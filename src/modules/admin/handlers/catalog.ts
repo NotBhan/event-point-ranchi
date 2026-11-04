@@ -28,6 +28,8 @@ import type { PageContext } from '../../../core/types';
 import {
   saveSiteSettings,
   saveSeoSettings,
+  activateCatering,
+  archiveCatering,
   addGalleryCategory,
   addGuestPricing,
   addHomeFeature,
@@ -35,28 +37,23 @@ import {
   addMenuSection,
   addPackageOption,
   batchUploadGalleryAdmin,
-  deleteCatering,
   deleteGalleryCategory,
   deleteGalleryItem,
   deleteGuestPricing,
-  deleteHall,
   deleteHomeFeature,
   deleteMenuItem,
   deleteMenuSection,
   deletePackageOption,
   listCateringAdmin,
   listGalleryAdmin,
-  listHallsAdmin,
   loadCateringAdmin,
   loadContentAdmin,
   parseContentStudioTab,
-  loadHallAdmin,
   replaceGalleryItemAdmin,
   saveCatering,
   saveContactInfo,
   saveGalleryItemCategory,
   saveGalleryItemTitle,
-  saveHall,
   saveHomepage,
   saveMandapLocationAdmin,
   savePageAdmin,
@@ -68,64 +65,11 @@ import {
   toggleCateringHome,
   toggleGalleryCategory,
   toggleGalleryItem,
-  toggleHall,
   toggleMenuItem,
   updateMenuItem,
   updateMenuSection,
 } from '../service';
 import { runFormAction } from './shared';
-
-/* ---------------- Halls ---------------- */
-
-export function hallsList(ctx: PageContext) {
-  const denied = requireAdmin(ctx);
-  if (denied) return denied;
-  const { page, perPage } = parsePageParams(ctx.url, { defaultPerPage: 25 });
-  return { props: { ...listHallsAdmin({ page, perPage }) } };
-}
-
-export async function hallForm(ctx: PageContext) {
-  const denied = requireAdmin(ctx);
-  if (denied) return denied;
-
-  const rawId = ctx.params.id;
-  const id = rawId && rawId !== 'new' ? Number(rawId) : undefined;
-
-  if (ctx.request.method === 'POST') {
-    const action = getString(ctx.form, 'action');
-
-    if (action === 'delete' && id) {
-      deleteHall(id);
-      return runFormAction(ctx, { delete: () => undefined }, { redirectTo: '/admin/halls' });
-    }
-
-    try {
-      const savedId = await saveHall(ctx.form, id);
-      return redirect(`/admin/halls/${savedId}`);
-    } catch (error) {
-      const { setError } = await import('../../../core/flash');
-      setError(ctx.cookies, error instanceof Error ? error.message : 'Could not save the hall.');
-      return redirect(id ? `/admin/halls/${id}` : '/admin/halls/new');
-    }
-  }
-
-  const hall = id ? loadHallAdmin(id) : null;
-  if (id && !hall) return { props: { notFound: true }, status: 404 };
-
-  return { props: { hall, id: id ?? null } };
-}
-
-export function hallToggle(ctx: PageContext) {
-  const denied = requireAdmin(ctx);
-  if (denied) return denied;
-  return runFormAction(ctx, { toggle: () => toggleHall(Number(ctx.params.id)) }, { redirectTo: '/admin/halls' });
-}
-
-export function hallDelete(ctx: PageContext) {
-  const denied = requireAdmin(ctx);
-  if (denied) return denied;
-  return runFormAction(ctx, { delete: () => deleteHall(Number(ctx.params.id)) }, { redirectTo: '/admin/halls' });
-}
 
 /* ---------------- Catering ---------------- */
 
@@ -206,7 +150,8 @@ export function cateringListAction(ctx: PageContext) {
     {
       toggle: () => toggleCatering(id),
       toggle_home: () => toggleCateringHome(id),
-      delete: () => deleteCatering(id),
+      archive: () => archiveCatering(id),
+      activate: () => activateCatering(id),
     },
     { redirectTo: '/admin/catering' },
   );

@@ -200,7 +200,6 @@ export interface QuotationData {
 }
 
 const LINE_LABELS: Record<string, string> = {
-  hall: 'Hall venue',
   mandap: 'Mandap design',
   stage: 'Stage decoration',
   furniture: 'Furniture & seating',

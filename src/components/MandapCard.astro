@@ -1,6 +1,7 @@
 ---
 import Icon from './Icon.astro';
 import { responsiveImage } from '../core/media';
+import { formatCataloguePrice } from '../modules/bookings/pricing-core';
 
 interface Props {
   mandap: {
@@ -14,6 +15,8 @@ interface Props {
     width_ft: number;
     height_ft: number;
     dimension_unit: string;
+    price_starting_paise?: number;
+    image_alt?: string;
   };
 }
 
@@ -30,7 +33,7 @@ const image = responsiveImage(mandap.image, {
     {mandap.image ? (
       <div class="media-with-skeleton" style="width: 100%; height: 100%;">
         <div class="skeleton-placeholder skeleton-shimmer" role="status" aria-busy="true" aria-label="Loading image..."></div>
-        <img src={image.src} srcset={image.srcset} sizes={image.sizes} width="640" height="480" alt={mandap.name} loading="lazy" decoding="async" />
+        <img src={image.src} srcset={image.srcset} sizes={image.sizes} width="640" height="480" alt={mandap.image_alt || mandap.name} loading="lazy" decoding="async" />
         <div class="skeleton-error-fallback" role="alert">
           <Icon name="image" size={24} />
           <span>Image preview unavailable</span>
@@ -51,6 +54,8 @@ const image = responsiveImage(mandap.image, {
       <span>Standard size</span>
       <strong>{dimensions}</strong>
     </div>
+
+    <div style="font-weight:700;color:var(--gold-ink);font-size:13px;margin:8px 0;">{formatCataloguePrice(mandap.price_starting_paise ?? 0)}</div>
 
     <div class="catalogue-foot">
       <a href={`/mandaps/${mandap.slug}`} class="btn btn-secondary btn-sm">View details</a>

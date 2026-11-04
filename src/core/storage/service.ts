@@ -43,7 +43,6 @@ const ASSET_FOLDERS = {
   catering: 'catering',
   furniture: 'furniture',
   equipment: 'equipment',
-  hall: 'halls',
   room: 'rooms',
   branding: 'branding',
   banner: 'banners',

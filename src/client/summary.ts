@@ -7,7 +7,7 @@ import {
   type CartState,
 } from './cart';
 
-type Primary = 'hall' | 'room' | 'catering' | 'all';
+type Primary = 'room' | 'catering' | 'all';
 
 interface SummaryOptions {
   primary?: Primary;
@@ -127,36 +127,7 @@ function render(card: HTMLElement, options: SummaryOptions): void {
     `;
   }
 
-  // 2. Hall
-  if (cart.hall) {
-    activeItemsHtml += `
-      <div class="summary-active-item" data-category="hall">
-        <div class="summary-item-top">
-          <div class="summary-item-badge">
-            ${icon('building', 13)}
-            <span>Banquet Hall</span>
-          </div>
-          <span class="summary-item-price">${formatPaise(cart.hall.price)}</span>
-        </div>
-        <h3 class="summary-item-title">${esc(cart.hall.name)}</h3>
-        <div class="summary-item-pills">
-          ${
-            cart.hall.capacity
-              ? `
-            <span class="summary-pill">
-              ${icon('users', 12)}
-              Capacity: <strong>${esc(cart.hall.capacity)}</strong> guests
-            </span>
-          `
-              : ''
-          }
-          <span class="summary-pill summary-pill-gold">
-            Venue Reservation
-          </span>
-        </div>
-      </div>
-    `;
-  }
+  // 2. Catering selections
 
   // 3. Stage
   if (cart.stage) {
@@ -235,15 +206,6 @@ function render(card: HTMLElement, options: SummaryOptions): void {
 
   // Complementary Add-ons (unselected categories)
   const unselectedAddons: Array<{ key: string; label: string; desc: string; icon: string; url: string }> = [];
-  if (!cart.hall && primary !== 'hall') {
-    unselectedAddons.push({
-      key: 'hall',
-      label: 'Banquet Hall',
-      desc: 'Indoor halls & open lawn venues',
-      icon: 'building',
-      url: '/halls',
-    });
-  }
   if (!cart.catering && primary !== 'catering') {
     unselectedAddons.push({
       key: 'catering',
@@ -340,7 +302,6 @@ function render(card: HTMLElement, options: SummaryOptions): void {
           <p>Pick your guest count or select menu courses to generate a real-time quotation.</p>
           <div class="summary-empty-links">
             <a href="/catering" class="btn btn-secondary btn-sm">Explore Menus</a>
-            <a href="/halls" class="btn btn-secondary btn-sm">Browse Halls</a>
           </div>
         </div>
         ${addonsHtml}
@@ -387,7 +348,6 @@ function render(card: HTMLElement, options: SummaryOptions): void {
         ${icon('arrowRight', 14)}
       </a>
       <div class="summary-quick-nav">
-        <a href="/halls" class="summary-nav-chip">${icon('building', 12)} Halls</a>
         <a href="/catering" class="summary-nav-chip">${icon('utensils', 12)} Menus</a>
         <a href="/gallery" class="summary-nav-chip">${icon('sparkles', 12)} Gallery</a>
       </div>

@@ -185,33 +185,6 @@ export async function auditExistingImages(): Promise<ImageAuditItem[]> {
       getEntityId: (r) => String(r.id_val),
     },
     {
-      table: 'halls',
-      column: 'image',
-      idColumn: 'id',
-      entityType: 'hall',
-      category: 'asset',
-      getSlot: () => 'primary',
-      getEntityId: (r) => String(r.id_val),
-    },
-    {
-      table: 'halls',
-      column: 'banner_image',
-      idColumn: 'id',
-      entityType: 'hall',
-      category: 'asset',
-      getSlot: () => 'banner',
-      getEntityId: (r) => String(r.id_val),
-    },
-    {
-      table: 'hall_gallery',
-      column: 'image',
-      idColumn: 'id',
-      entityType: 'hall',
-      category: 'asset',
-      getSlot: (r) => `gallery_${r.id_val}`,
-      getEntityId: (r) => String(r.hall_id),
-    },
-    {
       table: 'rooms',
       column: 'image',
       idColumn: 'id',
@@ -250,9 +223,7 @@ export async function auditExistingImages(): Promise<ImageAuditItem[]> {
       rows = all<any>(
         `SELECT rowid, ${mapping.idColumn} AS id_val, ${mapping.column} AS img_val ${
           mapping.table === 'mandap_gallery' ? ', mandap_id' : ''
-        } ${mapping.table === 'stage_gallery' ? ', stage_id' : ''} ${
-          mapping.table === 'hall_gallery' ? ', hall_id' : ''
-        } FROM ${mapping.table} WHERE ${mapping.column} IS NOT NULL AND ${mapping.column} != ''`,
+        } ${mapping.table === 'stage_gallery' ? ', stage_id' : ''} FROM ${mapping.table} WHERE ${mapping.column} IS NOT NULL AND ${mapping.column} != ''`,
       );
     } catch {
       continue;
@@ -296,8 +267,6 @@ export async function auditExistingImages(): Promise<ImageAuditItem[]> {
         destKey = `gallery/${entityId}/migrated-${entityId}.webp`;
       } else if (mapping.entityType === 'banner') {
         destKey = `assets/banners/${entityId}/banner-${slot}.webp`;
-      } else if (mapping.entityType === 'hall') {
-        destKey = `assets/halls/${entityId}/${slot}.webp`;
       } else if (mapping.entityType === 'room') {
         destKey = `assets/rooms/${entityId}/${slot}.webp`;
       } else {

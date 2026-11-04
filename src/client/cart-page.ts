@@ -75,7 +75,6 @@ if (rootElement) {
           <h3>Your event cart is empty</h3>
           <p>Browse our venues and menus to start building your celebration.</p>
           <div class="flex-center gap-3 mt-6 wrap">
-            <a href="/halls" class="btn btn-primary">Browse halls</a>
             <a href="/catering" class="btn btn-secondary">View catering</a>
           </div>
         </div>`;
@@ -83,20 +82,6 @@ if (rootElement) {
     }
 
     let items = '';
-
-    if (cart.hall) {
-      items += section(
-        'Hall',
-        line(
-          'Hall',
-          cart.hall.id,
-          cart.hall.name,
-          cart.hall.capacity ? `Capacity ${cart.hall.capacity} guests` : 'Venue reservation',
-          cart.hall.price,
-          '',
-        ),
-      );
-    }
 
     if (cart.rooms.length) {
       items += section(
@@ -196,7 +181,7 @@ if (rootElement) {
           </div>
           <div class="cart-actions mt-4">
             <a href="/booking/overview" class="btn btn-primary btn-block">Continue to booking</a>
-            <a href="/halls" class="btn btn-secondary btn-block">Keep browsing</a>
+            <a href="/catering" class="btn btn-secondary btn-block">Keep browsing</a>
           </div>
           <button type="button" class="btn-clear" data-clear-cart>Clear entire cart</button>
         </aside>

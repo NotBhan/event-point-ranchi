@@ -53,7 +53,6 @@ const CACHEABLE_EXACT = new Set([
   '/equipment',
   '/gallery',
   '/catering',
-  '/halls',
   '/terms',
   '/privacy',
   '/payment-policy',
@@ -61,7 +60,7 @@ const CACHEABLE_EXACT = new Set([
   '/cancellation-refund',
 ]);
 
-const CACHEABLE_PREFIXES = ['/mandaps/', '/stages/', '/catering/', '/halls/'];
+const CACHEABLE_PREFIXES = ['/mandaps/', '/stages/', '/catering/'];
 
 function isDevMode(): boolean {
   // Vite/Astro statically replaces import.meta.env.DEV; outside Astro (tests,

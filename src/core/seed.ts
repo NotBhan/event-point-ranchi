@@ -64,208 +64,65 @@ export function seedDatabase(db: DatabaseSync): void {
       );
     }
 
-    const hallSeed = [
-      {
-        name: 'Royal Kohinoor Grand Ballroom',
-        slug: 'royal-kohinoor-ballroom',
-        description:
-          'Our flagship grand ballroom with Bohemian crystal chandeliers, soaring ceilings, acoustic insulation and an expansive stage for royal weddings and international summits.',
-        image: '/storage/assets/halls/1/primary.webp',
-        banner: '/storage/assets/halls/1/banner.webp',
-        price: 25_000_000,
-        capacity: 800,
-        location: 'North Wing, Level 1',
-        parking: 250,
-        featured: 1,
-        badge: 1,
-        gallery: [
-          '/storage/assets/halls/1/gallery_1.webp',
-          '/storage/assets/halls/1/gallery_2.webp',
-        ],
-        features: [
-          ['snowflake', 'Central Air Conditioning', 'High-capacity multi-zone climate control'],
-          ['wifi', 'High-Speed Wi-Fi 6', 'Dedicated gigabit connectivity throughout'],
-          ['parking', 'Valet Parking Available', '250+ reserved underground vehicle bays'],
-          ['users', '800 Guest Capacity', 'Spacious banquet seating and aisle layout'],
-          ['music', 'Concert-Grade Acoustics', 'JBL surround line-array audio setup'],
-          ['sparkles', 'Intelligent Stage Lighting', 'Motorized RGB beam and wash luminaires'],
-        ],
-      },
-      {
-        name: 'Imperial Crystal Palace Hall',
-        slug: 'imperial-crystal-hall',
-        description:
-          'Contemporary glass architecture with double-height panoramic garden views, dynamic LED wash lighting and dedicated VIP hospitality lounges.',
-        image: '/storage/assets/halls/2/primary.webp',
-        banner: '/storage/assets/halls/2/banner.webp',
-        price: 18_000_000,
-        capacity: 500,
-        location: 'East Wing, Ground Floor',
-        parking: 180,
-        featured: 1,
-        badge: 1,
-        gallery: [
-          '/storage/assets/halls/2/gallery_3.webp',
-          '/storage/assets/halls/2/gallery_4.webp',
-        ],
-        features: [
-          ['snowflake', 'Climate Controlled', 'Independent airflow regulation'],
-          ['sparkles', 'Panoramic Glass Facade', 'Natural lighting and sunset garden views'],
-          ['parking', 'Dedicated VIP Parking', '180 secure parking slots'],
-          ['utensils', 'Integrated Cocktail Lounge', 'Built-in marble beverage counter'],
-        ],
-      },
-      {
-        name: 'Heritage Regal Pavilion',
-        slug: 'heritage-regal-pavilion',
-        description:
-          'Traditional Rajasthani stone jharokhas, handcrafted wooden motifs and an intimate acoustic ambiance for traditional ceremonies and engagements.',
-        image: '/storage/assets/halls/3/primary.webp',
-        banner: '/storage/assets/halls/3/banner.webp',
-        price: 12_000_000,
-        capacity: 350,
-        location: 'Heritage Courtyard',
-        parking: 120,
-        featured: 0,
-        badge: 0,
-        gallery: ['/storage/assets/halls/3/gallery_5.webp'],
-        features: [
-          ['building', 'Artisanal Heritage Arches', 'Hand-carved sandstone pillars'],
-          ['snowflake', 'Concealed AC Ducts', 'Silent split-duct cooling system'],
-          ['sparkles', 'Open Courtyard Access', 'Direct flow to the royal fountain garden'],
-        ],
-      },
-      {
-        name: 'Emerald Garden Lawn & Banquet',
-        slug: 'emerald-garden-lawn',
-        description:
-          'Expansive green lawn with illuminated palm avenues, waterfall backdrops and open-air luxury cabanas for sangeet and reception nights.',
-        image: '/storage/assets/halls/4/primary.webp',
-        banner: '/storage/assets/halls/4/banner.webp',
-        price: 15_000_000,
-        capacity: 650,
-        location: 'Outdoor South Gardens',
-        parking: 200,
-        featured: 1,
-        badge: 1,
-        gallery: ['/storage/assets/halls/4/gallery_6.webp'],
-        features: [
-          ['sparkles', 'Lush Carpet Lawn', '15,000 sq. ft. manicured natural turf'],
-          ['star', 'Fairytale Fairy Lighting', 'Illuminated palm tree canopy'],
-          ['shield', 'All-Weather Pergolas', 'Waterproof semi-covered cabanas'],
-        ],
-      },
-    ];
-
-    const hallIds: number[] = [];
-    const furnitureByHall: number[][] = [];
-    const stagesByHall: number[][] = [];
-    const servicesByHall: number[][] = [];
-
-    for (const hall of hallSeed) {
-      const hallId = insert(
-        `INSERT INTO halls (name, slug, description, image, banner_image, price_paise, capacity, location, parking_capacity, is_featured, show_badge)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          hall.name,
-          hall.slug,
-          hall.description,
-          hall.image,
-          hall.banner,
-          hall.price,
-          hall.capacity,
-          hall.location,
-          hall.parking,
-          hall.featured,
-          hall.badge,
-        ],
+    const furnitureCategory = insert(
+      `INSERT INTO furniture_categories (name, sort) VALUES (?, 1)`,
+      ['Banquet Seating & Tables'],
+    );
+    const furniture = [
+      ['Golden Chiavari Chairs with Velvet Cushions', 25_000, 'piece', 500],
+      ['Round 10-Seater Banquet Tables with Silk Linen', 85_000, 'table', 60],
+      ['Royal Maharaja Velvet Twin Sofa', 500_000, 'set', 20],
+      ['Illuminated High-Top Cocktail Bar Stools', 40_000, 'piece', 100],
+    ] as const;
+    const furnitureIds: number[] = [];
+    for (const [name, price, unit, max] of furniture) {
+      furnitureIds.push(
+        insert(
+          `INSERT INTO furniture_items (category_id, name, icon, price_paise, unit, default_quantity, min_quantity, max_quantity)
+           VALUES (?, ?, 'chair', ?, ?, 0, 0, ?)`,
+          [furnitureCategory, name, price, unit, max],
+        ),
       );
-      hallIds.push(hallId);
+    }
 
-      hall.features.forEach(([icon, title, subtitle], index) => {
-        insert(`INSERT INTO hall_features (hall_id, icon, title, subtitle, sort) VALUES (?, ?, ?, ?, ?)`, [
-          hallId,
-          icon,
-          title,
-          subtitle,
-          index + 1,
-        ]);
-      });
-
-      hall.gallery.forEach((image, index) => {
-        insert(`INSERT INTO hall_gallery (hall_id, image, title, sort) VALUES (?, ?, ?, ?)`, [
-          hallId,
-          image,
-          hall.name,
-          index + 1,
-        ]);
-      });
-
-      const furnitureCategory = insert(
-        `INSERT INTO furniture_categories (hall_id, name, sort) VALUES (?, ?, 1)`,
-        [hallId, 'Banquet Seating & Tables'],
+    const stageCategory = insert(
+      `INSERT INTO stage_categories (name, description, sort) VALUES (?, ?, 1)`,
+      ['Grand Wedding & Gala Stages', 'Signature stage concepts styled by our in-house design team.'],
+    );
+    const stages = [
+      ['Royal Kohinoor Floral Mandap & Stage', 'Signature', 6_500_000],
+      ['Modern Crystal & LED Infinity Stage', 'Trending', 8_500_000],
+      ['Traditional Marigold & Brass Heritage Stage', 'Classic', 4_500_000],
+    ] as const;
+    const stageDesignIds: number[] = [];
+    for (const [name, badge, price] of stages) {
+      stageDesignIds.push(
+        insert(
+          `INSERT INTO stage_designs (category_id, name, badge, image, price_paise) VALUES (?, ?, ?, ?, ?)`,
+          [stageCategory, name, badge, `/storage/assets/stages/design_${stageDesignIds.length + 1}/primary.webp`, price],
+        ),
       );
-      const furniture = [
-        ['Golden Chiavari Chairs with Velvet Cushions', 25_000, 'piece', 500],
-        ['Round 10-Seater Banquet Tables with Silk Linen', 85_000, 'table', 60],
-        ['Royal Maharaja Velvet Twin Sofa', 500_000, 'set', 20],
-        ['Illuminated High-Top Cocktail Bar Stools', 40_000, 'piece', 100],
-      ] as const;
-      const furnitureIds: number[] = [];
-      for (const [name, price, unit, max] of furniture) {
-        furnitureIds.push(
-          insert(
-            `INSERT INTO furniture_items (category_id, name, icon, price_paise, unit, default_quantity, min_quantity, max_quantity)
-             VALUES (?, ?, 'chair', ?, ?, 0, 0, ?)`,
-            [furnitureCategory, name, price, unit, max],
-          ),
-        );
-      }
-      furnitureByHall.push(furnitureIds);
+    }
 
-      const stageCategory = insert(
-        `INSERT INTO stage_categories (hall_id, name, description, sort) VALUES (?, ?, ?, 1)`,
-        [hallId, 'Grand Wedding & Gala Stages', 'Signature stage concepts styled by our in-house design team.'],
+    const serviceCategory = insert(
+      `INSERT INTO service_categories (name, subtitle, sort) VALUES (?, ?, 1)`,
+      ['Production & Media Services', 'Add broadcast-quality production and guest experience teams.'],
+    );
+    const services = [
+      ['Cinematic 4K Drone & 3-Camera Live Stream', 4_500_000],
+      ['Traditional Shehnai & Classical Orchestra Ensemble', 3_000_000],
+      ['Intelligent Robotic Moving-Head Stage Lighting', 3_500_000],
+      ['VIP Valet Parking & Concierge Fleet Team', 2_000_000],
+    ] as const;
+    const serviceIds: number[] = [];
+    for (const [name, price] of services) {
+      serviceIds.push(
+        insert(`INSERT INTO services (category_id, name, price_paise) VALUES (?, ?, ?)`, [
+          serviceCategory,
+          name,
+          price,
+        ]),
       );
-      const stages = [
-        ['Royal Kohinoor Floral Mandap & Stage', 'Signature', 6_500_000],
-        ['Modern Crystal & LED Infinity Stage', 'Trending', 8_500_000],
-        ['Traditional Marigold & Brass Heritage Stage', 'Classic', 4_500_000],
-      ] as const;
-      const stageIds: number[] = [];
-      let stageDesignCount = stagesByHall.reduce((acc, curr) => acc + curr.length, 0);
-      for (const [name, badge, price] of stages) {
-        stageDesignCount++;
-        stageIds.push(
-          insert(
-            `INSERT INTO stage_designs (category_id, name, badge, image, price_paise) VALUES (?, ?, ?, ?, ?)`,
-            [stageCategory, name, badge, `/storage/assets/stages/design_${stageDesignCount}/primary.webp`, price],
-          ),
-        );
-      }
-      stagesByHall.push(stageIds);
-
-      const serviceCategory = insert(
-        `INSERT INTO service_categories (hall_id, name, subtitle, sort) VALUES (?, ?, ?, 1)`,
-        [hallId, 'Production & Media Services', 'Add broadcast-quality production and guest experience teams.'],
-      );
-      const services = [
-        ['Cinematic 4K Drone & 3-Camera Live Stream', 4_500_000],
-        ['Traditional Shehnai & Classical Orchestra Ensemble', 3_000_000],
-        ['Intelligent Robotic Moving-Head Stage Lighting', 3_500_000],
-        ['VIP Valet Parking & Concierge Fleet Team', 2_000_000],
-      ] as const;
-      const serviceIds: number[] = [];
-      for (const [name, price] of services) {
-        serviceIds.push(
-          insert(`INSERT INTO services (category_id, name, price_paise) VALUES (?, ?, ?)`, [
-            serviceCategory,
-            name,
-            price,
-          ]),
-        );
-      }
-      servicesByHall.push(serviceIds);
     }
 
     const cateringSeed = [
@@ -460,7 +317,6 @@ export function seedDatabase(db: DatabaseSync): void {
         eventTime: '18:00',
         guests: 450,
         status: 'confirmed',
-        hallIndex: 0,
         stageIndex: 0,
         furniture: [
           [0, 250],
@@ -484,7 +340,6 @@ export function seedDatabase(db: DatabaseSync): void {
         eventTime: '19:30',
         guests: 300,
         status: 'confirmed',
-        hallIndex: 1,
         stageIndex: 1,
         furniture: [
           [0, 150],
@@ -507,7 +362,6 @@ export function seedDatabase(db: DatabaseSync): void {
         eventTime: '10:00',
         guests: 250,
         status: 'confirmed',
-        hallIndex: 1,
         stageIndex: 1,
         furniture: [
           [0, 200],
@@ -529,7 +383,6 @@ export function seedDatabase(db: DatabaseSync): void {
         eventTime: '17:00',
         guests: 200,
         status: 'pending',
-        hallIndex: 2,
         stageIndex: 2,
         furniture: [
           [0, 120],
@@ -551,7 +404,6 @@ export function seedDatabase(db: DatabaseSync): void {
         eventTime: '18:30',
         guests: 500,
         status: 'pending',
-        hallIndex: 3,
         stageIndex: 0,
         furniture: [
           [0, 300],
@@ -569,25 +421,22 @@ export function seedDatabase(db: DatabaseSync): void {
     ];
 
     for (const booking of bookingSeed) {
-      const hallId = hallIds[booking.hallIndex];
-      const hallPrice = hallSeed[booking.hallIndex].price;
-      const furnitureIds = furnitureByHall[booking.hallIndex];
       const furnitureTotal = booking.furniture.reduce(
         (sum, [itemIndex, quantity]) => sum + [25_000, 85_000, 500_000, 40_000][itemIndex] * quantity,
         0,
       );
-      const stageId = stagesByHall[booking.hallIndex][booking.stageIndex];
+      const stageId = stageDesignIds[booking.stageIndex];
       const stagePrice = [6_500_000, 8_500_000, 4_500_000][booking.stageIndex];
       const servicePrices = [4_500_000, 3_000_000, 3_500_000, 2_000_000];
       const selectedServices = booking.serviceIndexes.map((index) => ({
-        id: servicesByHall[booking.hallIndex][index],
+        id: serviceIds[index],
         price: servicePrices[index],
       }));
       const serviceTotal = selectedServices.reduce((sum, service) => sum + service.price, 0);
       const packageId = packageIds[booking.packageIndex];
       const perPlate = cateringSeed[booking.packageIndex].price;
       const cateringTotal = perPlate * booking.cateringGuests;
-      const total = hallPrice + furnitureTotal + stagePrice + serviceTotal + cateringTotal;
+      const total = furnitureTotal + stagePrice + serviceTotal + cateringTotal;
 
       const bookingId = insert(
         `INSERT INTO bookings (customer_id, access_token, event_date, event_time, event_type, total_guest, special_request, status, total_amount)
@@ -604,12 +453,6 @@ export function seedDatabase(db: DatabaseSync): void {
           total,
         ],
       );
-
-      insert(`INSERT INTO booking_halls (booking_id, hall_id, price) VALUES (?, ?, ?)`, [
-        bookingId,
-        hallId,
-        hallPrice,
-      ]);
 
       for (const [itemIndex, quantity] of booking.furniture) {
         const price = [25_000, 85_000, 500_000, 40_000][itemIndex];
@@ -657,7 +500,7 @@ export function seedDatabase(db: DatabaseSync): void {
         'Wedding',
         isoDate(60),
         350,
-        'Looking for a December wedding with both hall and catering. Please share availability.',
+        'Looking for a December wedding with catering and decor. Please share availability.',
       ],
     );
     insert(
@@ -1322,7 +1165,7 @@ export function seedDatabase(db: DatabaseSync): void {
         eventDate: isoDate(10),
         endDate: null,
         eventTime: '20:00',
-        venue: 'Lalpur Community Hall, Ranchi',
+        venue: 'Lalpur Grounds, Ranchi',
         guests: 260,
         budget: '₹1,00,000 – ₹3,00,000',
         requiresRooms: 0,

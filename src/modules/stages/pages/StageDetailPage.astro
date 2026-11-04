@@ -3,6 +3,7 @@ import BaseLayout from '../../../layouts/BaseLayout.astro';
 import Icon from '../../../components/Icon.astro';
 import { imageUrl } from '../../../core/http';
 import { responsiveImage, thumbnailUrl } from '../../../core/media';
+import { formatCataloguePrice } from '../../bookings/pricing-core';
 import type { StageRow } from '../service';
 
 interface Props {
@@ -68,6 +69,7 @@ const dimensions = stage ? `${stage.length_ft} × ${stage.width_ft} × ${stage.h
             <span class="eyebrow">Stage design</span>
             <h1>{stage.name}</h1>
             <p class="detail-lead">{stage.description}</p>
+            <div style="font-size:1.15rem;font-weight:700;color:var(--gold-ink);margin:10px 0 16px;">{formatCataloguePrice(stage.price_starting_paise ?? 0)}</div>
 
             <div class="detail-highlights">
               <div>
@@ -93,6 +95,12 @@ const dimensions = stage ? `${stage.length_ft} × ${stage.width_ft} × ${stage.h
       <section class="section">
         <div class="container detail-layout">
           <div class="detail-main">
+            {stage.full_description && (
+              <div class="content-block">
+                <h2>About this stage</h2>
+                <p>{stage.full_description}</p>
+              </div>
+            )}
             <div class="content-block">
               <h2>Decoration &amp; production notes</h2>
               <ul class="spec-list">

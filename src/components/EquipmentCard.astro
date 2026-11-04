@@ -1,6 +1,7 @@
 ---
 import Icon from './Icon.astro';
 import { responsiveImage } from '../core/media';
+import { formatCataloguePrice } from '../modules/bookings/pricing-core';
 
 interface Props {
   item: {
@@ -9,6 +10,8 @@ interface Props {
     slug: string;
     description: string;
     image: string | null;
+    image_alt?: string;
+    price_paise?: number;
     unit: string;
     specifications: string;
     min_quantity: number;
@@ -36,7 +39,7 @@ const specs = item.specifications
     {item.image ? (
       <div class="media-with-skeleton" style="width: 100%; height: 100%;">
         <div class="skeleton-placeholder skeleton-shimmer" role="status" aria-busy="true" aria-label="Loading image..."></div>
-        <img src={image.src} srcset={image.srcset} sizes={image.sizes} width="480" height="360" alt={item.name} loading="lazy" decoding="async" />
+        <img src={image.src} srcset={image.srcset} sizes={image.sizes} width="480" height="360" alt={item.image_alt || item.name} loading="lazy" decoding="async" />
         <div class="skeleton-error-fallback" role="alert">
           <Icon name="image" size={24} />
           <span>Image preview unavailable</span>
@@ -60,7 +63,10 @@ const specs = item.specifications
       </ul>
     )}
 
+    <div style="font-weight:700;color:var(--gold-ink);font-size:13px;margin:8px 0;">{formatCataloguePrice(item.price_paise ?? 0)} <span style="font-weight:400;color:var(--muted);">· {item.unit}</span></div>
+
     <div class="equipment-footer">
+      <a href={`/equipment/${item.slug}`} class="text-link" style="margin-bottom:8px;display:inline-block;">View details →</a>
       <div class="equipment-qty-row">
         <label for={`equipment-qty-${item.id}`}>Quantity</label>
         <div class="qty">
