@@ -1529,25 +1529,6 @@ export async function getUpcomingBookings(limit = 6): Promise<Array<{
   return res.rows.map((row) => ({ ...row, total_guest: Number(row.total_guest ?? 0) }));
 }
 
-/** Hall usage derived from the booking items, newest bookings first. */
-export async function getHallBookingActivity(): Promise<Array<{ hallId: number; bookings: number; revenue: number }>> {
-  const neon = getNeonClient();
-  const res = await neon.query<{ hall_id: string; bookings: number | string; revenue: number | string }>(
-    `SELECT bi.item_id AS hall_id,
-            COUNT(*) AS bookings,
-            COALESCE(SUM(b.total_amount), 0) AS revenue
-       FROM booking_items bi
-       JOIN bookings b ON b.id = bi.booking_id
-      WHERE bi.category = 'hall' AND b.status IN ('pending','confirmed')
-      GROUP BY bi.item_id`,
-  );
-  return res.rows.map((row) => ({
-    hallId: Number(row.hall_id),
-    bookings: Number(row.bookings ?? 0),
-    revenue: Number(row.revenue ?? 0),
-  }));
-}
-
 export async function setBookingStatus(id: number, status: string): Promise<boolean> {
   const neon = getNeonClient();
   const res = await neon.query('UPDATE bookings SET status = $1 WHERE id = $2', [status, id]);
@@ -1720,24 +1701,6 @@ export async function getCustomerWithUsername(id: number): Promise<{
     [id],
   );
   return res.rows[0] ?? null;
-}
-
-/** Upcoming booked dates per hall, derived from Neon booking items. */
-export async function getUpcomingHallBookings(): Promise<Array<{ hallId: number; eventDate: string }>> {
-  const neon = getNeonClient();
-  const today = new Date().toISOString().slice(0, 10);
-  const res = await neon.query<{ hall_id: string; event_date: string }>(
-    `SELECT bi.item_id AS hall_id, b.event_date AS event_date
-       FROM booking_items bi
-       JOIN bookings b ON b.id = bi.booking_id
-      WHERE bi.category = 'hall'
-        AND b.status IN ('pending', 'confirmed')
-        AND b.event_date IS NOT NULL
-        AND b.event_date >= $1
-      ORDER BY b.event_date`,
-    [today],
-  );
-  return res.rows.map((row) => ({ hallId: Number(row.hall_id), eventDate: row.event_date }));
 }
 
 export type DepositType = 'full' | 'percentage' | 'fixed' | 'custom';

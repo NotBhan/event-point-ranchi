@@ -1,4 +1,5 @@
 import {
+  getCateringPackages,
   getFurnitureCategories,
   getFurnitureItems,
   getGalleryCatalog,
@@ -67,11 +68,22 @@ export interface HomeGalleryItem {
   categorySlug: string;
 }
 
+export interface HomeCatering {
+  id: number;
+  name: string;
+  slug: string;
+  description: string;
+  image: string | null;
+  price_per_plate_paise: number;
+  category: string;
+}
+
 export interface HomeData {
   heroImage: string | null;
   mandaps: HomeMandap[];
   stages: HomeStage[];
   equipment: HomeEquipmentCategory[];
+  catering: HomeCatering[];
   galleryCategories: Array<{ id: number; name: string; slug: string }>;
   galleryItems: HomeGalleryItem[];
   stats: { mandaps: number; stages: number; equipment: number; gallery: number };
@@ -85,16 +97,23 @@ const FALLBACK_HERO = '/storage/assets/banners/homepage/banner-hero.webp';
  * public homepage no longer reads the local SQLite catalog.
  */
 export async function loadHomePage(): Promise<HomeData> {
-  const [mandaps, stages, furnitureCategories, furnitureItems, gallery, settings] = await Promise.all([
+  const [mandaps, stages, furnitureCategories, furnitureItems, gallery, settings, cateringPackages] = await Promise.all([
     getMandaps(),
     getStages(),
     getFurnitureCategories(),
     getFurnitureItems(),
     getGalleryCatalog(),
     getSiteSettings(),
+    getCateringPackages(),
   ]);
 
-  const homeMandaps: HomeMandap[] = mandaps.slice(0, 3).map((mandap) => ({
+  const selectedMandaps = mandaps.filter((mandap) => mandap.is_featured);
+  const selectedStages = stages.filter((stage) => stage.is_featured);
+  const featuredFurniture = furnitureItems.filter((item) => item.is_featured);
+  const selectedFurniture = featuredFurniture.length > 0 ? featuredFurniture : furnitureItems;
+  const selectedCatering = cateringPackages.filter((pkg) => pkg.show_on_home && !pkg.is_archived);
+
+  const homeMandaps: HomeMandap[] = (selectedMandaps.length ? selectedMandaps : mandaps).slice(0, 3).map((mandap) => ({
     id: mandap.id,
     name: mandap.name,
     slug: mandap.slug,
@@ -108,7 +127,7 @@ export async function loadHomePage(): Promise<HomeData> {
     material_specs: mandap.material_specs,
   }));
 
-  const homeStages: HomeStage[] = stages.slice(0, 3).map((stage) => ({
+  const homeStages: HomeStage[] = (selectedStages.length ? selectedStages : stages).slice(0, 3).map((stage) => ({
     id: stage.id,
     name: stage.name,
     slug: stage.slug,
@@ -123,7 +142,7 @@ export async function loadHomePage(): Promise<HomeData> {
   }));
 
   const equipment: HomeEquipmentCategory[] = furnitureCategories.map((category) => {
-    const items = furnitureItems.filter((item) => item.category_id === category.id);
+    const items = selectedFurniture.filter((item) => item.category_id === category.id);
     return {
       id: category.id,
       name: category.name,
@@ -160,6 +179,15 @@ export async function loadHomePage(): Promise<HomeData> {
     mandaps: homeMandaps,
     stages: homeStages,
     equipment,
+    catering: selectedCatering.slice(0, 3).map((pkg) => ({
+      id: pkg.id,
+      name: pkg.name,
+      slug: pkg.slug,
+      description: pkg.description,
+      image: pkg.image_url || null,
+      price_per_plate_paise: pkg.price_per_plate_paise,
+      category: pkg.category || 'Signature',
+    })),
     galleryCategories: gallery.categories.map((category) => ({
       id: category.id,
       name: category.name,

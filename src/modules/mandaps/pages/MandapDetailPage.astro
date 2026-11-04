@@ -3,6 +3,7 @@ import BaseLayout from '../../../layouts/BaseLayout.astro';
 import Icon from '../../../components/Icon.astro';
 import { imageUrl } from '../../../core/http';
 import { responsiveImage, thumbnailUrl } from '../../../core/media';
+import { formatCataloguePrice } from '../../bookings/pricing-core';
 import type { MandapRow } from '../service';
 import { getSiteSettings } from '../../../core/content/service';
 
@@ -74,6 +75,7 @@ const dimensions = mandap ? `${mandap.length_ft} × ${mandap.width_ft} × ${mand
             <span class="eyebrow">Mandap design</span>
             <h1>{mandap.name}</h1>
             <p class="detail-lead">{mandap.description}</p>
+            <div style="font-size:1.15rem;font-weight:700;color:var(--gold-ink);margin:10px 0 16px;">{formatCataloguePrice(mandap.price_starting_paise ?? 0)}</div>
 
             <div class="detail-highlights">
               <div>
@@ -101,6 +103,12 @@ const dimensions = mandap ? `${mandap.length_ft} × ${mandap.width_ft} × ${mand
       <section class="section">
         <div class="container detail-layout">
           <div class="detail-main">
+            {mandap.full_description && (
+              <div class="content-block">
+                <h2>About this mandap</h2>
+                <p>{mandap.full_description}</p>
+              </div>
+            )}
             <div class="content-block">
               <h2>Materials &amp; finish</h2>
               <ul class="spec-list">

@@ -150,13 +150,13 @@ export async function fetchPublicContentRows(client: SnapshotRowFetcher): Promis
     // content version for identical content.
     { sql: 'SELECT * FROM homepage_sections WHERE is_visible = 1 ORDER BY sort_order ASC, id ASC' },
     { sql: 'SELECT * FROM services WHERE is_visible = 1 ORDER BY sort_order ASC, id ASC' },
-    { sql: 'SELECT * FROM mandaps WHERE is_visible = 1 ORDER BY sort_order ASC, id ASC' },
-    { sql: 'SELECT * FROM mandap_gallery ORDER BY sort_order ASC, id ASC' },
-    { sql: 'SELECT * FROM stages WHERE is_visible = 1 ORDER BY sort_order ASC, id ASC' },
-    { sql: 'SELECT * FROM stage_gallery ORDER BY sort_order ASC, id ASC' },
+    { sql: 'SELECT * FROM mandaps WHERE is_visible = 1 AND is_archived = 0 ORDER BY sort_order ASC, id ASC' },
+    { sql: 'SELECT * FROM mandap_gallery WHERE is_visible = 1 ORDER BY sort_order ASC, id ASC' },
+    { sql: 'SELECT * FROM stages WHERE is_visible = 1 AND is_archived = 0 ORDER BY sort_order ASC, id ASC' },
+    { sql: 'SELECT * FROM stage_gallery WHERE is_visible = 1 ORDER BY sort_order ASC, id ASC' },
     { sql: 'SELECT * FROM furniture_categories WHERE is_visible = 1 ORDER BY sort_order ASC, id ASC' },
-    { sql: 'SELECT * FROM furniture_items WHERE is_visible = 1 ORDER BY sort_order ASC, id ASC' },
-    { sql: 'SELECT * FROM catering_packages WHERE is_visible = 1 ORDER BY sort_order ASC, id ASC' },
+    { sql: 'SELECT * FROM furniture_items WHERE is_visible = 1 AND is_archived = 0 ORDER BY sort_order ASC, id ASC' },
+    { sql: 'SELECT * FROM catering_packages WHERE is_visible = 1 AND is_archived = 0 ORDER BY sort_order ASC, id ASC' },
     { sql: 'SELECT * FROM catering_features ORDER BY id ASC' },
     { sql: 'SELECT * FROM banner_features ORDER BY id ASC' },
     { sql: 'SELECT * FROM guest_pricing ORDER BY sort ASC, guest_count ASC, id ASC' },
@@ -256,6 +256,9 @@ function mapMandap(row: ContentRow, gallery: MandapItem['gallery']): MandapItem 
     capacity: Number(row.capacity ?? 0),
     features: parseJsonArray<string>(row.features_json),
     image_url: String(row.image_url ?? ''),
+    image_alt: String(row.image_alt ?? ''),
+    full_description: String(row.full_description ?? ''),
+    is_archived: Boolean(row.is_archived),
     location_name: String(row.location_name ?? ''),
     address: String(row.address ?? ''),
     latitude: row.latitude !== null && row.latitude !== undefined ? Number(row.latitude) : null,
@@ -284,6 +287,9 @@ function mapStage(row: ContentRow, gallery: StageItem['gallery']): StageItem {
     decoration_notes: String(row.decoration_notes ?? ''),
     price_starting_paise: Number(row.price_starting_paise ?? 0),
     image_url: String(row.image_url ?? ''),
+    image_alt: String(row.image_alt ?? ''),
+    full_description: String(row.full_description ?? ''),
+    is_archived: Boolean(row.is_archived),
     gallery,
     is_featured: Boolean(row.is_featured),
     is_visible: Boolean(row.is_visible ?? 1),
@@ -310,12 +316,16 @@ function mapFurnitureItem(row: ContentRow): FurnitureItem {
     slug: String(row.slug ?? ''),
     description: String(row.description ?? ''),
     image_url: String(row.image_url ?? ''),
+    full_description: String(row.full_description ?? ''),
+    image_alt: String(row.image_alt ?? ''),
     price_paise: Number(row.price_paise ?? 0),
     pricing_unit: String(row.pricing_unit ?? 'per item'),
     dimensions: String(row.dimensions ?? ''),
     specifications: String(row.specifications ?? ''),
     min_quantity: Number(row.min_quantity ?? 1),
     default_quantity: Number(row.default_quantity ?? 10),
+    is_featured: Boolean(row.is_featured),
+    is_archived: Boolean(row.is_archived),
     is_visible: Boolean(row.is_visible ?? 1),
     sort_order: Number(row.sort_order ?? 0),
   };
@@ -328,7 +338,11 @@ function mapCateringPackage(row: ContentRow): CateringPackage {
     slug: String(row.slug ?? ''),
     description: String(row.description ?? ''),
     badge: String(row.badge ?? ''),
+    category: String(row.category ?? 'Signature'),
     image_url: String(row.image_url ?? ''),
+    full_description: String(row.full_description ?? ''),
+    image_alt: String(row.image_alt ?? ''),
+    is_archived: Boolean(row.is_archived),
     price_per_plate_paise: Number(row.price_per_plate_paise ?? 0),
     features: parseJsonArray<string>(row.features_json),
     menu_sections: parseJsonArray<Record<string, any>>(row.menu_sections_json),
@@ -442,6 +456,8 @@ export function buildSnapshot(rows: PublicContentRows): PublicContentSnapshot {
       id: Number(g.id ?? 0),
       image_url: String(g.image_url ?? ''),
       caption: String(g.caption ?? ''),
+      alt_text: String(g.alt_text ?? ''),
+      is_visible: Boolean(g.is_visible ?? 1),
       sort_order: Number(g.sort_order ?? 0),
     });
   }
@@ -454,6 +470,8 @@ export function buildSnapshot(rows: PublicContentRows): PublicContentSnapshot {
       id: Number(g.id ?? 0),
       image_url: String(g.image_url ?? ''),
       caption: String(g.caption ?? ''),
+      alt_text: String(g.alt_text ?? ''),
+      is_visible: Boolean(g.is_visible ?? 1),
       sort_order: Number(g.sort_order ?? 0),
     });
   }
@@ -471,7 +489,28 @@ export function buildSnapshot(rows: PublicContentRows): PublicContentSnapshot {
     stages: rows.stages.map((row) => mapStage(row, stageGallery.get(Number(row.id ?? 0)) ?? [])),
     furnitureCategories: rows.furnitureCategories.map(mapFurnitureCategory),
     furnitureItems: rows.furnitureItems.map(mapFurnitureItem),
-    cateringPackages: rows.cateringPackages.map(mapCateringPackage),
+    cateringPackages: rows.cateringPackages.map((row) => {
+      const pkg = mapCateringPackage(row);
+      const packageId = pkg.id;
+      const legacyFeatures = pkg.features;
+      pkg.features = [
+        ...new Set([
+          ...rows.cateringFeatures
+            .filter((feature) => Number(feature.package_id) === packageId)
+            .map((feature) => String(feature.name ?? '')),
+          ...legacyFeatures,
+        ]),
+      ];
+      const normalizedTiers = rows.guestPricing
+        .filter((tier) => Number(tier.package_id) === packageId)
+        .map((tier) => ({
+          guest_count: Number(tier.guest_count ?? 0),
+          price_per_plate_paise: Number(tier.price_per_plate_paise ?? 0),
+          sort: Number(tier.sort ?? 0),
+        }));
+      pkg.guest_pricing = normalizedTiers.length ? normalizedTiers : pkg.guest_pricing;
+      return pkg;
+    }),
     cateringMenu: {
       features: rows.cateringFeatures.map(mapCateringName),
       bannerFeatures: rows.bannerFeatures.map(mapCateringName),

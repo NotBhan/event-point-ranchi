@@ -1,10 +1,3 @@
-export interface CartHall {
-  id: string;
-  name: string;
-  price: number;
-  capacity?: number | string;
-}
-
 export interface CartRoom {
   id: string;
   name: string;
@@ -49,7 +42,6 @@ export interface CartCatering {
 }
 
 export interface CartState {
-  hall: CartHall | null;
   rooms: CartRoom[];
   furniture: CartFurniture[];
   stage: CartStage | null;
@@ -71,8 +63,8 @@ function sessionStore(): StorageLike | null {
   }
 }
 
-// Legacy builds kept catering/hall selections in localStorage. Remove those
-// values so they cannot reappear for the next visitor on this browser.
+// Legacy builds kept cart selections in localStorage. Remove those values so
+// they cannot reappear for the next visitor on this browser.
 if (typeof localStorage !== 'undefined') {
   try {
     LEGACY_CART_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
@@ -81,7 +73,6 @@ if (typeof localStorage !== 'undefined') {
 
 export function emptyCart(): CartState {
   return {
-    hall: null,
     rooms: [],
     furniture: [],
     stage: null,
@@ -99,18 +90,6 @@ function normalize(raw: unknown): CartState {
   const base = emptyCart();
   if (!raw || typeof raw !== 'object') return base;
   const value = raw as Record<string, unknown>;
-
-  if (value.hall && typeof value.hall === 'object') {
-    const hall = value.hall as Record<string, unknown>;
-    if (hall.id) {
-      base.hall = {
-        id: String(hall.id),
-        name: String(hall.name ?? 'Selected hall'),
-        price: toNumber(hall.price),
-        capacity: hall.capacity as string | number | undefined,
-      };
-    }
-  }
 
   if (Array.isArray(value.rooms)) {
     base.rooms = value.rooms
@@ -210,7 +189,6 @@ function commit(state: CartState): CartState {
 
 export function cartCount(state: CartState = readCart()): number {
   let count = 0;
-  if (state.hall) count += 1;
   if (state.catering) count += 1;
   if (state.stage) count += 1;
   count += state.rooms.reduce((sum, room) => sum + room.quantity, 0);
@@ -221,25 +199,12 @@ export function cartCount(state: CartState = readCart()): number {
 
 export function cartTotal(state: CartState = readCart()): number {
   let total = 0;
-  if (state.hall) total += state.hall.price;
   if (state.catering) total += state.catering.total;
   if (state.stage) total += state.stage.price;
   total += state.rooms.reduce((sum, room) => sum + room.price * room.quantity, 0);
   total += state.furniture.reduce((sum, item) => sum + item.price * item.quantity, 0);
   total += state.services.reduce((sum, service) => sum + service.price, 0);
   return total;
-}
-
-export function setHall(hall: CartHall): void {
-  const state = readCart();
-  state.hall = hall;
-  commit(state);
-}
-
-export function removeHall(): void {
-  const state = readCart();
-  state.hall = null;
-  commit(state);
 }
 
 export function addRoom(room: Omit<CartRoom, 'quantity' | 'total'> & { quantity?: number }): void {

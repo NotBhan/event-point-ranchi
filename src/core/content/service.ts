@@ -459,14 +459,15 @@ export async function getMandaps(preview = false): Promise<MandapItem[]> {
       const [mandapsRes, galleryRes] = await d1.batch<any>([
         {
           sql: preview
-            ? 'SELECT * FROM mandaps ORDER BY sort_order ASC'
-            : 'SELECT * FROM mandaps WHERE is_visible = 1 ORDER BY sort_order ASC',
+            ? 'SELECT * FROM mandaps ORDER BY sort_order ASC, id ASC'
+            : 'SELECT * FROM mandaps WHERE is_visible = 1 AND is_archived = 0 ORDER BY sort_order ASC, id ASC',
         },
-        { sql: 'SELECT * FROM mandap_gallery ORDER BY sort_order ASC' },
+        { sql: 'SELECT * FROM mandap_gallery ORDER BY sort_order ASC, id ASC' },
       ]);
-      const galleryByMandap = new Map<number, Array<{ id: number; image_url: string; caption: string; sort_order: number }>>();
+      const galleryByMandap = new Map<number, Array<{ id: number; image_url: string; caption: string; alt_text: string; is_visible: boolean; sort_order: number }>>();
 
       for (const g of galleryRes.results || []) {
+        if (!preview && Number(g.is_visible ?? 1) === 0) continue;
         if (!galleryByMandap.has(g.mandap_id)) {
           galleryByMandap.set(g.mandap_id, []);
         }
@@ -474,6 +475,8 @@ export async function getMandaps(preview = false): Promise<MandapItem[]> {
           id: g.id,
           image_url: g.image_url,
           caption: g.caption || '',
+          alt_text: g.alt_text || '',
+          is_visible: Boolean(g.is_visible ?? 1),
           sort_order: g.sort_order || 0,
         });
       }
@@ -496,6 +499,9 @@ export async function getMandaps(preview = false): Promise<MandapItem[]> {
           capacity: Number(m.capacity || 0),
           features,
           image_url: m.image_url || '',
+          image_alt: m.image_alt || '',
+          full_description: m.full_description || '',
+          is_archived: Boolean(m.is_archived),
           location_name: m.location_name || '',
           address: m.address || '',
           latitude: m.latitude !== null && m.latitude !== undefined ? Number(m.latitude) : null,
@@ -534,14 +540,15 @@ export async function getStages(preview = false): Promise<StageItem[]> {
       const [stagesRes, galleryRes] = await d1.batch<any>([
         {
           sql: preview
-            ? 'SELECT * FROM stages ORDER BY sort_order ASC'
-            : 'SELECT * FROM stages WHERE is_visible = 1 ORDER BY sort_order ASC',
+            ? 'SELECT * FROM stages ORDER BY sort_order ASC, id ASC'
+            : 'SELECT * FROM stages WHERE is_visible = 1 AND is_archived = 0 ORDER BY sort_order ASC, id ASC',
         },
-        { sql: 'SELECT * FROM stage_gallery ORDER BY sort_order ASC' },
+        { sql: 'SELECT * FROM stage_gallery ORDER BY sort_order ASC, id ASC' },
       ]);
-      const galleryByStage = new Map<number, Array<{ id: number; image_url: string; caption: string; sort_order: number }>>();
+      const galleryByStage = new Map<number, Array<{ id: number; image_url: string; caption: string; alt_text: string; is_visible: boolean; sort_order: number }>>();
 
       for (const g of galleryRes.results || []) {
+        if (!preview && Number(g.is_visible ?? 1) === 0) continue;
         if (!galleryByStage.has(g.stage_id)) {
           galleryByStage.set(g.stage_id, []);
         }
@@ -549,6 +556,8 @@ export async function getStages(preview = false): Promise<StageItem[]> {
           id: g.id,
           image_url: g.image_url,
           caption: g.caption || '',
+          alt_text: g.alt_text || '',
+          is_visible: Boolean(g.is_visible ?? 1),
           sort_order: g.sort_order || 0,
         });
       }
@@ -567,6 +576,9 @@ export async function getStages(preview = false): Promise<StageItem[]> {
           decoration_notes: s.decoration_notes || '',
           price_starting_paise: Number(s.price_starting_paise || 0),
           image_url: s.image_url || '',
+          image_alt: s.image_alt || '',
+          full_description: s.full_description || '',
+          is_archived: Boolean(s.is_archived),
           gallery: galleryByStage.get(s.id) || [],
           is_featured: Boolean(s.is_featured),
           is_visible: Boolean(s.is_visible),
@@ -616,23 +628,42 @@ export async function getFurnitureItems(categoryId?: number): Promise<FurnitureI
   return getCached<FurnitureItem[]>(`furniture_items:${categoryId ?? 'all'}`, async () => {
     const d1 = getD1Client();
     const sql = categoryId
-      ? 'SELECT * FROM furniture_items WHERE category_id = ? AND is_visible = 1 ORDER BY sort_order ASC'
-      : 'SELECT * FROM furniture_items WHERE is_visible = 1 ORDER BY sort_order ASC';
+      ? 'SELECT * FROM furniture_items WHERE category_id = ? AND is_visible = 1 AND is_archived = 0 ORDER BY sort_order ASC, id ASC'
+      : 'SELECT * FROM furniture_items WHERE is_visible = 1 AND is_archived = 0 ORDER BY sort_order ASC, id ASC';
     const params = categoryId ? [categoryId] : [];
-    const res = await d1.query<any>(sql, params);
+    const [res, galleryRes] = await d1.batch<any>([
+      { sql, params },
+      { sql: 'SELECT id, item_id, image_url, alt_text, sort_order FROM furniture_item_images ORDER BY sort_order ASC, id ASC' },
+    ]);
+    const galleryByItem = new Map<number, Array<{ id: number; image_url: string; alt_text: string; sort_order: number }>>();
+    for (const image of galleryRes.results || []) {
+      const list = galleryByItem.get(image.item_id) ?? [];
+      list.push({
+        id: image.id,
+        image_url: image.image_url,
+        alt_text: image.alt_text || '',
+        sort_order: Number(image.sort_order || 0),
+      });
+      galleryByItem.set(image.item_id, list);
+    }
     return (res.results || []).map((i) => ({
       id: i.id,
       category_id: i.category_id,
       name: i.name,
       slug: i.slug,
       description: i.description || '',
+      full_description: i.full_description || '',
       image_url: i.image_url || '',
+      image_alt: i.image_alt || '',
+      gallery: galleryByItem.get(i.id) || [],
       price_paise: Number(i.price_paise || 0),
       pricing_unit: i.pricing_unit || 'per item',
       dimensions: i.dimensions || '',
       specifications: i.specifications || '',
       min_quantity: Number(i.min_quantity || 1),
       default_quantity: Number(i.default_quantity || 10),
+      is_featured: Boolean(i.is_featured),
+      is_archived: Boolean(i.is_archived),
       is_visible: Boolean(i.is_visible),
       sort_order: i.sort_order || 0,
     }));
@@ -648,25 +679,65 @@ export async function getCateringPackages(): Promise<CateringPackage[]> {
 
   return getCached<CateringPackage[]>('catering_packages', async () => {
     const d1 = getD1Client();
-    const res = await d1.query<any>('SELECT * FROM catering_packages WHERE is_visible = 1 ORDER BY sort_order ASC');
-    return (res.results || []).map((p) => {
+    const [packagesRes, pricingRes, featuresRes, imagesRes] = await d1.batch<any>([
+      { sql: 'SELECT * FROM catering_packages WHERE is_visible = 1 AND is_archived = 0 ORDER BY sort_order ASC, id ASC' },
+      { sql: 'SELECT package_id, guest_count, price_per_plate_paise, sort FROM guest_pricing ORDER BY sort ASC, guest_count ASC' },
+      { sql: 'SELECT package_id, name FROM catering_features ORDER BY id ASC' },
+      { sql: 'SELECT id, package_id, image_url, alt_text, sort_order FROM catering_package_images ORDER BY sort_order ASC, id ASC' },
+    ]);
+    const pricingByPackage = new Map<number, any[]>();
+    for (const tier of pricingRes.results || []) {
+      const list = pricingByPackage.get(tier.package_id) ?? [];
+      list.push({
+        guest_count: Number(tier.guest_count),
+        price_per_plate_paise: Number(tier.price_per_plate_paise),
+        sort: Number(tier.sort ?? 0),
+      });
+      pricingByPackage.set(tier.package_id, list);
+    }
+    const featuresByPackage = new Map<number, string[]>();
+    for (const feature of featuresRes.results || []) {
+      const list = featuresByPackage.get(feature.package_id) ?? [];
+      list.push(String(feature.name));
+      featuresByPackage.set(feature.package_id, list);
+    }
+    const imagesByPackage = new Map<number, Array<{ id: number; image_url: string; alt_text: string; sort_order: number }>>();
+    for (const image of imagesRes.results || []) {
+      const list = imagesByPackage.get(image.package_id) ?? [];
+      list.push({
+        id: Number(image.id),
+        image_url: String(image.image_url),
+        alt_text: String(image.alt_text || ''),
+        sort_order: Number(image.sort_order ?? 0),
+      });
+      imagesByPackage.set(image.package_id, list);
+    }
+
+    return (packagesRes.results || []).map((p) => {
       let features: string[] = [];
       let menu_sections: any[] = [];
-      let guest_pricing: any[] = [];
       try { features = JSON.parse(p.features_json || '[]'); } catch {}
       try { menu_sections = JSON.parse(p.menu_sections_json || '[]'); } catch {}
-      try { guest_pricing = JSON.parse(p.guest_pricing_json || '[]'); } catch {}
+      const normalizedFeatures = featuresByPackage.get(p.id);
+      const normalizedPricing = pricingByPackage.get(p.id) || [];
+      let legacyPricing: any[] = [];
+      try { legacyPricing = JSON.parse(p.guest_pricing_json || '[]'); } catch {}
       return {
         id: p.id,
         name: p.name,
         slug: p.slug,
         description: p.description || '',
         badge: p.badge || '',
+        category: p.category || 'Signature',
         image_url: p.image_url || '',
+        image_alt: p.image_alt || '',
+        full_description: p.full_description || '',
+        is_archived: Boolean(p.is_archived),
         price_per_plate_paise: Number(p.price_per_plate_paise || 0),
-        features,
+        features: [...new Set([...(normalizedFeatures || []), ...features])],
         menu_sections,
-        guest_pricing,
+        guest_pricing: normalizedPricing.length ? normalizedPricing : legacyPricing,
+        images: imagesByPackage.get(p.id) || [],
         show_on_home: Boolean(p.show_on_home),
         is_visible: Boolean(p.is_visible),
         sort_order: p.sort_order || 0,

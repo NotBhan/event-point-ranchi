@@ -24,53 +24,11 @@ CREATE TABLE IF NOT EXISTS customers (
 CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
 CREATE INDEX IF NOT EXISTS idx_customers_user ON customers(user_id);
 
-CREATE TABLE IF NOT EXISTS halls (
-  id               INTEGER PRIMARY KEY AUTOINCREMENT,
-  name             TEXT NOT NULL,
-  slug             TEXT NOT NULL UNIQUE,
-  description      TEXT NOT NULL DEFAULT '',
-  image            TEXT,
-  banner_image     TEXT,
-  price_paise      INTEGER NOT NULL DEFAULT 0,
-  capacity         INTEGER NOT NULL DEFAULT 0,
-  location         TEXT NOT NULL DEFAULT '',
-  parking_capacity INTEGER NOT NULL DEFAULT 0,
-  is_ac            INTEGER NOT NULL DEFAULT 1,
-  is_wifi          INTEGER NOT NULL DEFAULT 1,
-  is_featured      INTEGER NOT NULL DEFAULT 0,
-  show_badge       INTEGER NOT NULL DEFAULT 0,
-  is_active        INTEGER NOT NULL DEFAULT 1,
-  created_at       TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at       TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX IF NOT EXISTS idx_halls_active ON halls(is_active);
-
-CREATE TABLE IF NOT EXISTS hall_features (
-  id       INTEGER PRIMARY KEY AUTOINCREMENT,
-  hall_id  INTEGER NOT NULL REFERENCES halls(id) ON DELETE CASCADE,
-  icon     TEXT NOT NULL DEFAULT 'check',
-  title    TEXT NOT NULL,
-  subtitle TEXT NOT NULL DEFAULT '',
-  sort     INTEGER NOT NULL DEFAULT 0
-);
-CREATE INDEX IF NOT EXISTS idx_hall_features_hall ON hall_features(hall_id);
-
-CREATE TABLE IF NOT EXISTS hall_gallery (
-  id      INTEGER PRIMARY KEY AUTOINCREMENT,
-  hall_id INTEGER NOT NULL REFERENCES halls(id) ON DELETE CASCADE,
-  image   TEXT NOT NULL,
-  title   TEXT NOT NULL DEFAULT '',
-  sort    INTEGER NOT NULL DEFAULT 0
-);
-CREATE INDEX IF NOT EXISTS idx_hall_gallery_hall ON hall_gallery(hall_id);
-
 CREATE TABLE IF NOT EXISTS furniture_categories (
   id      INTEGER PRIMARY KEY AUTOINCREMENT,
-  hall_id INTEGER NOT NULL REFERENCES halls(id) ON DELETE CASCADE,
   name    TEXT NOT NULL,
   sort    INTEGER NOT NULL DEFAULT 0
 );
-CREATE INDEX IF NOT EXISTS idx_furniture_categories_hall ON furniture_categories(hall_id);
 
 CREATE TABLE IF NOT EXISTS furniture_items (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -89,12 +47,10 @@ CREATE INDEX IF NOT EXISTS idx_furniture_items_category ON furniture_items(categ
 
 CREATE TABLE IF NOT EXISTS stage_categories (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  hall_id     INTEGER NOT NULL REFERENCES halls(id) ON DELETE CASCADE,
   name        TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
   sort        INTEGER NOT NULL DEFAULT 0
 );
-CREATE INDEX IF NOT EXISTS idx_stage_categories_hall ON stage_categories(hall_id);
 
 CREATE TABLE IF NOT EXISTS stage_designs (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -109,12 +65,10 @@ CREATE INDEX IF NOT EXISTS idx_stage_designs_category ON stage_designs(category_
 
 CREATE TABLE IF NOT EXISTS service_categories (
   id       INTEGER PRIMARY KEY AUTOINCREMENT,
-  hall_id  INTEGER NOT NULL REFERENCES halls(id) ON DELETE CASCADE,
   name     TEXT NOT NULL,
   subtitle TEXT NOT NULL DEFAULT '',
   sort     INTEGER NOT NULL DEFAULT 0
 );
-CREATE INDEX IF NOT EXISTS idx_service_categories_hall ON service_categories(hall_id);
 
 CREATE TABLE IF NOT EXISTS services (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -205,13 +159,6 @@ CREATE TABLE IF NOT EXISTS bookings (
 CREATE INDEX IF NOT EXISTS idx_bookings_customer ON bookings(customer_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_event_date ON bookings(event_date);
 CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings(status);
-
-CREATE TABLE IF NOT EXISTS booking_halls (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  booking_id INTEGER NOT NULL UNIQUE REFERENCES bookings(id) ON DELETE CASCADE,
-  hall_id    INTEGER NOT NULL REFERENCES halls(id),
-  price      INTEGER NOT NULL DEFAULT 0
-);
 
 CREATE TABLE IF NOT EXISTS booking_furniture (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,

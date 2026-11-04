@@ -67,6 +67,7 @@ export interface AdminNavItem {
   href: string;
   icon: string;
   order?: number;
+  group?: string;
 }
 
 export interface AppModule {

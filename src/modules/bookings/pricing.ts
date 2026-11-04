@@ -27,7 +27,6 @@ export type { PricingCatalogue, PricingSelection, SelectionPricing };
 
 export interface BookingSelection extends PricingSelection {
   /** Retired categories are rejected instead of priced from a second source. */
-  hall?: { id: string | number } | null;
   services?: Array<{ id: string | number }> | null;
 }
 
@@ -91,12 +90,6 @@ export async function priceEnquirySelection(
  * the enquiry/quotation flow.
  */
 export async function priceBookingSelection(selection: BookingSelection): Promise<PricedBooking> {
-  if (selection.hall?.id) {
-    throw new PricingError(
-      'Hall reservations are handled by our planning team. Send an enquiry and a coordinator will confirm availability and pricing.',
-    );
-  }
-
   if (selection.services && selection.services.length > 0) {
     throw new PricingError(
       'Additional services are quoted individually by our team. Please send an enquiry with your requirements.',

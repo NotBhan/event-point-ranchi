@@ -1,0 +1,204 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import AdminPager from '../../../components/admin/AdminPager.astro';
+import { formatCataloguePrice } from '../../bookings/pricing-core';
+import { thumbnailUrl } from '../../../core/media';
+import type { CatalogueKind } from '../../../core/content/catalogue-admin-store';
+import { CATALOGUE_LABELS, catalogueBasePath, cataloguePreviewPath } from '../catalogue-service';
+
+interface Props {
+  kind: CatalogueKind;
+  items: Array<{
+    id: number;
+    name: string;
+    slug: string;
+    image_url: string;
+    category: string;
+    price_paise: number;
+    is_visible: number;
+    is_archived: number;
+    is_featured: number;
+    sort_order: number;
+    updated_at: string;
+  }>;
+  pagination: { page: number; totalPages: number; totalCount: number; startItem: number; endItem: number };
+  categories: Array<{ value: string; label: string }>;
+  filters: { q: string; status: string; category: string; sort: string };
+}
+
+const { kind, items, pagination, categories, filters } = Astro.props;
+const csrf = Astro.locals.csrf;
+const label = CATALOGUE_LABELS[kind];
+const base = catalogueBasePath(kind);
+const categoryLabels = new Map(categories.map((category) => [category.value, category.label]));
+const pageHref = (page: number) => {
+  const params = new URLSearchParams();
+  if (filters.q) params.set('q', filters.q);
+  if (filters.status !== 'all') params.set('status', filters.status);
+  if (filters.category) params.set('category', filters.category);
+  if (filters.sort !== 'order') params.set('sort', filters.sort);
+  params.set('page', String(page));
+  return `${base}?${params.toString()}`;
+};
+const statusLabel = (item: Props['items'][number]) =>
+  item.is_archived ? 'Archived' : item.is_visible ? 'Active' : 'Draft';
+const statusBadge = (item: Props['items'][number]) =>
+  item.is_archived ? 'badge-muted' : item.is_visible ? 'badge-success' : 'badge-warning';
+---
+
+<AdminLayout title={label} description={`${pagination.totalCount} ${label.toLowerCase()} in the catalogue.`}>
+  <div class="admin-panel">
+    <div class="admin-panel-head">
+      <div>
+        <h2>{label}</h2>
+        <p>Search, filter, publish and archive catalogue items. Public changes publish through Content Studio.</p>
+      </div>
+      <a href={`${base}/new`} class="btn btn-primary btn-sm">Add New Item</a>
+    </div>
+
+    <div class="admin-panel-body">
+      <form method="GET" action={base} class="catalogue-toolbar">
+        <div class="field catalogue-search">
+          <label for="q">Search</label>
+          <input class="input" id="q" name="q" value={filters.q} placeholder={`Search ${label.toLowerCase()} by name`} />
+        </div>
+        <div class="field">
+          <label for="status">Status</label>
+          <select class="select" id="status" name="status">
+            <option value="all" selected={filters.status === 'all'}>All statuses</option>
+            <option value="active" selected={filters.status === 'active'}>Active</option>
+            <option value="draft" selected={filters.status === 'draft'}>Draft</option>
+            <option value="archived" selected={filters.status === 'archived'}>Archived</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="category">Category</label>
+          <select class="select" id="category" name="category">
+            <option value="">All categories</option>
+            {categories.map((category) => (
+              <option value={category.value} selected={filters.category === category.value}>{category.label}</option>
+            ))}
+          </select>
+        </div>
+        <div class="field">
+          <label for="sort">Sort</label>
+          <select class="select" id="sort" name="sort">
+            <option value="order" selected={filters.sort === 'order'}>Display order</option>
+            <option value="name" selected={filters.sort === 'name'}>Name</option>
+            <option value="price" selected={filters.sort === 'price'}>Price</option>
+            <option value="updated" selected={filters.sort === 'updated'}>Recently updated</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-secondary btn-sm">Apply filters</button>
+        {(filters.q || filters.status !== 'all' || filters.category || filters.sort !== 'order') && (
+          <a href={base} class="btn btn-secondary btn-sm">Clear</a>
+        )}
+      </form>
+
+      <div class="catalogue-count">Showing <strong>{pagination.startItem}–{pagination.endItem}</strong> of <strong>{pagination.totalCount}</strong> {label.toLowerCase()}</div>
+
+      {items.length === 0 ? (
+        <div class="admin-empty">
+          No {label.toLowerCase()} match the current filters. <a href={`${base}/new`}>Create the first item</a>.
+        </div>
+      ) : (
+        <div class="table-wrap">
+          <table class="table table-stack">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Category</th>
+                <th>Price</th>
+                <th>Status</th>
+                <th>Order</th>
+                <th style="text-align:right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr>
+                  <td data-label="Item">
+                    <div class="catalogue-cell">
+                      {item.image_url ? (
+                        <img class="admin-thumb" src={thumbnailUrl(item.image_url, 112)} width="52" height="52" alt="" loading="lazy" decoding="async" />
+                      ) : (
+                        <span class="admin-thumb catalogue-thumb-empty">—</span>
+                      )}
+                      <div>
+                        <a href={`${base}/${item.id}`} class="catalogue-item-name">{item.name}</a>
+                        <div class="text-xs text-muted">/{item.slug}</div>
+                        {item.is_featured === 1 && <span class="badge badge-gold catalogue-featured">Featured</span>}
+                      </div>
+                    </div>
+                  </td>
+                  <td data-label="Category">{categoryLabels.get(item.category) ?? item.category ?? '—'}</td>
+                  <td data-label="Price" class="catalogue-price">{formatCataloguePrice(item.price_paise)}</td>
+                  <td data-label="Status"><span class:list={['badge', statusBadge(item)]}>{statusLabel(item)}</span></td>
+                  <td data-label="Order">{item.sort_order}</td>
+                  <td data-label="Actions">
+                    <div class="admin-row-actions">
+                      <a href={`${base}/${item.id}`} class="btn btn-secondary btn-sm">Edit</a>
+                      <a href={cataloguePreviewPath(kind, item.slug)} target="_blank" rel="noopener" class="btn btn-secondary btn-sm">Preview</a>
+                      <form method="POST" action={`${base}/${item.id}/action`}>
+                        <input type="hidden" name="_csrf" value={csrf} />
+                        <input type="hidden" name="action" value="duplicate" />
+                        <button type="submit" class="btn btn-secondary btn-sm">Duplicate</button>
+                      </form>
+                      <form method="POST" action={`${base}/${item.id}/action`}>
+                        <input type="hidden" name="_csrf" value={csrf} />
+                        <input type="hidden" name="action" value={item.is_visible ? 'draft' : 'activate'} />
+                        <button type="submit" class="btn btn-secondary btn-sm">{item.is_visible ? 'Unpublish' : 'Publish'}</button>
+                      </form>
+                      {item.is_archived ? (
+                        <form method="POST" action={`${base}/${item.id}/action`}>
+                          <input type="hidden" name="_csrf" value={csrf} />
+                          <input type="hidden" name="action" value="activate" />
+                          <button type="submit" class="btn btn-secondary btn-sm">Reactivate</button>
+                        </form>
+                      ) : (
+                        <form method="POST" action={`${base}/${item.id}/action`}>
+                          <input type="hidden" name="_csrf" value={csrf} />
+                          <input type="hidden" name="action" value="archive" />
+                          <button type="submit" class="btn btn-danger-soft btn-sm" data-confirm={`Archive "${item.name}"? It will disappear from the public catalogue.`}>Archive</button>
+                        </form>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {pagination.totalPages > 1 && (
+        <AdminPager
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          totalCount={pagination.totalCount}
+          startItem={pagination.startItem}
+          endItem={pagination.endItem}
+          label={label.toLowerCase()}
+          href={pageHref}
+        />
+      )}
+    </div>
+  </div>
+</AdminLayout>
+
+<style>
+  .catalogue-toolbar { display:flex; align-items:end; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+  .catalogue-toolbar .field { min-width:150px; margin:0; }
+  .catalogue-toolbar .catalogue-search { flex:1 1 260px; }
+  .catalogue-count { font-size:12px; color:var(--muted); margin:0 0 12px; }
+  .catalogue-cell { display:flex; align-items:center; gap:12px; min-width:0; }
+  .catalogue-item-name { font-weight:600; color:var(--ink); }
+  .catalogue-thumb-empty { display:flex; align-items:center; justify-content:center; color:var(--muted); }
+  .catalogue-featured { margin-top:4px; font-size:10px; }
+  .catalogue-price { font-weight:600; white-space:nowrap; }
+  @media (max-width: 767px) {
+    .catalogue-toolbar { display:grid; grid-template-columns:1fr 1fr; }
+    .catalogue-toolbar .catalogue-search { grid-column:1 / -1; }
+    .catalogue-toolbar .btn { width:100%; }
+  }
+</style>

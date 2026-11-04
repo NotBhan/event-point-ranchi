@@ -190,17 +190,15 @@ async function main(): Promise<void> {
   }
 
   // Discover real slugs from listing pages.
-  const slugs: Record<string, string | null> = { mandap: null, stage: null, hall: null, catering: null };
+  const slugs: Record<string, string | null> = { mandap: null, stage: null, catering: null };
   try {
-    const [mandapsHtml, stagesHtml, hallsHtml, cateringHtml] = await Promise.all([
+    const [mandapsHtml, stagesHtml, cateringHtml] = await Promise.all([
       fetchHtml(`${base}/mandaps`, jar),
       fetchHtml(`${base}/stages`, jar),
-      fetchHtml(`${base}/halls`, jar),
       fetchHtml(`${base}/catering`, jar),
     ]);
     slugs.mandap = extractFirst(mandapsHtml, /href="\/mandaps\/([a-z0-9-]+)"/i);
     slugs.stage = extractFirst(stagesHtml, /href="\/stages\/([a-z0-9-]+)"/i);
-    slugs.hall = extractFirst(hallsHtml, /href="\/halls\/([a-z0-9-]+)"/i);
     slugs.catering = extractFirst(cateringHtml, /href="\/catering\/([a-z0-9-]+)"/i);
   } catch (error) {
     console.warn('[perf] slug discovery failed:', error instanceof Error ? error.message : error);
@@ -216,8 +214,6 @@ async function main(): Promise<void> {
     '/gallery',
     '/catering',
     slugs.catering ? `/catering/${slugs.catering}` : null,
-    '/halls',
-    slugs.hall ? `/halls/${slugs.hall}` : null,
     '/contact',
     '/plan',
     '/terms',
@@ -232,7 +228,6 @@ async function main(): Promise<void> {
         '/admin/enquiries',
         '/admin/customers',
         '/admin/inquiries',
-        '/admin/halls',
         '/admin/catering',
         '/admin/gallery',
         '/admin/content',

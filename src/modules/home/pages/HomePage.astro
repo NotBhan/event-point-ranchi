@@ -5,6 +5,7 @@ import StageCard from '../../../components/StageCard.astro';
 import VideoPreviewCard from '../../../components/VideoPreviewCard.astro';
 import Icon from '../../../components/Icon.astro';
 import { imageUrl } from '../../../core/http';
+import { formatCataloguePrice } from '../../bookings/pricing-core';
 import { heroImage as buildHeroImage, responsiveImage } from '../../../core/media';
 import { site } from '../../../core/config';
 import type { HomeData } from '../service';
@@ -15,7 +16,7 @@ interface Props {
 }
 
 const { data } = Astro.props;
-const { heroImage, mandaps, stages, equipment, galleryCategories, galleryItems, stats } = data;
+const { heroImage, mandaps, stages, equipment, catering, galleryCategories, galleryItems, stats } = data;
 
 const [pageContent, homepageContent, featuredVideos] = await Promise.all([
   getPageContent('home'),
@@ -124,6 +125,37 @@ const steps = homepageContent.steps.map((s) => [s.stepNumber, s.title, s.descrip
         </div>
         <div class="catalogue-grid catalogue-grid-stages">
           {stages.map((stage) => <StageCard stage={stage} />)}
+        </div>
+      </div>
+    </section>
+  )}
+
+  {catering.length > 0 && (
+    <section class="section" aria-labelledby="home-catering">
+      <div class="container">
+        <div class="section-head split-head">
+          <div>
+            <span class="eyebrow">Catering collection</span>
+            <h2 id="home-catering">Menus that bring the celebration together.</h2>
+            <p>Administrator-selected packages with clear per-plate pricing or a quotation request.</p>
+          </div>
+          <a href="/catering" class="btn btn-secondary">View catering <Icon name="arrow-right" size={15} /></a>
+        </div>
+        <div class="catalogue-grid">
+          {catering.map((pkg) => (
+            <article class="catalogue-card">
+              <a class="catalogue-media" href={`/catering/${pkg.slug}`} aria-label={`View ${pkg.name}`}>
+                {pkg.image ? <img src={pkg.image} alt={pkg.name} loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;" /> : <div class="catalogue-media-fallback"><Icon name="utensils" size={38} /></div>}
+                <span class="catalogue-badge">{pkg.category || 'Catering'}</span>
+              </a>
+              <div class="catalogue-body">
+                <h3><a href={`/catering/${pkg.slug}`}>{pkg.name}</a></h3>
+                <p class="catalogue-description">{pkg.description}</p>
+                <div style="font-weight:700;color:var(--gold-ink);font-size:13px;margin:8px 0;">{formatCataloguePrice(pkg.price_per_plate_paise)}{pkg.price_per_plate_paise > 0 ? ' / plate' : ''}</div>
+                <div class="catalogue-foot"><a href={`/catering/${pkg.slug}`} class="btn btn-secondary btn-sm">View package</a></div>
+              </div>
+            </article>
+          ))}
         </div>
       </div>
     </section>

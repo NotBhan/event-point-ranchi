@@ -36,6 +36,8 @@
 .admin-brand span { display: block; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: #8f8a80; margin-top: 3px; }
 
 .admin-nav { display: flex; flex-direction: column; gap: 2px; }
+.admin-nav-group { display: flex; flex-direction: column; gap: 2px; }
+.admin-nav-group + .admin-nav-group { margin-top: 8px; }
 .admin-nav a {
   display: flex;
   align-items: center;

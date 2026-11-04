@@ -12,6 +12,9 @@ export interface StageRow {
   height_ft: number;
   dimension_unit: string;
   decoration_notes: string;
+  price_starting_paise: number;
+  full_description?: string;
+  image_alt?: string;
   sort: number;
 }
 
@@ -60,6 +63,9 @@ export async function loadStagesPage(options: { category?: string; query?: strin
     height_ft: s.height_ft,
     dimension_unit: s.dimension_unit,
     decoration_notes: s.decoration_notes,
+    price_starting_paise: s.price_starting_paise,
+    full_description: s.full_description,
+    image_alt: s.image_alt,
     sort: s.sort_order,
   }));
 
@@ -83,6 +89,9 @@ export async function loadStageDetail(slug: string): Promise<(StageRow & { galle
     height_ft: s.height_ft,
     dimension_unit: s.dimension_unit,
     decoration_notes: s.decoration_notes,
+    price_starting_paise: s.price_starting_paise,
+    full_description: s.full_description,
+    image_alt: s.image_alt,
     sort: s.sort_order,
   };
 

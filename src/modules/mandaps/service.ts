@@ -12,6 +12,9 @@ export interface MandapRow {
   height_ft: number;
   dimension_unit: string;
   material_specs: string;
+  price_starting_paise: number;
+  full_description?: string;
+  image_alt?: string;
   sort: number;
   location_name?: string;
   address?: string;
@@ -72,6 +75,9 @@ export async function loadMandapsPage(options: { category?: string; query?: stri
     height_ft: m.height_ft,
     dimension_unit: m.dimension_unit,
     material_specs: m.material_specs,
+    price_starting_paise: m.price_starting_paise,
+    full_description: m.full_description,
+    image_alt: m.image_alt,
     sort: m.sort_order,
     location_name: m.location_name,
     address: m.address,
@@ -102,6 +108,9 @@ export async function loadMandapDetail(slug: string): Promise<(MandapRow & { gal
     height_ft: m.height_ft,
     dimension_unit: m.dimension_unit,
     material_specs: m.material_specs,
+    price_starting_paise: m.price_starting_paise,
+    full_description: m.full_description,
+    image_alt: m.image_alt,
     sort: m.sort_order,
     location_name: m.location_name,
     address: m.address,

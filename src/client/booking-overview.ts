@@ -95,14 +95,11 @@ if (root) {
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 2-1.6L21 8H6"/></svg>
             </div>
             <h3>Your cart is empty</h3>
-            <p>Choose a hall or catering before checking out.</p>
-            <a href="/halls" class="btn btn-primary mt-4">Browse halls</a>
+            <p>Choose catering or event items before checking out.</p>
+            <a href="/catering" class="btn btn-primary mt-4">Browse catering</a>
           </div>`;
       } else {
         let html = '';
-        if (cart.hall) {
-          html += card('Hall', 'building', row(cart.hall.name, cart.hall.capacity ? `${cart.hall.capacity} guests` : '', cart.hall.price));
-        }
         if (cart.rooms.length) {
           html += card(
             'Rooms & suites',
@@ -156,7 +153,6 @@ if (root) {
 
     if (summaryRoot) {
       const rows = [
-        ['Hall', cart.hall?.price ?? 0],
         ['Rooms', cart.rooms.reduce((sum, room) => sum + room.price * room.quantity, 0)],
         ['Catering', cart.catering?.total ?? 0],
         ['Furniture', cart.furniture.reduce((sum, item) => sum + item.price * item.quantity, 0)],
@@ -251,7 +247,7 @@ if (root) {
 
     const cart = readCart();
     if (cartTotal(cart) === 0) {
-      showError('Your cart is empty. Add a hall, room or catering package first.', true);
+      showError('Your cart is empty. Add a room, event item or catering package first.', true);
       return;
     }
 
@@ -306,7 +302,6 @@ if (root) {
     }
 
     const payload = {
-      hall: cart.hall ? { id: cart.hall.id } : null,
       rooms: cart.rooms.map((room) => ({ id: room.id, quantity: room.quantity })),
       furniture: cart.furniture.map((item) => ({ id: item.id, quantity: item.quantity })),
       stage: cart.stage ? { id: cart.stage.id } : null,

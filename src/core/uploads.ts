@@ -31,7 +31,6 @@ const FOLDER_ENTITY_TYPES: Record<string, ImageEntityType> = {
   branding: 'branding',
   banner: 'banner',
   banners: 'banner',
-  halls: 'banner',
   rooms: 'banner',
   content: 'banner',
 };

@@ -1,5 +1,4 @@
 export interface CartPayload {
-  hall?: { id: string | number } | null;
   furniture?: Array<{ id: string | number; quantity: number }>;
   stage?: { id: string | number } | null;
   services?: Array<{ id: string | number }>;

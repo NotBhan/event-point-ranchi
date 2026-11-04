@@ -96,18 +96,6 @@ function readLegacyBookings(path: string): SourceData {
       items.set(bookingId, list);
     };
 
-    for (const row of db.prepare('SELECT bh.*, h.name AS hall_name FROM booking_halls bh LEFT JOIN halls h ON h.id = bh.hall_id').all() as any[]) {
-      push(Number(row.booking_id), {
-        category: 'hall',
-        itemId: String(row.hall_id),
-        name: row.hall_name || `Hall #${row.hall_id}`,
-        quantity: 1,
-        unitPricePaise: Number(row.price ?? 0),
-        subtotalPaise: Number(row.price ?? 0),
-        metadata: { legacyTable: 'booking_halls' },
-      });
-    }
-
     for (const row of db.prepare('SELECT bf.*, fi.name AS item_name FROM booking_furniture bf LEFT JOIN furniture_items fi ON fi.id = bf.furniture_id').all() as any[]) {
       push(Number(row.booking_id), {
         category: 'furniture',

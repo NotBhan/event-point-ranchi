@@ -225,13 +225,6 @@ test('a minimum equipment quantity is enforced server-side', async () => {
   );
 });
 
-test('retired catalogue categories are rejected instead of priced elsewhere', async () => {
-  const ids = await catalogueIds();
-  await assert.rejects(
-    () => createBooking(guestAuth, bookingPayload(ids, { hall: { id: 1 } }) as never),
-    /planning team/i,
-  );
-});
 
 test('a quotation is rebuilt from the operational store', async () => {
   const ids = await catalogueIds();

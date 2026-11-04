@@ -110,6 +110,8 @@ CREATE TABLE IF NOT EXISTS mandaps (
   capacity             INTEGER NOT NULL DEFAULT 0,
   features_json        TEXT NOT NULL DEFAULT '[]',
   image_url            TEXT NOT NULL DEFAULT '',
+  full_description     TEXT NOT NULL DEFAULT '',
+  image_alt            TEXT NOT NULL DEFAULT '',
   location_name        TEXT NOT NULL DEFAULT '',
   address              TEXT NOT NULL DEFAULT '',
   latitude             REAL,
@@ -119,6 +121,8 @@ CREATE TABLE IF NOT EXISTS mandaps (
   show_location        INTEGER NOT NULL DEFAULT 0,
   is_featured          INTEGER NOT NULL DEFAULT 0,
   is_visible           INTEGER NOT NULL DEFAULT 1,
+  is_archived          INTEGER NOT NULL DEFAULT 0,
+  archived_at          TEXT,
   sort_order           INTEGER NOT NULL DEFAULT 0,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at           TEXT NOT NULL DEFAULT (datetime('now'))
@@ -134,6 +138,8 @@ CREATE TABLE IF NOT EXISTS mandap_gallery (
   mandap_id  INTEGER NOT NULL REFERENCES mandaps(id) ON DELETE CASCADE,
   image_url  TEXT NOT NULL,
   caption    TEXT NOT NULL DEFAULT '',
+  alt_text   TEXT NOT NULL DEFAULT '',
+  is_visible INTEGER NOT NULL DEFAULT 1,
   sort_order INTEGER NOT NULL DEFAULT 0
 );
 
@@ -152,8 +158,12 @@ CREATE TABLE IF NOT EXISTS stages (
   decoration_notes     TEXT NOT NULL DEFAULT '',
   price_starting_paise INTEGER NOT NULL DEFAULT 0,
   image_url            TEXT NOT NULL DEFAULT '',
+  full_description     TEXT NOT NULL DEFAULT '',
+  image_alt            TEXT NOT NULL DEFAULT '',
   is_featured          INTEGER NOT NULL DEFAULT 0,
   is_visible           INTEGER NOT NULL DEFAULT 1,
+  is_archived          INTEGER NOT NULL DEFAULT 0,
+  archived_at          TEXT,
   sort_order           INTEGER NOT NULL DEFAULT 0,
   created_at           TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at           TEXT NOT NULL DEFAULT (datetime('now'))
@@ -168,6 +178,8 @@ CREATE TABLE IF NOT EXISTS stage_gallery (
   stage_id   INTEGER NOT NULL REFERENCES stages(id) ON DELETE CASCADE,
   image_url  TEXT NOT NULL,
   caption    TEXT NOT NULL DEFAULT '',
+  alt_text   TEXT NOT NULL DEFAULT '',
+  is_visible INTEGER NOT NULL DEFAULT 1,
   sort_order INTEGER NOT NULL DEFAULT 0
 );
 
@@ -191,13 +203,18 @@ CREATE TABLE IF NOT EXISTS furniture_items (
   slug             TEXT NOT NULL UNIQUE,
   description      TEXT NOT NULL DEFAULT '',
   image_url        TEXT NOT NULL DEFAULT '',
+  full_description TEXT NOT NULL DEFAULT '',
+  image_alt        TEXT NOT NULL DEFAULT '',
   price_paise      INTEGER NOT NULL DEFAULT 0,
   pricing_unit     TEXT NOT NULL DEFAULT 'per item',
   dimensions       TEXT NOT NULL DEFAULT '',
   specifications   TEXT NOT NULL DEFAULT '',
   min_quantity     INTEGER NOT NULL DEFAULT 1,
   default_quantity INTEGER NOT NULL DEFAULT 10,
+  is_featured      INTEGER NOT NULL DEFAULT 0,
   is_visible       INTEGER NOT NULL DEFAULT 1,
+  is_archived      INTEGER NOT NULL DEFAULT 0,
+  archived_at      TEXT,
   sort_order       INTEGER NOT NULL DEFAULT 0,
   created_at       TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at       TEXT NOT NULL DEFAULT (datetime('now'))
@@ -207,19 +224,35 @@ CREATE INDEX IF NOT EXISTS idx_furniture_items_category ON furniture_items(categ
 CREATE INDEX IF NOT EXISTS idx_furniture_items_slug ON furniture_items(slug);
 CREATE INDEX IF NOT EXISTS idx_furniture_items_visible ON furniture_items(is_visible);
 
+CREATE TABLE IF NOT EXISTS furniture_item_images (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  item_id    INTEGER NOT NULL REFERENCES furniture_items(id) ON DELETE CASCADE,
+  image_url  TEXT NOT NULL,
+  alt_text   TEXT NOT NULL DEFAULT '',
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_furniture_item_images_item ON furniture_item_images(item_id);
+
 CREATE TABLE IF NOT EXISTS catering_packages (
   id                    INTEGER PRIMARY KEY AUTOINCREMENT,
   name                  TEXT NOT NULL,
   slug                  TEXT NOT NULL UNIQUE,
   description           TEXT NOT NULL DEFAULT '',
   badge                 TEXT NOT NULL DEFAULT '',
+  category              TEXT NOT NULL DEFAULT 'Signature',
   image_url             TEXT NOT NULL DEFAULT '',
+  full_description      TEXT NOT NULL DEFAULT '',
+  image_alt             TEXT NOT NULL DEFAULT '',
   price_per_plate_paise INTEGER NOT NULL DEFAULT 0,
   features_json         TEXT NOT NULL DEFAULT '[]',
   menu_sections_json    TEXT NOT NULL DEFAULT '[]',
   guest_pricing_json    TEXT NOT NULL DEFAULT '[]',
   show_on_home          INTEGER NOT NULL DEFAULT 0,
   is_visible            INTEGER NOT NULL DEFAULT 1,
+  is_archived           INTEGER NOT NULL DEFAULT 0,
+  archived_at           TEXT,
   sort_order            INTEGER NOT NULL DEFAULT 0,
   created_at            TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at            TEXT NOT NULL DEFAULT (datetime('now'))
@@ -227,6 +260,17 @@ CREATE TABLE IF NOT EXISTS catering_packages (
 
 CREATE INDEX IF NOT EXISTS idx_catering_packages_slug ON catering_packages(slug);
 CREATE INDEX IF NOT EXISTS idx_catering_packages_visible ON catering_packages(is_visible);
+
+CREATE TABLE IF NOT EXISTS catering_package_images (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  package_id INTEGER NOT NULL REFERENCES catering_packages(id) ON DELETE CASCADE,
+  image_url  TEXT NOT NULL,
+  alt_text   TEXT NOT NULL DEFAULT '',
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_catering_package_images_package ON catering_package_images(package_id);
 
 CREATE TABLE IF NOT EXISTS gallery_categories (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,

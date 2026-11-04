@@ -162,6 +162,9 @@ export interface MandapItem {
   capacity: number;
   features: string[];
   image_url: string;
+  image_alt?: string;
+  full_description?: string;
+  is_archived?: boolean;
   location_name: string;
   address: string;
   latitude: number | null;
@@ -169,7 +172,7 @@ export interface MandapItem {
   google_maps_url: string;
   directions_url: string;
   show_location: boolean;
-  gallery: Array<{ id: number; image_url: string; caption: string; sort_order: number }>;
+  gallery: Array<{ id: number; image_url: string; caption: string; alt_text?: string; is_visible?: boolean; sort_order: number }>;
   is_featured: boolean;
   is_visible: boolean;
   sort_order: number;
@@ -188,7 +191,10 @@ export interface StageItem {
   decoration_notes: string;
   price_starting_paise: number;
   image_url: string;
-  gallery: Array<{ id: number; image_url: string; caption: string; sort_order: number }>;
+  image_alt?: string;
+  full_description?: string;
+  is_archived?: boolean;
+  gallery: Array<{ id: number; image_url: string; caption: string; alt_text?: string; is_visible?: boolean; sort_order: number }>;
   is_featured: boolean;
   is_visible: boolean;
   sort_order: number;
@@ -210,12 +216,17 @@ export interface FurnitureItem {
   slug: string;
   description: string;
   image_url: string;
+  full_description?: string;
+  image_alt?: string;
+  gallery?: Array<{ id: number; image_url: string; alt_text: string; sort_order: number }>;
   price_paise: number;
   pricing_unit: string;
   dimensions: string;
   specifications: string;
   min_quantity: number;
   default_quantity: number;
+  is_featured?: boolean;
+  is_archived?: boolean;
   is_visible: boolean;
   sort_order: number;
 }
@@ -226,11 +237,16 @@ export interface CateringPackage {
   slug: string;
   description: string;
   badge: string;
+  category?: string;
   image_url: string;
+  full_description?: string;
+  image_alt?: string;
+  is_archived?: boolean;
   price_per_plate_paise: number;
   features: string[];
   menu_sections: any[];
   guest_pricing: any[];
+  images?: Array<{ id: number; image_url: string; alt_text: string; sort_order: number }>;
   show_on_home: boolean;
   is_visible: boolean;
   sort_order: number;

@@ -26,7 +26,7 @@ npm run db:reset     # delete the SQLite file; it is reseeded on the next reques
 - `/equipment` — furniture and equipment catalogue with category tabs and quantity selectors.
 - `/plan` — accessible eight-step requirements wizard and quotation enquiry form.
 - `/gallery`, `/contact`, `/policies` — supporting pages.
-- Legacy `/halls`, `/rooms`, `/booking/overview` and `/cart` routes redirect to the new journey.
+- Legacy `/rooms`, `/booking/overview` and `/cart` routes redirect to the new journey.
 
 ### Seeded accounts
 
@@ -45,7 +45,7 @@ Admin console: `/admin`. Customer account pages: `/profile`, `/my-bookings`.
 
 ## Why the structure looks like this
 
-The Django project was organised as apps (`halls`, `rooms`, `catering`, `booking`, `cart`, `accounts`, `cms`, …)
+The Django project was organised as apps (`rooms`, `catering`, `booking`, `cart`, `accounts`, `cms`, …)
 but the wiring was duplicated across `urls.py`, `views.py`, `templates/` and `static/` files of each app,
 and the core booking maths lived in three places (server view, `unified_summary.js`, `booking_overview.js`).
 
@@ -60,7 +60,7 @@ src/
 │   ├── registry.ts           # auto-discovers modules, matches routes, builds nav
 │   ├── db.ts                 # node:sqlite client, schema bootstrap, seeding
 │   ├── schema.sql            # full relational schema
-│   ├── seed.ts               # demo venues, menus, bookings, staff
+│   ├── seed.ts               # demo catalogues, menus, bookings, staff
 │   ├── auth.ts               # password hashing, signed sessions, route guards
 │   ├── csrf.ts               # double-submit CSRF tokens
 │   ├── flash.ts              # one-shot flash cookies (toasts)
@@ -74,7 +74,6 @@ src/
 │   ├── stages/               # stage catalogue + detail
 │   ├── equipment/            # furniture & equipment catalogue
 │   ├── plan/                 # 8-step enquiry wizard + /api/enquiries
-│   ├── halls/                # legacy routes redirect to /mandaps
 │   ├── rooms/                # legacy routes redirect to /plan
 │   ├── catering/
 │   ├── cart/                 # legacy route redirects to /plan
@@ -162,9 +161,9 @@ Page handlers return either `{ props, status? }` (the router renders the compone
 handle: async (ctx) => {
   if (ctx.request.method === 'POST') {           // ctx.form is already parsed
     setSuccess(ctx.cookies, 'Saved.');
-    return redirect('/admin/halls');
+    return redirect('/admin/mandaps');
   }
-  return { props: { halls: listHalls() } };
+  return { props: { mandaps: listMandaps() } };
 }
 ```
 
@@ -204,9 +203,8 @@ request fails with a real error instead of silently storing the record locally.
 - Each booking stores the deposit policy that produced its advance
   (`deposit_type`, `deposit_value`), so changing a policy never rewrites a
   booking that was already quoted or paid.
-- The catalogue tables in the local SQLite file (`halls`, `furniture_items`, …)
-  are legacy demo data for the retired `/halls` routes; they are not a pricing
-  source.
+- The catalogue tables in the local SQLite file (`furniture_items`, …) are legacy
+  demo data; they are not a pricing source.
 - Uploaded images go to Filebase (or the mock driver); the DB stores the object
   key and public URL.
 
@@ -252,14 +250,13 @@ path handling in the media module.
 
 Bugs in the original that were fixed while porting:
 
-1. **Quotation relations** — the invoice template read `booking.hall` / `booking.stage` although the
- models expose `hall_booking` / `stage`; line items silently rendered empty. The invoice now joins each
- line item explicitly.
+1. **Quotation relations** — the invoice template read stale relation names, so line items silently
+ rendered empty. The invoice now joins each line item explicitly.
 2. **Guest pricing tiers were dead data** — `GuestPricing.price_per_plate` was stored but never used;
  bookings always charged the package base price. Tiers (and the custom plate count) now price the booking.
 3. **Server-side authority** — prices, quantities, tier rates and totals are recomputed from the database
  on submit; the browser cart is only a proposal.
-4. **Double bookings** — the same hall could be booked twice for one date. Hall/date conflicts are rejected
+4. **Double bookings** — duplicate bookings for the same date are rejected
  with a clear message before anything is written.
 5. **Room inventory** — quantities above `total_rooms` were accepted. Now validated.
 6. **Contact form never persisted anything** — inquiries are now stored and appear in the admin console.
@@ -281,14 +278,14 @@ Bugs in the original that were fixed while porting:
 | `/` homepage                                              | `/admin` dashboard                                      |
 | `/mandaps`, `/mandaps/:slug`                              | `/admin/enquiries`, `/admin/enquiries/:id`              |
 | `/stages`, `/stages/:slug`                                | `/admin/bookings`, `/admin/bookings/:id`                |
-| `/equipment`                                              | `/admin/halls`, `/admin/halls/new`, `/admin/halls/:id`  |
+| `/equipment`                                              | `/admin/mandaps`, `/admin/mandaps/new`, `/admin/mandaps/:id` |
 | `/plan` requirements wizard                               | `/admin/rooms`, `/admin/rooms/:id`                      |
 | `/gallery`                                                | `/admin/catering`, `/admin/catering/:id` (menu builder) |
 | `/contact`, `/policies`                                   | `/admin/gallery` (upload/manage)                        |
 | `/login`, `/register`, `/logout`                          | `/admin/customers`, `/admin/customers/:id`              |
 | `/profile`, `/my-bookings`                                | `/admin/inquiries`                                      |
 | `/booking/:id/quotation` invoice                          | `/admin/content` (heroes, feature tiles, contact)       |
-| `/halls`, `/rooms`, `/cart`, `/booking/overview` redirect | `/admin/login`, `/admin/logout`                         |
+| `/rooms`, `/cart`, `/booking/overview` redirect            | `/admin/login`, `/admin/logout`                         |
 
 
 JSON APIs: `POST /api/enquiries` (validated quotation enquiry) and `POST /api/bookings` (legacy

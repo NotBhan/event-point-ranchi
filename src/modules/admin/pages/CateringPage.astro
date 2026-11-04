@@ -1,7 +1,7 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import AdminPager from '../../../components/admin/AdminPager.astro';
-import { formatMoney } from '../../../core/http';
+import { formatCataloguePrice } from '../../bookings/pricing-core';
 import { thumbnailUrl } from '../../../core/media';
 import type { listCateringAdmin } from '../service';
 
@@ -56,11 +56,11 @@ const pageHref = (page: number) => `/admin/catering?page=${page}`;
                       </div>
                     </div>
                   </td>
-                  <td data-label="Base price" class="money">{formatMoney(pkg.price_paise)} <span class="text-xs text-muted">/ plate</span></td>
+                  <td data-label="Base price" class="money">{formatCataloguePrice(pkg.price_paise)} {pkg.price_paise > 0 && <span class="text-xs text-muted">/ plate</span>}</td>
                   <td data-label="Menu">{pkg.section_count} sections · {pkg.item_count} items</td>
                   <td data-label="Visibility">
                     <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                      <span class:list={['badge', pkg.is_active ? 'badge-success' : 'badge-muted']}>{pkg.is_active ? 'live' : 'hidden'}</span>
+                      <span class:list={['badge', pkg.is_archived ? 'badge-muted' : pkg.is_active ? 'badge-success' : 'badge-warning']}>{pkg.is_archived ? 'archived' : pkg.is_active ? 'live' : 'draft'}</span>
                       {pkg.show_on_home === 1 && <span class="badge badge-gold">homepage</span>}
                     </div>
                   </td>
@@ -71,7 +71,7 @@ const pageHref = (page: number) => `/admin/catering?page=${page}`;
                         <input type="hidden" name="_csrf" value={csrf} />
                         <input type="hidden" name="id" value={pkg.id} />
                         <input type="hidden" name="action" value="toggle" />
-                        <button type="submit" class="btn btn-secondary btn-sm">{pkg.is_active ? 'Hide' : 'Publish'}</button>
+                        <button type="submit" class="btn btn-secondary btn-sm">{pkg.is_active ? 'Unpublish' : 'Publish'}</button>
                       </form>
                       <form method="POST" action="/admin/catering/action">
                         <input type="hidden" name="_csrf" value={csrf} />
@@ -82,11 +82,8 @@ const pageHref = (page: number) => `/admin/catering?page=${page}`;
                       <form method="POST" action="/admin/catering/action">
                         <input type="hidden" name="_csrf" value={csrf} />
                         <input type="hidden" name="id" value={pkg.id} />
-                        <input type="hidden" name="action" value="delete" />
-                        <button type="submit" class="icon-btn danger icon-btn-labeled" data-confirm={`Delete "${pkg.name}" and its menu?`} aria-label="Delete package">
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-                          <span class="action-label-mobile">Delete</span>
-                        </button>
+                        <input type="hidden" name="action" value={pkg.is_archived ? 'activate' : 'archive'} />
+                        <button type="submit" class:list={['btn', pkg.is_archived ? 'btn-secondary' : 'btn-danger-soft', 'btn-sm']} data-confirm={pkg.is_archived ? undefined : `Archive "${pkg.name}"? Existing enquiries retain their snapshots.`}>{pkg.is_archived ? 'Reactivate' : 'Archive'}</button>
                       </form>
                     </div>
                   </td>

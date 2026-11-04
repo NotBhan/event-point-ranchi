@@ -7,6 +7,9 @@ export interface PackageCard {
   image: string | null;
   price_paise: number;
   description: string;
+  full_description?: string;
+  category?: string;
+  image_alt?: string;
   badge: string;
   features: string[];
   bannerFeatures: string[];
@@ -40,8 +43,8 @@ export async function loadCateringPage() {
   const catalog = await getCateringCatalog();
 
   const packages = catalog.packages
-    .filter((pkg) => pkg.is_visible)
-    .sort((a, b) => b.price_per_plate_paise - a.price_per_plate_paise)
+    .filter((pkg) => pkg.is_visible && !pkg.is_archived)
+    .sort((a, b) => a.sort_order - b.sort_order || b.price_per_plate_paise - a.price_per_plate_paise || a.id - b.id)
     .map((pkg) => ({
       id: pkg.id,
       name: pkg.name,
@@ -49,6 +52,9 @@ export async function loadCateringPage() {
       image: pkg.image_url || null,
       price_paise: pkg.price_per_plate_paise,
       description: pkg.description,
+      full_description: pkg.full_description,
+      category: pkg.category,
+      image_alt: pkg.image_alt,
       badge: pkg.badge,
       features: catalog.features.filter((feature) => feature.package_id === pkg.id).map((feature) => feature.name),
       bannerFeatures: catalog.bannerFeatures
@@ -61,7 +67,7 @@ export async function loadCateringPage() {
 
 export async function loadPackageDetail(slug: string): Promise<PackageDetail | null> {
   const catalog = await getCateringCatalog();
-  const pkg = catalog.packages.find((entry) => entry.slug === slug && entry.is_visible);
+  const pkg = catalog.packages.find((entry) => entry.slug === slug && entry.is_visible && !entry.is_archived);
   if (!pkg) return null;
 
   const guestPricing = catalog.guestPricing
@@ -91,6 +97,9 @@ export async function loadPackageDetail(slug: string): Promise<PackageDetail | n
       image: pkg.image_url || null,
       price_paise: pkg.price_per_plate_paise,
       description: pkg.description,
+      full_description: pkg.full_description,
+      category: pkg.category,
+      image_alt: pkg.image_alt,
       badge: pkg.badge,
       features: catalog.features.filter((feature) => feature.package_id === pkg.id).map((feature) => feature.name),
       bannerFeatures: catalog.bannerFeatures

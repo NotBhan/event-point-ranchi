@@ -32,7 +32,7 @@ const packageImage = heroImage(data?.package?.image);
       data-price={data.package.price_paise}
     >
       <section class:list={['page-hero', { 'with-image': Boolean(data.package.image) }]}>
-        {data.package.image && <img class="page-hero-media" src={packageImage.src} srcset={packageImage.srcset} sizes={packageImage.sizes} width="1600" height="900" alt="" fetchpriority="high" decoding="async" />}
+        {data.package.image && <img class="page-hero-media" src={packageImage.src} srcset={packageImage.srcset} sizes={packageImage.sizes} width="1600" height="900" alt={data.package.image_alt || data.package.name} fetchpriority="high" decoding="async" />}
         <div class="container">
           {data.package.badge && <span class="eyebrow">{data.package.badge}</span>}
           <h1>{data.package.name}</h1>
@@ -49,6 +49,14 @@ const packageImage = heroImage(data?.package?.image);
 
       <div class="container detail-layout">
         <div class="detail-main">
+          {data.package.full_description && (
+            <section class="detail-block">
+              <div class="section-head">
+                <span class="eyebrow">About this package</span>
+                <p>{data.package.full_description}</p>
+              </div>
+            </section>
+          )}
           <section class="detail-block">
             <div class="section-head">
               <span class="eyebrow">Guest pricing</span>

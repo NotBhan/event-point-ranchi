@@ -8,11 +8,10 @@ interface Props {
   counts: Awaited<ReturnType<typeof loadDashboard>>['counts'];
   recentBookings: Awaited<ReturnType<typeof loadDashboard>>['recentBookings'];
   upcoming: Awaited<ReturnType<typeof loadDashboard>>['upcoming'];
-  topHalls: Awaited<ReturnType<typeof loadDashboard>>['topHalls'];
   storage: ReturnType<typeof loadStorageDashboard>;
 }
 
-const { counts, recentBookings, upcoming, topHalls, storage } = Astro.props;
+const { counts, recentBookings, upcoming, storage } = Astro.props;
 const csrf = Astro.locals.csrf;
 
 const statusClass: Record<string, string> = {
@@ -43,7 +42,7 @@ const storageCards = [storage.gallery, storage.asset];
 const stats = [
   { label: 'Total bookings', value: counts.bookings, icon: 'ticket', hint: `${counts.pending} awaiting confirmation` },
   { label: 'Pipeline value', value: formatMoney(counts.revenue), icon: 'receipt', hint: 'Pending + confirmed bookings' },
-  { label: 'Active venues', value: counts.halls, icon: 'building', hint: `${counts.packages} catering packages` },
+  { label: 'Catering packages', value: counts.packages, icon: 'utensils', hint: 'Visible catering catalogue' },
   { label: 'Customers', value: counts.customers, icon: 'users', hint: `${counts.inquiries} new contact messages` },
 ];
 ---
@@ -224,32 +223,6 @@ const stats = [
                     <div class:list={['badge', statusClass[event.status] ?? 'badge-muted']} style="margin-top:4px;">{event.status}</div>
                   </span>
                 </a>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div class="admin-panel">
-        <div class="admin-panel-head">
-          <div>
-            <h2>Venue performance</h2>
-            <p>Revenue by hall</p>
-          </div>
-        </div>
-        <div class="admin-panel-body">
-          {topHalls.length === 0 ? (
-            <div class="admin-empty">No hall bookings yet.</div>
-          ) : (
-            <div style="display:flex;flex-direction:column;gap:12px;">
-              {topHalls.map((hall) => (
-                <div class="flex-between" style="gap:12px;">
-                  <div>
-                    <div style="font-size:13px;color:var(--ink-2);font-weight:500;">{hall.name}</div>
-                    <div class="text-xs text-muted">{hall.bookings} bookings</div>
-                  </div>
-                  <span class="money">{formatMoney(hall.revenue)}</span>
-                </div>
               ))}
             </div>
           )}

@@ -1,7 +1,7 @@
 ---
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import Icon from '../../../components/Icon.astro';
-import { formatMoney } from '../../../core/http';
+import { formatCataloguePrice } from '../../bookings/pricing-core';
 import { heroImage, responsiveImage } from '../../../core/media';
 import type { loadCateringPage } from '../service';
 import { getPageContent } from '../../../core/content/service';
@@ -94,8 +94,8 @@ const showBanner = pageContent.banner_enabled !== false && Boolean(heroBanner);
                       {pkg.description && <p class="room-description">{pkg.description}</p>}
                     </div>
                     <div class="package-row-price">
-                      <span class="price price-lg">{formatMoney(pkg.price_paise)}</span>
-                      <span class="price-unit">per plate</span>
+                      <span class="price price-lg">{formatCataloguePrice(pkg.price_paise)}</span>
+                      {pkg.price_paise > 0 && <span class="price-unit">per plate</span>}
                     </div>
                   </div>
 

@@ -1,0 +1,72 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Icon from '../../../components/Icon.astro';
+import { responsiveImage } from '../../../core/media';
+import { formatCataloguePrice } from '../../bookings/pricing-core';
+import type { EquipmentDetail } from '../service';
+
+interface Props {
+  data: EquipmentDetail | null;
+  notFound?: boolean;
+}
+
+const { data, notFound = false } = Astro.props;
+const image = data ? responsiveImage(data.image, { widths: [480, 800, 1200], sizes: '(max-width: 900px) 100vw, 560px' }) : null;
+const specs = data?.specifications.split('·').map((item) => item.trim()).filter(Boolean) ?? [];
+---
+
+<BaseLayout
+  title={data ? `${data.name} | Event Equipment in Ranchi | Event Point Ranchi` : 'Equipment not found | Event Point Ranchi'}
+  description={data?.description ?? 'This equipment item could not be found.'}
+>
+  {notFound || !data ? (
+    <section class="section"><div class="container"><div class="empty-state">
+      <div class="empty-icon"><Icon name="box" size={24} /></div>
+      <h3>Equipment not found</h3>
+      <p>This item may have been archived. Browse the equipment catalogue instead.</p>
+      <a href="/equipment" class="btn btn-primary">Back to equipment</a>
+    </div></div></section>
+  ) : (
+    <>
+      <nav class="breadcrumb container" aria-label="Breadcrumb">
+        <a href="/">Home</a><Icon name="chevron-right" size={12} />
+        <a href="/equipment">Equipment</a><Icon name="chevron-right" size={12} />
+        <span aria-current="page">{data.name}</span>
+      </nav>
+      <section class="detail-hero">
+        <div class="container detail-hero-grid">
+          <div class="detail-media">
+            {image && data.image ? <img src={image.src} srcset={image.srcset} sizes={image.sizes} width="1200" height="900" alt={data.image_alt || data.name} fetchpriority="high" decoding="async" /> : <div class="catalogue-media-fallback"><Icon name={data.category_icon} size={44} /></div>}
+            <span class="catalogue-badge">{data.category}</span>
+          </div>
+          <div class="detail-intro">
+            <span class="eyebrow">Equipment &amp; furniture</span>
+            <h1>{data.name}</h1>
+            <p class="detail-lead">{data.description}</p>
+            <div style="font-size:1.2rem;font-weight:700;color:var(--gold-ink);margin:12px 0;">{formatCataloguePrice(data.price_paise)} <span style="font-size:0.8rem;font-weight:400;color:var(--muted);">· {data.unit}</span></div>
+            <div class="detail-actions">
+              <a href="/equipment" class="btn btn-secondary btn-lg">Browse equipment</a>
+              <a href="/plan" class="btn btn-primary btn-lg">Add to requirements</a>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="section">
+        <div class="container detail-layout">
+          <div class="detail-main">
+            {data.full_description && <div class="content-block"><h2>About this item</h2><p>{data.full_description}</p></div>}
+            {specs.length > 0 && <div class="content-block"><h2>Specifications</h2><ul class="spec-list">{specs.map((spec) => <li><Icon name="check-circle" size={15} /> {spec}</li>)}</ul></div>}
+            {data.gallery.length > 0 && <div class="content-block"><h2>Gallery</h2><div class="catalogue-grid">{data.gallery.map((src) => <img src={src} alt={data.name} loading="lazy" style="width:100%;border-radius:12px;" />)}</div></div>}
+          </div>
+          <aside class="detail-aside">
+            <div class="admin-panel"><div class="admin-panel-body">
+              <h3>Plan this item</h3>
+              <p>Add quantities and specifications to your event requirements, then request a quotation.</p>
+              <a href="/plan" class="btn btn-primary btn-block">Open the planner</a>
+            </div></div>
+          </aside>
+        </div>
+      </section>
+    </>
+  )}
+</BaseLayout>
