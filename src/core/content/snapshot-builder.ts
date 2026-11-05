@@ -162,10 +162,11 @@ export async function fetchPublicContentRows(client: SnapshotRowFetcher): Promis
     { sql: 'SELECT * FROM guest_pricing ORDER BY sort ASC, guest_count ASC, id ASC' },
     { sql: 'SELECT * FROM menu_sections ORDER BY sort ASC, id ASC' },
     { sql: 'SELECT * FROM menu_categories ORDER BY sort ASC, id ASC' },
-    { sql: 'SELECT * FROM menu_items ORDER BY id ASC' },
+    { sql: 'SELECT * FROM menu_items ORDER BY sort ASC, id ASC' },
     { sql: 'SELECT * FROM gallery_categories WHERE is_visible = 1 ORDER BY sort_order ASC, id ASC' },
     { sql: 'SELECT * FROM gallery_items WHERE is_visible = 1 ORDER BY sort_order ASC, id ASC' },
     { sql: 'SELECT * FROM video_previews WHERE is_published = 1 ORDER BY sort_order ASC, id DESC' },
+    { sql: 'SELECT id, package_id, image_url, alt_text, sort_order FROM catering_package_images ORDER BY sort_order ASC, id ASC' },
   ];
 
   const results = await client.batch(statements);
@@ -193,6 +194,7 @@ export async function fetchPublicContentRows(client: SnapshotRowFetcher): Promis
     galleryCategories: rowsAt(18),
     galleryItems: rowsAt(19),
     videos: rowsAt(20),
+    cateringImages: rowsAt(21),
   };
 }
 
@@ -398,6 +400,17 @@ function mapMenuItem(row: ContentRow): MenuItemRow {
     category_id: Number(row.category_id ?? 0),
     name: String(row.name ?? ''),
     is_available: Number(row.is_available ?? 1),
+    sort: Number(row.sort ?? 0),
+  };
+}
+
+function mapCateringImage(row: ContentRow) {
+  return {
+    id: Number(row.id ?? 0),
+    package_id: Number(row.package_id ?? 0),
+    image_url: String(row.image_url ?? ''),
+    alt_text: String(row.alt_text ?? ''),
+    sort_order: Number(row.sort_order ?? 0),
   };
 }
 
@@ -509,6 +522,35 @@ export function buildSnapshot(rows: PublicContentRows): PublicContentSnapshot {
           sort: Number(tier.sort ?? 0),
         }));
       pkg.guest_pricing = normalizedTiers.length ? normalizedTiers : pkg.guest_pricing;
+
+      const packageSections = rows.menuSections.filter((section) => Number(section.package_id) === packageId);
+      if (packageSections.length > 0) {
+        const sectionIds = new Set(packageSections.map((section) => Number(section.id)));
+        const packageCategories = rows.menuCategories.filter((category) => sectionIds.has(Number(category.section_id)));
+        const categoryIds = new Set(packageCategories.map((category) => Number(category.id)));
+        const packageItems = rows.menuItems.filter(
+          (item) => Boolean(Number(item.is_available ?? 1)) && categoryIds.has(Number(item.category_id)),
+        );
+        pkg.menu_sections = packageSections.map((section) => {
+          const categories = packageCategories
+            .filter((category) => Number(category.section_id) === Number(section.id))
+            .map((category) => ({
+              ...mapMenuCategory(category),
+              items: packageItems
+                .filter((item) => Number(item.category_id) === Number(category.id))
+                .map(mapMenuItem),
+            }));
+          return {
+            ...mapMenuSection(section),
+            categories,
+            items: categories.flatMap((category) => category.items),
+          };
+        });
+      }
+
+      pkg.images = rows.cateringImages
+        .filter((image) => Number(image.package_id) === packageId)
+        .map(mapCateringImage);
       return pkg;
     }),
     cateringMenu: {
@@ -614,6 +656,11 @@ export function validateSnapshotData(snapshot: PublicContentSnapshot): void {
   }
 
   const cateringPackageIds = new Set(snapshot.cateringPackages.map((pkg) => pkg.id));
+  for (const pkg of snapshot.cateringPackages) {
+    for (const image of pkg.images ?? []) {
+      if (!image.image_url) problems.push(`catering_package_images: empty image_url for ${pkg.slug}`);
+    }
+  }
   const menu = snapshot.cateringMenu;
   for (const feature of menu.features) {
     if (!cateringPackageIds.has(feature.package_id)) {

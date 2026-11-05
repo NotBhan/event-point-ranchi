@@ -1,44 +1,26 @@
 import type { APIRoute } from 'astro';
-import { getEnquiryReceiptService } from '../../../../../core/operational/enquiry-receipt-service';
+import { resolveReceiptLookup } from '../../../../../core/documents/receipt-access';
 
-export const GET: APIRoute = async ({ params, url }) => {
+/**
+ * The old enquiry PDF was a second, divergent document format. Keep the path
+ * for bookmarks, but send it to the canonical printer-friendly document.
+ */
+export const GET: APIRoute = async ({ params, url, locals }) => {
   const ref = params.ref || url.searchParams.get('ref') || '';
   const token = url.searchParams.get('token') || '';
+  const lookup = resolveReceiptLookup(ref, token, Boolean(locals.adminAuth?.isAdmin));
 
-  const lookupKey = token || ref;
-  if (!lookupKey) {
-    return new Response(
-      JSON.stringify({ error: 'Missing enquiry reference or token.' }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } }
-    );
-  }
-
-  const receiptService = getEnquiryReceiptService(url.origin);
-  try {
-    const receiptData = await receiptService.getEnquiryReceiptData(lookupKey, url.origin);
-    if (!receiptData) {
-      return new Response(
-        JSON.stringify({ error: `Enquiry receipt "${lookupKey}" not found.` }),
-        { status: 404, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const pdfBytes = await receiptService.generateEnquiryReceiptPdf(receiptData);
-    const filename = `EventPoint-Enquiry-${receiptData.enquiry.referenceCode}.pdf`;
-
-    return new Response(Buffer.from(pdfBytes), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${filename}"`,
-        'Cache-Control': 'private, no-cache, no-store, must-revalidate',
-      },
+  if (!lookup.allowed) {
+    return new Response(JSON.stringify({ error: 'A secure document token is required.' }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
     });
-  } catch (error: any) {
-    console.error('[Enquiry Receipt PDF Error]:', error);
-    return new Response(
-      JSON.stringify({ error: error.message || 'Failed to generate enquiry PDF.' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
   }
+
+  const target = new URL(`/receipts/enquiry/${encodeURIComponent(ref)}`, url.origin);
+  if (token) target.searchParams.set('token', token);
+  return new Response(null, {
+    status: 302,
+    headers: { Location: target.toString(), 'Cache-Control': 'no-store' },
+  });
 };

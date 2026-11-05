@@ -186,7 +186,7 @@ async function main(): Promise<void> {
     body: new URLSearchParams({ username: 'admin', password: adminPassword, _csrf: adminCsrf ?? '' }).toString(),
   });
   rememberCookies(adminJar, loginResponse);
-  const adminSignedIn = Boolean(adminJar.rp_session);
+  const adminSignedIn = Boolean(adminJar.rp_admin_session);
   check('Admin signs in', adminSignedIn, `status ${loginResponse.status}`);
 
   if (adminSignedIn) {

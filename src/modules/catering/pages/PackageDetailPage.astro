@@ -47,6 +47,23 @@ const packageImage = heroImage(data?.package?.image);
         </div>
       </section>
 
+      {data.package.images && data.package.images.length > 0 && (
+        <section class="section-sm">
+          <div class="container">
+            <div class="section-head">
+              <span class="eyebrow">Package gallery</span>
+            </div>
+            <div class="gallery-grid">
+              {data.package.images.map((image) => (
+                <figure class="gallery-tile" style="cursor:default;">
+                  <img src={image.image_url} alt={image.alt_text || data.package.name} loading="lazy" decoding="async" />
+                </figure>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       <div class="container detail-layout">
         <div class="detail-main">
           {data.package.full_description && (

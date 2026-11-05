@@ -1195,7 +1195,6 @@ async function submitEnquiry(): Promise<void> {
       qrDataUrl?: string;
       token?: string;
       receiptUrl?: string;
-      pdfUrl?: string;
       pricing?: SelectionPricing;
       pricingStatus?: SelectionPricing['pricingStatus'];
       pricedSubtotalPaise?: number;
@@ -1207,9 +1206,8 @@ async function submitEnquiry(): Promise<void> {
     }
 
     const receiptUrl = data.receiptUrl || `/receipts/enquiry/${data.reference}${data.token ? `?token=${data.token}` : ''}`;
-    const pdfUrl = data.pdfUrl || `/api/enquiries/receipt/${data.reference}/pdf${data.token ? `?token=${data.token}` : ''}`;
 
-    showReceipt(data.reference, data.qrDataUrl, receiptUrl, pdfUrl, data.pricing);
+    showReceipt(data.reference, data.qrDataUrl, receiptUrl, data.pricing);
   } catch (error) {
     showError(error instanceof Error ? error.message : 'We could not submit the enquiry. Please try again.');
   } finally {
@@ -1247,7 +1245,6 @@ function showReceipt(
   reference: string,
   qrDataUrl?: string,
   receiptUrl?: string,
-  pdfUrl?: string,
   serverPricing?: SelectionPricing,
 ): void {
   if (planShell) planShell.hidden = true;
@@ -1276,11 +1273,6 @@ function showReceipt(
       if (viewLink) viewLink.href = receiptUrl;
       const primaryLink = receipt.querySelector<HTMLAnchorElement>('[data-receipt-primary-link]');
       if (primaryLink) primaryLink.href = receiptUrl;
-    }
-
-    if (pdfUrl) {
-      const pdfLink = receipt.querySelector<HTMLAnchorElement>('[data-receipt-pdf-link]');
-      if (pdfLink) pdfLink.href = pdfUrl;
     }
 
     const heading = receipt.querySelector<HTMLElement>('h2');

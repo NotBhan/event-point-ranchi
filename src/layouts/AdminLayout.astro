@@ -19,8 +19,9 @@ interface Props {
 const { title = 'Dashboard', description = '' } = Astro.props;
 Astro.response.headers.set('Cache-Control', 'private, no-store');
 Astro.response.headers.set('Pragma', 'no-cache');
-const auth = Astro.locals.auth;
-const user = auth.user!;
+const auth = Astro.locals.adminAuth;
+if (!auth?.user) return Astro.redirect('/admin/login');
+const user = auth.user;
 const csrf = Astro.locals.csrf;
 const nav = getAdminNav();
 const path = Astro.url.pathname;
@@ -87,7 +88,7 @@ const isActive = (href: string) => (href === '/admin' ? path === '/admin' : path
           </div>
           <div class="admin-user-actions">
             <a href="/"><Icon name="external" size={14} /> View website</a>
-            <a href="/profile"><Icon name="user" size={14} /> My profile</a>
+            <a href="/admin"><Icon name="user" size={14} /> Dashboard</a>
             <form method="POST" action="/admin/logout">
               <input type="hidden" name="_csrf" value={csrf} />
               <button type="submit" class="danger"><Icon name="logout" size={14} /> Log out</button>

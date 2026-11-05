@@ -1,6 +1,5 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
-import { formatMoney } from '../../../core/http';
 import Icon from '../../../components/Icon.astro';
 import ImageUploadDropzone from '../../../components/admin/ImageUploadDropzone.astro';
 
@@ -17,10 +16,11 @@ interface Props {
   bannerFeatures: Array<{ id: number; name: string }>;
   pricing: Array<{ id: number; guest_count: number; price_per_plate_paise: number }>;
   sections: Section[];
+  images: Array<{ id: number; image_url: string; alt_text: string; sort_order: number }>;
   id: number | null;
 }
 
-const { packageData, features, bannerFeatures, pricing, sections, id } = Astro.props;
+const { packageData, features, bannerFeatures, pricing, sections, images, id } = Astro.props;
 const csrf = Astro.locals.csrf;
 
 const value = (key: string, fallback = '') => String(packageData?.[key] ?? fallback);
@@ -45,6 +45,11 @@ const action = id ? `/admin/catering/${id}` : '/admin/catering/new';
           <div class="field">
             <label for="name">Package name *</label>
             <input class="input" id="name" name="name" required value={value('name')} placeholder="Royal Shahi Feast" />
+          </div>
+          <div class="field">
+            <label for="slug">URL slug</label>
+            <input class="input" id="slug" name="slug" value={value('slug')} placeholder="royal-shahi-feast" />
+            <span class="hint">Changes the public package URL. Existing links use the saved slug.</span>
           </div>
           <div class="admin-form-grid" style="grid-template-columns:1fr 1fr;">
             <div class="field">
@@ -107,8 +112,21 @@ const action = id ? `/admin/catering/${id}` : '/admin/catering/new';
               ) : (
                 <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
                   {pricing.map((tier) => (
-                    <div class="flex-between" style="gap:10px;">
-                      <span style="font-size:13px;">{tier.guest_count} guests · <span class="money">{formatMoney(tier.price_per_plate_paise)}</span>/plate</span>
+                    <div class="flex-between" style="gap:10px;align-items:flex-end;">
+                      <form method="POST" action={action} class="admin-inline-form" style="flex:1;align-items:flex-end;">
+                        <input type="hidden" name="_csrf" value={csrf} />
+                        <input type="hidden" name="action" value="update_pricing" />
+                        <input type="hidden" name="pricing_id" value={tier.id} />
+                        <div class="field">
+                          <label for={`tier-guests-${tier.id}`}>Guests</label>
+                          <input class="input" id={`tier-guests-${tier.id}`} name="guest_count" type="number" min="1" value={tier.guest_count} required />
+                        </div>
+                        <div class="field">
+                          <label for={`tier-price-${tier.id}`}>₹ per plate</label>
+                          <input class="input" id={`tier-price-${tier.id}`} name="price_per_plate" value={(tier.price_per_plate_paise / 100).toString()} inputmode="decimal" required />
+                        </div>
+                        <button type="submit" class="btn btn-secondary btn-xs">Save tier</button>
+                      </form>
                       <form method="POST" action={action}>
                         <input type="hidden" name="_csrf" value={csrf} />
                         <input type="hidden" name="action" value="delete_pricing" />
@@ -134,6 +152,64 @@ const action = id ? `/admin/catering/${id}` : '/admin/catering/new';
                   <input class="input" id="price_per_plate" name="price_per_plate" placeholder="1750" required />
                 </div>
                 <button type="submit" class="btn btn-secondary btn-sm">Add tier</button>
+              </form>
+            </div>
+          </div>
+
+          <div class="admin-panel">
+            <div class="admin-panel-head"><div><h2>Additional images</h2><p>Gallery images shown with this package.</p></div></div>
+            <div class="admin-panel-body">
+              {images.length === 0 ? (
+                <p class="text-sm text-muted mb-4">No additional images yet.</p>
+              ) : (
+                <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px;">
+                  {images.map((image) => (
+                    <div class="flex-between" style="gap:12px;align-items:flex-start;">
+                      <img src={image.image_url} alt={image.alt_text || ''} width="72" height="54" style="object-fit:cover;border-radius:6px;border:1px solid var(--line);" />
+                      <form method="POST" action={action} style="display:flex;gap:6px;align-items:center;flex:1;">
+                        <input type="hidden" name="_csrf" value={csrf} />
+                        <input type="hidden" name="action" value="update_image_alt" />
+                        <input type="hidden" name="image_id" value={image.id} />
+                        <input class="input" name="alt_text" value={image.alt_text} placeholder="Alt text" aria-label="Image alt text" />
+                        <button type="submit" class="btn btn-secondary btn-xs">Save alt</button>
+                      </form>
+                      <form method="POST" action={action}>
+                        <input type="hidden" name="_csrf" value={csrf} />
+                        <input type="hidden" name="action" value="move_image_up" />
+                        <input type="hidden" name="image_id" value={image.id} />
+                        <button type="submit" class="btn btn-secondary btn-xs" aria-label="Move image up">↑</button>
+                      </form>
+                      <form method="POST" action={action}>
+                        <input type="hidden" name="_csrf" value={csrf} />
+                        <input type="hidden" name="action" value="move_image_down" />
+                        <input type="hidden" name="image_id" value={image.id} />
+                        <button type="submit" class="btn btn-secondary btn-xs" aria-label="Move image down">↓</button>
+                      </form>
+                      <form method="POST" action={action}>
+                        <input type="hidden" name="_csrf" value={csrf} />
+                        <input type="hidden" name="action" value="delete_image" />
+                        <input type="hidden" name="image_id" value={image.id} />
+                        <button type="submit" class="icon-btn danger" aria-label="Remove image" data-confirm="Remove this image reference? The media object is retained.">
+                          <Icon name="trash" size={13} />
+                        </button>
+                      </form>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <form method="POST" action={action} class="admin-inline-form" enctype="multipart/form-data">
+                <input type="hidden" name="_csrf" value={csrf} />
+                <input type="hidden" name="action" value="add_image" />
+                <div class="field" style="flex:1;">
+                  <label for="additional_image">Add image</label>
+                  <input class="input" id="additional_image" name="additional_image" type="file" accept="image/jpeg,image/png,image/webp" required />
+                </div>
+                <div class="field" style="flex:1;">
+                  <label for="additional_alt">Alt text</label>
+                  <input class="input" id="additional_alt" name="alt_text" placeholder="Describe the image" />
+                </div>
+                <button type="submit" class="btn btn-secondary btn-sm">Upload image</button>
               </form>
             </div>
           </div>
@@ -284,6 +360,20 @@ const action = id ? `/admin/catering/${id}` : '/admin/catering/new';
                     <button type="button" class="item-btn" data-edit-item-btn title="Edit dish name">
                       <Icon name="edit" size={11} />
                     </button>
+
+                    <form method="POST" action={action} style="display:inline-flex;">
+                      <input type="hidden" name="_csrf" value={csrf} />
+                      <input type="hidden" name="action" value="move_item_up" />
+                      <input type="hidden" name="item_id" value={item.id} />
+                      <button type="submit" class="item-btn" aria-label="Move item up" title="Move up">↑</button>
+                    </form>
+
+                    <form method="POST" action={action} style="display:inline-flex;">
+                      <input type="hidden" name="_csrf" value={csrf} />
+                      <input type="hidden" name="action" value="move_item_down" />
+                      <input type="hidden" name="item_id" value={item.id} />
+                      <button type="submit" class="item-btn" aria-label="Move item down" title="Move down">↓</button>
+                    </form>
 
                     <form method="POST" action={action} style="display:inline-flex;">
                       <input type="hidden" name="_csrf" value={csrf} />

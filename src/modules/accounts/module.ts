@@ -46,12 +46,21 @@ export default defineModule({
           if (!user) {
             return { props: { error: 'Invalid username/email or password.', next: nextParam, username: login } };
           }
+          if (user.role !== 'customer') {
+            return {
+              props: {
+                error: 'Staff accounts must sign in through the admin console.',
+                next: nextParam,
+                username: login,
+              },
+              status: 403,
+            };
+          }
 
           startSession(ctx.cookies, user.id, user.password_hash);
           setSuccess(ctx.cookies, `Welcome back, ${user.first_name || user.username}!`);
           const target = getString(ctx.form, 'next') || nextParam;
-          const fallback = user.role === 'customer' ? '/' : '/admin';
-          return redirect(safeNext(target, fallback));
+          return redirect(safeNext(target, '/'));
         }
 
         return { props: { error: null, next: nextParam, username: '' } };

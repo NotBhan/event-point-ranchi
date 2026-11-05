@@ -45,6 +45,15 @@ export interface CateringPackageRow {
   sort_order: number;
   created_at: string;
   updated_at: string;
+  images?: CateringPackageImageRow[];
+}
+
+export interface CateringPackageImageRow {
+  id: number;
+  package_id: number;
+  image_url: string;
+  alt_text: string;
+  sort_order: number;
 }
 
 export interface CateringNameRow {
@@ -83,6 +92,7 @@ export interface MenuItemRow {
   category_id: number;
   name: string;
   is_available: number;
+  sort: number;
 }
 
 export interface GalleryCatalog {
@@ -126,18 +136,29 @@ export async function fetchGalleryCatalog(): Promise<GalleryCatalog> {
 
 export async function fetchCateringCatalog(): Promise<CateringCatalog> {
   const d1 = getD1Client();
-  const [packages, features, bannerFeatures, guestPricing, sections, categories, items] = await d1.batch<any>([
+  const [packages, features, bannerFeatures, guestPricing, sections, categories, items, images] = await d1.batch<any>([
     { sql: 'SELECT * FROM catering_packages WHERE is_visible = 1 AND is_archived = 0 ORDER BY sort_order ASC, id ASC' },
     { sql: 'SELECT id, package_id, name FROM catering_features ORDER BY id ASC' },
     { sql: 'SELECT id, package_id, name FROM banner_features ORDER BY id ASC' },
     { sql: 'SELECT id, package_id, guest_count, price_per_plate_paise, sort FROM guest_pricing ORDER BY sort ASC, guest_count ASC' },
     { sql: 'SELECT id, package_id, title, has_category, available_items, max_selection, sort FROM menu_sections ORDER BY sort ASC, id ASC' },
     { sql: 'SELECT id, section_id, title, sort FROM menu_categories ORDER BY sort ASC, id ASC' },
-    { sql: 'SELECT id, category_id, name, is_available FROM menu_items ORDER BY id ASC' },
+    { sql: 'SELECT id, category_id, name, is_available, sort FROM menu_items ORDER BY sort ASC, id ASC' },
+    { sql: 'SELECT id, package_id, image_url, alt_text, sort_order FROM catering_package_images ORDER BY sort_order ASC, id ASC' },
   ]);
 
+  const imagesByPackage = new Map<number, CateringPackageImageRow[]>();
+  for (const image of (images.results ?? []) as CateringPackageImageRow[]) {
+    const list = imagesByPackage.get(Number(image.package_id)) ?? [];
+    list.push(image);
+    imagesByPackage.set(Number(image.package_id), list);
+  }
+
   return {
-    packages: (packages.results ?? []) as CateringPackageRow[],
+    packages: ((packages.results ?? []) as CateringPackageRow[]).map((pkg) => ({
+      ...pkg,
+      images: imagesByPackage.get(Number(pkg.id)) ?? [],
+    })),
     features: (features.results ?? []) as CateringNameRow[],
     bannerFeatures: (bannerFeatures.results ?? []) as CateringNameRow[],
     guestPricing: (guestPricing.results ?? []) as GuestPricingRow[],
@@ -319,10 +340,11 @@ export interface CateringPackageAdminData {
   bannerFeatures: CateringNameRow[];
   pricing: GuestPricingRow[];
   sections: Array<MenuSectionRow & { items: MenuItemRow[] }>;
+  images: CateringPackageImageRow[];
 }
 
 export async function loadCateringPackageAdmin(id: number): Promise<CateringPackageAdminData | null> {
-  const [pkgRes, features, bannerFeatures, pricing, sections, items] = await getD1Client().batch<any>([
+  const [pkgRes, features, bannerFeatures, pricing, sections, images, items] = await getD1Client().batch<any>([
     { sql: 'SELECT * FROM catering_packages WHERE id = ? LIMIT 1', params: [id] },
     { sql: 'SELECT id, package_id, name FROM catering_features WHERE package_id = ? ORDER BY id ASC', params: [id] },
     { sql: 'SELECT id, package_id, name FROM banner_features WHERE package_id = ? ORDER BY id ASC', params: [id] },
@@ -335,11 +357,15 @@ export async function loadCateringPackageAdmin(id: number): Promise<CateringPack
       params: [id],
     },
     {
-      sql: `SELECT mi.id, mi.category_id, mi.name, mi.is_available, mc.section_id
+      sql: 'SELECT id, package_id, image_url, alt_text, sort_order FROM catering_package_images WHERE package_id = ? ORDER BY sort_order ASC, id ASC',
+      params: [id],
+    },
+    {
+      sql: `SELECT mi.id, mi.category_id, mi.name, mi.is_available, mi.sort, mc.section_id
             FROM menu_items mi
             JOIN menu_categories mc ON mc.id = mi.category_id
             JOIN menu_sections ms ON ms.id = mc.section_id
-            WHERE ms.package_id = ? ORDER BY mi.id ASC`,
+            WHERE ms.package_id = ? ORDER BY mi.sort ASC, mi.id ASC`,
       params: [id],
     },
   ]);
@@ -359,6 +385,7 @@ export async function loadCateringPackageAdmin(id: number): Promise<CateringPack
       ...section,
       items: itemRows.filter((item) => item.section_id === section.id),
     })),
+    images: (images.results ?? []) as CateringPackageImageRow[],
   };
 }
 
@@ -422,7 +449,7 @@ export async function insertCateringPackage(input: CateringPackageInput): Promis
       input.description,
       input.fullDescription ?? '',
       input.category ?? 'Signature',
-      input.imageUrl,
+      input.imageUrl ?? '',
       input.imageAlt ?? '',
       input.pricePaise,
       input.badge,
@@ -446,7 +473,7 @@ export async function updateCateringPackage(id: number, input: CateringPackageIn
       input.description,
       input.fullDescription ?? '',
       input.category ?? 'Signature',
-      input.imageUrl,
+      input.imageUrl ?? '',
       input.imageAlt ?? '',
       input.badge,
       input.pricePaise,
@@ -554,10 +581,36 @@ export async function findFirstMenuCategory(sectionId: number): Promise<number |
 
 export async function insertMenuItem(categoryId: number, name: string): Promise<number> {
   const res = await getD1Client().query(
-    'INSERT INTO menu_items (category_id, name, is_available) VALUES (?, ?, 1)',
-    [categoryId, name],
+    `INSERT INTO menu_items (category_id, name, is_available, sort)
+     VALUES (?, ?, 1, (SELECT COALESCE(MAX(sort), 0) + 1 FROM menu_items WHERE category_id = ?))`,
+    [categoryId, name, categoryId],
   );
   return Number(res.meta.last_row_id ?? 0);
+}
+
+export async function moveMenuItem(itemId: number, direction: -1 | 1): Promise<void> {
+  const d1 = getD1Client();
+  const current = await d1.query<{ id: number; category_id: number }>(
+    'SELECT id, category_id FROM menu_items WHERE id = ? LIMIT 1',
+    [itemId],
+  );
+  const item = (current.results ?? [])[0];
+  if (!item) return;
+  const siblings = await d1.query<{ id: number }>(
+    'SELECT id FROM menu_items WHERE category_id = ? ORDER BY sort ASC, id ASC',
+    [item.category_id],
+  );
+  const ids = (siblings.results ?? []).map((row) => Number(row.id));
+  const index = ids.indexOf(itemId);
+  const swapWith = index + direction;
+  if (index < 0 || swapWith < 0 || swapWith >= ids.length) return;
+  [ids[index], ids[swapWith]] = [ids[swapWith], ids[index]];
+  await d1.batch(
+    ids.map((id, sort) => ({
+      sql: 'UPDATE menu_items SET sort = ? WHERE id = ?',
+      params: [sort + 1, id],
+    })),
+  );
 }
 
 export async function findMenuSectionPackageId(sectionId: number): Promise<number | null> {
@@ -608,6 +661,59 @@ export async function insertGuestPricing(
 
 export async function deleteGuestPricing(id: number): Promise<void> {
   await getD1Client().query('DELETE FROM guest_pricing WHERE id = ?', [id]);
+}
+
+export async function updateGuestPricing(id: number, guestCount: number, pricePaise: number): Promise<void> {
+  await getD1Client().query(
+    'UPDATE guest_pricing SET guest_count = ?, price_per_plate_paise = ? WHERE id = ?',
+    [guestCount, pricePaise, id],
+  );
+}
+
+export async function insertCateringPackageImage(
+  packageId: number,
+  imageUrl: string,
+  altText: string,
+): Promise<number> {
+  const res = await getD1Client().query(
+    `INSERT INTO catering_package_images (package_id, image_url, alt_text, sort_order)
+     VALUES (?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM catering_package_images WHERE package_id = ?))`,
+    [packageId, imageUrl, altText, packageId],
+  );
+  return Number(res.meta.last_row_id ?? 0);
+}
+
+export async function updateCateringPackageImageAlt(id: number, altText: string): Promise<void> {
+  await getD1Client().query('UPDATE catering_package_images SET alt_text = ? WHERE id = ?', [altText, id]);
+}
+
+export async function deleteCateringPackageImage(id: number): Promise<void> {
+  await getD1Client().query('DELETE FROM catering_package_images WHERE id = ?', [id]);
+}
+
+export async function moveCateringPackageImage(id: number, direction: -1 | 1): Promise<void> {
+  const d1 = getD1Client();
+  const current = await d1.query<{ package_id: number }>(
+    'SELECT package_id FROM catering_package_images WHERE id = ? LIMIT 1',
+    [id],
+  );
+  const image = (current.results ?? [])[0];
+  if (!image) return;
+  const siblings = await d1.query<{ id: number }>(
+    'SELECT id FROM catering_package_images WHERE package_id = ? ORDER BY sort_order ASC, id ASC',
+    [image.package_id],
+  );
+  const ids = (siblings.results ?? []).map((row) => Number(row.id));
+  const index = ids.indexOf(id);
+  const swapWith = index + direction;
+  if (index < 0 || swapWith < 0 || swapWith >= ids.length) return;
+  [ids[index], ids[swapWith]] = [ids[swapWith], ids[index]];
+  await d1.batch(
+    ids.map((imageId, sort) => ({
+      sql: 'UPDATE catering_package_images SET sort_order = ? WHERE id = ?',
+      params: [sort + 1, imageId],
+    })),
+  );
 }
 
 export async function insertPackageOption(

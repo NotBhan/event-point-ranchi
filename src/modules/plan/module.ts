@@ -27,7 +27,6 @@ async function createEnquiryApi(ctx: PageContext): Promise<Response> {
     let scanUrl = '';
     let token = '';
     let receiptUrl = `/receipts/enquiry/${result.reference}`;
-    let pdfUrl = `/api/enquiries/receipt/${result.reference}/pdf`;
     try {
       const { getEnquiryQrService } = await import('../../core/operational/enquiry-qr-service');
       const qrService = getEnquiryQrService(ctx.url.origin);
@@ -36,7 +35,6 @@ async function createEnquiryApi(ctx: PageContext): Promise<Response> {
       scanUrl = qr.scanUrl;
       token = qr.token;
       receiptUrl = `/receipts/enquiry/${result.reference}?token=${qr.token}`;
-      pdfUrl = `/api/enquiries/receipt/${result.reference}/pdf?token=${qr.token}`;
     } catch (e: any) {
       console.warn('[Plan Enquiry QR generation warning]:', e?.message);
     }
@@ -48,7 +46,6 @@ async function createEnquiryApi(ctx: PageContext): Promise<Response> {
       qrDataUrl,
       scanUrl,
       receiptUrl,
-      pdfUrl,
       pricingStatus: result.pricing.pricingStatus,
       pricedSubtotalPaise: result.pricing.pricedSubtotalPaise,
       pricing: result.pricing,

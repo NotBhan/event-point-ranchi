@@ -22,6 +22,7 @@ export async function dispatchApiRequest(context: APIContext): Promise<Response>
       params: matched.params,
       form,
       auth: context.locals.auth,
+      adminAuth: context.locals.adminAuth,
       csrf: context.locals.csrf,
       cookies: context.cookies,
     });

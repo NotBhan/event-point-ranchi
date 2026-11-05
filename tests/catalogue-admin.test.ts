@@ -40,8 +40,10 @@ function form(values: Record<string, string>): FormData {
 }
 
 function adminContext(search = '') {
+  const adminAuth = { user: { id: 1, role: 'admin' }, isAuthenticated: true, isAdmin: true, isEditor: true, isSuperadmin: false, isDeveloper: false };
   return {
-    auth: { isAdmin: true, isEditor: true },
+    auth: { user: null, isAuthenticated: false, isAdmin: false, isEditor: false, isSuperadmin: false, isDeveloper: false },
+    adminAuth,
     url: new URL(`http://localhost/admin/mandaps${search}`),
     request: new Request('http://localhost/admin/mandaps'),
     cookies: {},

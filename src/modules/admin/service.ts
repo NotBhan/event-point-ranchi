@@ -96,6 +96,11 @@ async function visibleCateringPackageCount(): Promise<number> {
   return value;
 }
 
+function invalidateCateringCache(): void {
+  packagesCountCache = null;
+  invalidateContentCache();
+}
+
 /**
  * Booking aggregates for the dashboard. Bookings are operational records, so
  * they are read from Neon — the same store the booking API writes to.
@@ -207,6 +212,7 @@ export async function loadCateringAdmin(id: number) {
       max_selection: section.max_selection,
       items: section.items,
     })),
+    images: data.images,
   };
 }
 
@@ -215,15 +221,20 @@ export async function saveCatering(form: FormData | null, id?: number): Promise<
   if (!name) throw new Error('Package name is required.');
 
   const existingId = id ?? 0;
-  const slug = await uniqueSlugAsync(getString(form, 'slug') || name, (candidate) =>
+  const existingPackage = id ? (await catalog.loadCateringPackageAdmin(id))?.package : null;
+  const slug = await uniqueSlugAsync(getString(form, 'slug') || existingPackage?.slug || name, (candidate) =>
     catalog.cateringSlugTaken(candidate, existingId),
   );
 
   const uploaded = await saveUploadedImage(form, 'image', 'catering');
+  let imageUrl = (uploaded ?? getString(form, 'image_path')) || null;
+  if (id && !uploaded && !getString(form, 'image_path')) {
+    imageUrl = existingPackage?.image_url ?? null;
+  }
   const input: catalog.CateringPackageInput = {
     name,
     slug,
-    imageUrl: (uploaded ?? getString(form, 'image_path')) || null,
+    imageUrl,
     pricePaise: parseMoneyToPaise(getString(form, 'price')),
     description: getString(form, 'description'),
     fullDescription: getString(form, 'full_description'),
@@ -237,33 +248,40 @@ export async function saveCatering(form: FormData | null, id?: number): Promise<
 
   if (id) {
     await catalog.updateCateringPackage(id, input);
+    invalidateCateringCache();
     return id;
   }
 
   const packageId = await catalog.insertCateringPackage(input);
   await catalog.seedDefaultMenuSection(packageId);
+  invalidateCateringCache();
 
   return packageId;
 }
 
 export async function deleteCatering(id: number): Promise<void> {
   await catalog.deleteCateringPackage(id);
+  invalidateCateringCache();
 }
 
 export async function toggleCatering(id: number): Promise<void> {
   await catalog.toggleCateringVisibility(id);
+  invalidateCateringCache();
 }
 
 export async function archiveCatering(id: number): Promise<void> {
   await catalog.archiveCateringPackage(id);
+  invalidateCateringCache();
 }
 
 export async function activateCatering(id: number): Promise<void> {
   await catalog.activateCateringPackage(id);
+  invalidateCateringCache();
 }
 
 export async function toggleCateringHome(id: number): Promise<void> {
   await catalog.toggleCateringHome(id);
+  invalidateCateringCache();
 }
 
 export async function addMenuSection(packageId: number, form: FormData | null): Promise<void> {
@@ -271,6 +289,7 @@ export async function addMenuSection(packageId: number, form: FormData | null): 
   if (!title) return;
   const sectionId = await catalog.insertMenuSection(packageId, title, getInt(form, 'max_selection', 3));
   await catalog.insertMenuCategory(sectionId, `${title} selection`);
+  invalidateCateringCache();
 }
 
 export async function updateMenuSection(sectionId: number, form: FormData | null): Promise<void> {
@@ -278,10 +297,12 @@ export async function updateMenuSection(sectionId: number, form: FormData | null
   const maxSelection = getInt(form, 'max_selection', 3);
   if (!title) return;
   await catalog.updateMenuSection(sectionId, title, maxSelection);
+  invalidateCateringCache();
 }
 
 export async function deleteMenuSection(sectionId: number): Promise<void> {
   await catalog.deleteMenuSection(sectionId);
+  invalidateCateringCache();
 }
 
 export async function addMenuItem(sectionId: number, form: FormData | null): Promise<void> {
@@ -290,20 +311,29 @@ export async function addMenuItem(sectionId: number, form: FormData | null): Pro
   const categoryId =
     (await catalog.findFirstMenuCategory(sectionId)) ?? (await catalog.insertMenuCategory(sectionId, 'Selection'));
   await catalog.insertMenuItem(categoryId, name);
+  invalidateCateringCache();
 }
 
 export async function updateMenuItem(itemId: number, form: FormData | null): Promise<void> {
   const name = getString(form, 'name');
   if (!name) return;
   await catalog.updateMenuItemName(itemId, name);
+  invalidateCateringCache();
 }
 
 export async function deleteMenuItem(itemId: number): Promise<void> {
   await catalog.deleteMenuItem(itemId);
+  invalidateCateringCache();
 }
 
 export async function toggleMenuItem(itemId: number): Promise<void> {
   await catalog.toggleMenuItemAvailability(itemId);
+  invalidateCateringCache();
+}
+
+export async function moveMenuItem(itemId: number, direction: -1 | 1): Promise<void> {
+  await catalog.moveMenuItem(itemId, direction);
+  invalidateCateringCache();
 }
 
 export async function addGuestPricing(packageId: number, form: FormData | null): Promise<void> {
@@ -311,10 +341,20 @@ export async function addGuestPricing(packageId: number, form: FormData | null):
   const price = parseMoneyToPaise(getString(form, 'price_per_plate'));
   if (guestCount <= 0 || price <= 0) return;
   await catalog.insertGuestPricing(packageId, guestCount, price);
+  invalidateCateringCache();
 }
 
 export async function deleteGuestPricing(id: number): Promise<void> {
   await catalog.deleteGuestPricing(id);
+  invalidateCateringCache();
+}
+
+export async function updateGuestPricing(id: number, form: FormData | null): Promise<void> {
+  const guestCount = getInt(form, 'guest_count', 0);
+  const price = parseMoneyToPaise(getString(form, 'price_per_plate'));
+  if (guestCount <= 0 || price <= 0) return;
+  await catalog.updateGuestPricing(id, guestCount, price);
+  invalidateCateringCache();
 }
 
 export async function addPackageOption(
@@ -325,6 +365,7 @@ export async function addPackageOption(
   const name = getString(form, 'name');
   if (!name) return;
   await catalog.insertPackageOption(table, packageId, name);
+  invalidateCateringCache();
 }
 
 export async function deletePackageOption(
@@ -332,6 +373,33 @@ export async function deletePackageOption(
   id: number,
 ): Promise<void> {
   await catalog.deletePackageOption(table, id);
+  invalidateCateringCache();
+}
+
+export async function addCateringImage(packageId: number, form: FormData | null): Promise<void> {
+  const uploaded = await saveUploadedImage(form, 'additional_image', 'catering', {
+    entityType: 'catering',
+    entityId: packageId,
+    slot: 'gallery',
+  });
+  if (!uploaded) return;
+  await catalog.insertCateringPackageImage(packageId, uploaded, getString(form, 'alt_text'));
+  invalidateCateringCache();
+}
+
+export async function updateCateringImageAlt(imageId: number, form: FormData | null): Promise<void> {
+  await catalog.updateCateringPackageImageAlt(imageId, getString(form, 'alt_text'));
+  invalidateCateringCache();
+}
+
+export async function deleteCateringImage(imageId: number): Promise<void> {
+  await catalog.deleteCateringPackageImage(imageId);
+  invalidateCateringCache();
+}
+
+export async function moveCateringImage(imageId: number, direction: -1 | 1): Promise<void> {
+  await catalog.moveCateringPackageImage(imageId, direction);
+  invalidateCateringCache();
 }
 
 /* ============================ Gallery ============================ */

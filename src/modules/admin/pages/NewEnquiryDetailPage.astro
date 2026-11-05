@@ -16,6 +16,9 @@ import {
 } from '../presentation';
 import type { loadNewEnquiry } from '../service';
 import { getEnquiryQrService } from '../../../core/operational/enquiry-qr-service';
+import { getSiteSettings } from '../../../core/content/service';
+import { buildQuotationDocument } from '../../../core/documents/canonical';
+import CanonicalDocument from '../../../components/documents/CanonicalDocument.astro';
 
 interface Props {
   data?: Awaited<ReturnType<typeof loadNewEnquiry>>;
@@ -46,6 +49,46 @@ const latestManualLines = (latestPreparedQuote?.lines ?? []).filter((line) => li
 const manualQuoteRows = [...latestManualLines, null, null];
 const quoteHistory = data?.quotations ?? [];
 const latestQuote = quoteHistory[0] ?? null;
+const settings = enquiry ? await getSiteSettings() : null;
+const quotationDocument = latestQuote && enquiry && settings
+  ? buildQuotationDocument({
+      enquiry: {
+        reference_code: enquiry.reference_code,
+        customer_name: enquiry.customer_name,
+        customer_phone: enquiry.customer_phone,
+        customer_email: enquiry.customer_email,
+        event_type: enquiry.event_type,
+        event_date: enquiry.event_date,
+        event_time: enquiry.event_time,
+        venue_location: enquiry.venue_location,
+        guest_count: Number(enquiry.guest_count ?? 0),
+        decoration_notes: enquiry.decoration_notes,
+        accommodation_notes: enquiry.accommodation_notes,
+        created_at: String(enquiry.created_at),
+      },
+      quotation: {
+        version: latestQuote.quotation.version,
+        status: latestQuote.quotation.status,
+        total_paise: Number(latestQuote.quotation.total_paise),
+        notes: latestQuote.quotation.notes,
+        prepared_at: latestQuote.quotation.prepared_at,
+      },
+      lines: latestQuote.lines.map((line) => ({
+        line_type: line.line_type,
+        description: line.description,
+        quantity: Number(line.quantity),
+        quoted_unit_price_paise: Number(line.quoted_unit_price_paise),
+        quoted_subtotal_paise: Number(line.quoted_subtotal_paise),
+        notes: line.notes,
+      })),
+    }, {
+      name: settings.name,
+      phone: settings.phone,
+      email: settings.email,
+      address: settings.address,
+      website: 'https://eventpointranchi.com',
+    })
+  : null;
 
 function requestedDimensions(line: {
   requested_length_ft: number | null;
@@ -528,7 +571,7 @@ if (enquiry) {
       <div class="admin-panel">
         <div class="admin-panel-head">
           <div>
-            <h2>Latest quotation</h2>
+            <h2>Canonical quotation document</h2>
             <p>
               Version {latestQuote.quotation.version} · {quotationStatusLabel(latestQuote.quotation.status)}
               {latestQuote.preparedByName ? ` · Prepared by ${latestQuote.preparedByName}` : ''}
@@ -537,40 +580,11 @@ if (enquiry) {
           </div>
           <strong class="money" style="font-size:1.1rem;">{formatMoney(latestQuote.quotation.total_paise)}</strong>
         </div>
-        <div class="admin-panel-body flush">
-          <div class="table-wrap">
-            <table class="table table-stack">
-              <thead>
-                <tr>
-                  <th>Line</th>
-                  <th>Type</th>
-                  <th>Qty</th>
-                  <th>Catalogue unit</th>
-                  <th>Agreed unit</th>
-                  <th>Agreed subtotal</th>
-                </tr>
-              </thead>
-              <tbody>
-                {latestQuote.lines.map((line) => (
-                  <tr>
-                    <td data-label="Line">
-                      <strong>{line.description}</strong>
-                      {line.notes && <div class="text-xs text-muted">{line.notes}</div>}
-                    </td>
-                    <td data-label="Type"><span class="badge badge-muted">{line.line_type}</span></td>
-                    <td data-label="Quantity">{line.quantity}</td>
-                    <td data-label="Catalogue unit" class="text-sm">{formatCataloguePrice(line.catalogue_unit_price_paise)}</td>
-                    <td data-label="Agreed unit" class="money">{formatMoney(line.quoted_unit_price_paise)}</td>
-                    <td data-label="Agreed subtotal" class="money">{formatMoney(line.quoted_subtotal_paise)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {latestQuote.quotation.notes && (
-            <div class="admin-panel-body">
-              <div class="muted-box" style="white-space:pre-line;">{latestQuote.quotation.notes}</div>
-            </div>
+        <div class="admin-panel-body">
+          {quotationDocument ? (
+            <CanonicalDocument document={quotationDocument} />
+          ) : (
+            <div class="admin-empty">The canonical quotation document could not be prepared.</div>
           )}
         </div>
         {latestPreparedQuote?.quotation.id === latestQuote.quotation.id && canAccept && (

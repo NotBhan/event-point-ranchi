@@ -42,7 +42,8 @@ export default defineModule({
           return { props: { state: 'not-found' }, status: 404 };
         }
 
-        const result = await loadBookingForViewer(bookingId, ctx.auth, ctx.url.searchParams.get('token'));
+        const viewerAuth = ctx.adminAuth?.isAdmin ? ctx.adminAuth : ctx.auth;
+        const result = await loadBookingForViewer(bookingId, viewerAuth, ctx.url.searchParams.get('token'));
         if (result === 'not-found') return { props: { state: 'not-found' }, status: 404 };
         if (result === 'forbidden') return { props: { state: 'forbidden' }, status: 403 };
         return { props: { data: result } };

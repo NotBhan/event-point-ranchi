@@ -381,7 +381,8 @@ CREATE TABLE IF NOT EXISTS menu_items (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   category_id  INTEGER NOT NULL REFERENCES menu_categories(id) ON DELETE CASCADE,
   name         TEXT NOT NULL,
-  is_available INTEGER NOT NULL DEFAULT 1
+  is_available INTEGER NOT NULL DEFAULT 1,
+  sort         INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_menu_items_category ON menu_items(category_id);

@@ -25,6 +25,7 @@ if (!matched) {
       params: matched.params,
       form,
       auth: Astro.locals.auth,
+      adminAuth: Astro.locals.adminAuth,
       csrf: Astro.locals.csrf,
       cookies: Astro.cookies,
     });

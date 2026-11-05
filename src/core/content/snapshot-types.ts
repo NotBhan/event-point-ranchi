@@ -21,7 +21,7 @@ import type {
   MenuSectionRow,
 } from './catalog-store';
 
-export const SNAPSHOT_SCHEMA_VERSION = 2;
+export const SNAPSHOT_SCHEMA_VERSION = 3;
 
 export interface SnapshotGalleryItem extends GalleryItem {
   category_slug: string;
@@ -118,4 +118,5 @@ export interface PublicContentRows {
   galleryCategories: ContentRow[];
   galleryItems: ContentRow[];
   videos: ContentRow[];
+  cateringImages: ContentRow[];
 }
