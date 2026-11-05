@@ -1,6 +1,7 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import AdminPager from '../../../components/admin/AdminPager.astro';
+import Icon from '../../../components/Icon.astro';
 import { formatDate, formatDateTime } from '../../../core/http';
 import type { listInquiries } from '../service';
 
@@ -26,6 +27,15 @@ const tabs = [
   ['contacted', 'Contacted'],
   ['closed', 'Closed'],
 ];
+
+function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('');
+}
 ---
 
 <AdminLayout title="Contact Messages" description={`${inquiries.length} message${inquiries.length === 1 ? '' : 's'} from the website contact form.`}>
@@ -39,70 +49,59 @@ const tabs = [
       </div>
     </div>
 
-    <div class="admin-panel-body flush">
+    <div class="admin-panel-body">
       {inquiries.length === 0 ? (
         <div class="admin-empty">No contact messages in this view.</div>
       ) : (
-        <div class="table-wrap">
-          <table class="table table-stack">
-            <thead>
-              <tr>
-                <th>Received</th>
-                <th>Customer</th>
-                <th>Event</th>
-                <th>Message</th>
-                <th>Status</th>
-                <th style="text-align:right;">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {inquiries.map((inquiry) => (
-                <tr>
-                  <td data-label="Received" class="text-xs">{formatDateTime(inquiry.created_at)}</td>
-                  <td data-label="Customer">
-                    <strong>{inquiry.name}</strong>
-                    <div class="text-xs text-muted">{inquiry.phone}</div>
-                    <div class="text-xs text-muted">{inquiry.email}</div>
-                  </td>
-                  <td data-label="Event">
-                    {inquiry.event_type || '—'}
-                    <div class="text-xs text-muted">
-                      {inquiry.event_date ? formatDate(inquiry.event_date) : 'No date'}
-                      {inquiry.guest_count ? ` · ${inquiry.guest_count} guests` : ''}
-                    </div>
-                  </td>
-                  <td data-label="Message" style="max-width:320px;">
-                    <span class="text-sm">{inquiry.message || '—'}</span>
-                  </td>
-                  <td data-label="Status"><span class:list={['badge', statusClass[inquiry.status] ?? 'badge-muted']}>{inquiry.status}</span></td>
-                  <td data-label="Actions">
-                    <div class="admin-row-actions">
-                      <form method="POST" action={`/admin/inquiries?status=${status}`}>
-                        <input type="hidden" name="_csrf" value={csrf} />
-                        <input type="hidden" name="action" value="update_status" />
-                        <input type="hidden" name="id" value={inquiry.id} />
-                        <select class="select" name="status" data-auto-submit style="min-height:34px;padding:6px 30px 6px 10px;font-size:12.5px;">
-                          {['new', 'contacted', 'closed'].map((value) => (
-                            <option value={value} selected={inquiry.status === value}>{value}</option>
-                          ))}
-                        </select>
-                      </form>
-                      <form method="POST" action={`/admin/inquiries?status=${status}`}>
-                        <input type="hidden" name="_csrf" value={csrf} />
-                        <input type="hidden" name="action" value="delete" />
-                        <input type="hidden" name="id" value={inquiry.id} />
-                        <button type="submit" class="icon-btn danger icon-btn-labeled" data-confirm="Delete this inquiry?" aria-label="Delete inquiry">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-                          <span class="action-label-mobile">Delete</span>
-                        </button>
-                      </form>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div class="inquiry-card-grid">
+          {inquiries.map((inquiry) => (
+            <article class="inquiry-card">
+              <div class="inquiry-card-head">
+                <span class="inquiry-avatar">{initials(inquiry.name)}</span>
+                <div class="inquiry-identity">
+                  <strong>{inquiry.name}</strong>
+                  <a href={`tel:${inquiry.phone.replace(/\s+/g, '')}`}>{inquiry.phone}</a>
+                  {inquiry.email && <a href={`mailto:${inquiry.email}`}>{inquiry.email}</a>}
+                </div>
+                <span class:list={['badge', statusClass[inquiry.status] ?? 'badge-muted']}>{inquiry.status}</span>
+              </div>
+
+              <div class="inquiry-meta-row">
+                <span><Icon name="clock" size={13} /> {formatDateTime(inquiry.created_at)}</span>
+                {inquiry.event_type && <span><Icon name="calendar" size={13} /> {inquiry.event_type}{inquiry.event_date ? ` · ${formatDate(inquiry.event_date)}` : ''}</span>}
+                {inquiry.guest_count ? <span><Icon name="users" size={13} /> {inquiry.guest_count} guests</span> : null}
+              </div>
+
+              <p class="inquiry-message">{inquiry.message || 'No message body provided.'}</p>
+
+              <div class="inquiry-actions">
+                <form method="POST" action={`/admin/inquiries?status=${status}`} class="inquiry-status-form">
+                  <input type="hidden" name="_csrf" value={csrf} />
+                  <input type="hidden" name="action" value="update_status" />
+                  <input type="hidden" name="id" value={inquiry.id} />
+                  <label>
+                    <span>Status</span>
+                    <select class="select" name="status" data-auto-submit>
+                      {['new', 'contacted', 'closed'].map((value) => (
+                        <option value={value} selected={inquiry.status === value}>{value}</option>
+                      ))}
+                    </select>
+                  </label>
+                </form>
+                <form method="POST" action={`/admin/inquiries?status=${status}`}>
+                  <input type="hidden" name="_csrf" value={csrf} />
+                  <input type="hidden" name="action" value="delete" />
+                  <input type="hidden" name="id" value={inquiry.id} />
+                  <button type="submit" class="btn btn-ghost btn-sm inquiry-delete" data-confirm="Delete this inquiry?">
+                    <Icon name="trash" size={14} /> Delete
+                  </button>
+                </form>
+              </div>
+            </article>
+          ))}
         </div>
+      )}
+      {inquiries.length > 0 && (
         <AdminPager
           page={pagination.page}
           totalPages={pagination.totalPages}

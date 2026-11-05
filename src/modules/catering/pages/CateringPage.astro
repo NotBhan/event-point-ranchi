@@ -59,7 +59,13 @@ const showBanner = pageContent.banner_enabled !== false && Boolean(heroBanner);
             const features = [...new Set([...pkg.features, ...pkg.bannerFeatures])];
             const order = String(index + 1).padStart(2, '0');
             return (
-              <article class:list={['package-row', index % 2 === 1 ? 'image-right' : '']}>
+              <article
+                class:list={['package-row', index % 2 === 1 ? 'image-right' : '']}
+                data-package-card-href={`/catering/${pkg.slug}`}
+                tabindex="0"
+                role="link"
+                aria-label={`Open ${pkg.name} package details`}
+              >
                 <div class="package-row-media">
                   {pkg.image ? (
                     <div class="media-with-skeleton" style="width: 100%; height: 100%;">
@@ -124,4 +130,7 @@ const showBanner = pageContent.banner_enabled !== false && Boolean(heroBanner);
       )}
     </div>
   </section>
+  <script>
+    import '../../../client/catering-list';
+  </script>
 </BaseLayout>

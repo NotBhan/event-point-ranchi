@@ -20,6 +20,13 @@ function loadQrCode(): Promise<QrCodeLib> {
   return qrCodePromise;
 }
 
+function formatRequestedDimensions(length: unknown, width: unknown, height: unknown): string | undefined {
+  const dimensions = [length, width, height]
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  return dimensions.length > 0 ? `Requested ${dimensions.join(' × ')} ft` : undefined;
+}
+
 export interface EnquiryLookupResult {
   found: boolean;
   enquiry?: {
@@ -40,6 +47,7 @@ export interface EnquiryLookupResult {
     accommodationNotes: string;
     decorationNotes: string;
     preferredContact: string;
+    additionalServices?: string;
     status: string;
     createdAt: string;
     items?: Array<{
@@ -47,14 +55,20 @@ export interface EnquiryLookupResult {
       name: string;
       quantity: number;
       dimensions?: string;
+      requestedDimensions?: string;
+      specifications?: string;
+      notes?: string;
     }>;
     linkedBooking?: {
       id: number;
       status: string;
       totalAmount: number;
+      advanceAmount?: number;
       amountPaid: number;
       outstandingBalance: number;
       paymentStatus: string;
+      depositType?: string;
+      depositValue?: number;
     } | null;
   };
   qrToken?: string;
@@ -204,15 +218,28 @@ export class EnquiryQrService {
     }
 
     // 4. Fetch line items
-    let lineItems: Array<{ itemType: string; name: string; quantity: number; dimensions?: string }> = [];
+    let lineItems: Array<{
+      itemType: string;
+      name: string;
+      quantity: number;
+      dimensions?: string;
+      requestedDimensions?: string;
+      specifications?: string;
+      notes?: string;
+    }> = [];
     try {
       const itemsRes = await neon.query<{
         item_type: string;
         item_name_snapshot: string;
         quantity: number;
         standard_dimensions_snapshot: string;
+        requested_length_ft: number | string | null;
+        requested_width_ft: number | string | null;
+        requested_height_ft: number | string | null;
+        specifications: string;
+        notes: string;
       }>(
-        'SELECT item_type, item_name_snapshot, quantity, standard_dimensions_snapshot FROM enquiry_line_items WHERE enquiry_id = $1',
+        'SELECT item_type, item_name_snapshot, quantity, standard_dimensions_snapshot, requested_length_ft, requested_width_ft, requested_height_ft, specifications, notes FROM enquiry_line_items WHERE enquiry_id = $1',
         [enquiryRow.id]
       );
       lineItems = itemsRes.rows.map((row) => ({
@@ -220,6 +247,13 @@ export class EnquiryQrService {
         name: row.item_name_snapshot,
         quantity: row.quantity,
         dimensions: row.standard_dimensions_snapshot || undefined,
+        requestedDimensions: formatRequestedDimensions(
+          row.requested_length_ft,
+          row.requested_width_ft,
+          row.requested_height_ft,
+        ),
+        specifications: row.specifications || undefined,
+        notes: row.notes || undefined,
       }));
     } catch {
       // Table or line items optional
@@ -230,20 +264,25 @@ export class EnquiryQrService {
       id: number;
       status: string;
       totalAmount: number;
+      advanceAmount: number;
       amountPaid: number;
       outstandingBalance: number;
       paymentStatus: string;
+      depositType: string;
+      depositValue: number;
     } | null = null;
     try {
       const bookingRes = await neon.query<{
         id: number;
         status: string;
         total_amount: number;
+        advance_amount: number;
         amount_paid: number;
         outstanding_balance: number;
         payment_status: string;
       }>(
-        `SELECT b.id, b.status, b.total_amount, b.amount_paid, b.outstanding_balance, b.payment_status
+        `SELECT b.id, b.status, b.total_amount, b.advance_amount, b.amount_paid, b.outstanding_balance,
+                b.payment_status
            FROM bookings b
           WHERE b.source_enquiry_id = $1
           LIMIT 1`,
@@ -255,9 +294,12 @@ export class EnquiryQrService {
           id: b.id,
           status: b.status,
           totalAmount: Number(b.total_amount),
+          advanceAmount: Number(b.advance_amount),
           amountPaid: Number(b.amount_paid),
           outstandingBalance: Number(b.outstanding_balance),
           paymentStatus: b.payment_status,
+          depositType: 'percentage',
+          depositValue: 25,
         };
       }
     } catch {
@@ -284,6 +326,7 @@ export class EnquiryQrService {
         accommodationNotes: enquiryRow.accommodation_notes,
         decorationNotes: enquiryRow.decoration_notes,
         preferredContact: enquiryRow.preferred_contact,
+        additionalServices: enquiryRow.additional_services || '',
         status: enquiryRow.status,
         createdAt: enquiryRow.created_at,
         items: lineItems,

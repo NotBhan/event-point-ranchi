@@ -21,11 +21,21 @@ function loadQrCode(): Promise<QrCodeLib> {
   return qrCodePromise;
 }
 
+function formatRequestedDimensions(length: unknown, width: unknown, height: unknown): string | undefined {
+  const dimensions = [length, width, height]
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  return dimensions.length > 0 ? `Requested ${dimensions.join(' × ')} ft` : undefined;
+}
+
 export interface EnquiryReceiptItem {
   itemType: string;
   name: string;
   quantity: number;
   dimensions?: string;
+  requestedDimensions?: string;
+  specifications?: string;
+  notes?: string;
 }
 
 export interface EnquiryReceiptData {
@@ -47,9 +57,21 @@ export interface EnquiryReceiptData {
     accommodationNotes: string;
     decorationNotes: string;
     preferredContact: string;
+    additionalServices?: string;
     status: string;
     createdAt: string;
     items: EnquiryReceiptItem[];
+    linkedBooking?: {
+      id: number;
+      status: string;
+      totalAmount: number;
+      advanceAmount?: number;
+      amountPaid: number;
+      outstandingBalance: number;
+      paymentStatus: string;
+      depositType?: string;
+      depositValue?: number;
+    } | null;
   };
   token: string;
   qrDataUrl: string;
@@ -134,6 +156,7 @@ export class EnquiryReceiptService {
           accommodation_notes: string;
           decoration_notes: string;
           preferred_contact: string;
+          additional_services?: string;
           status: string;
           created_at: string;
         }>(
@@ -147,8 +170,13 @@ export class EnquiryReceiptService {
             item_name_snapshot: string;
             quantity: number;
             standard_dimensions_snapshot: string;
+            requested_length_ft: number | string | null;
+            requested_width_ft: number | string | null;
+            requested_height_ft: number | string | null;
+            specifications: string;
+            notes: string;
           }>(
-            'SELECT item_type, item_name_snapshot, quantity, standard_dimensions_snapshot FROM enquiry_line_items WHERE enquiry_id = ?',
+            'SELECT item_type, item_name_snapshot, quantity, standard_dimensions_snapshot, requested_length_ft, requested_width_ft, requested_height_ft, specifications, notes FROM enquiry_line_items WHERE enquiry_id = ?',
             [row.id]
           );
 
@@ -172,6 +200,7 @@ export class EnquiryReceiptService {
               accommodationNotes: row.accommodation_notes || '',
               decorationNotes: row.decoration_notes || '',
               preferredContact: row.preferred_contact || 'Phone',
+              additionalServices: row.additional_services || '',
               status: row.status,
               createdAt: row.created_at || new Date().toISOString(),
               items: itemsRows.map((it) => ({
@@ -179,6 +208,13 @@ export class EnquiryReceiptService {
                 name: it.item_name_snapshot,
                 quantity: it.quantity,
                 dimensions: it.standard_dimensions_snapshot || undefined,
+                requestedDimensions: formatRequestedDimensions(
+                  it.requested_length_ft,
+                  it.requested_width_ft,
+                  it.requested_height_ft,
+                ),
+                specifications: it.specifications || undefined,
+                notes: it.notes || undefined,
               })),
             },
           };

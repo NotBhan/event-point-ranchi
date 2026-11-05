@@ -8,7 +8,12 @@
   overflow: hidden;
   background: var(--surface);
   box-shadow: var(--shadow-xs);
+  cursor: pointer;
   transition: border-color 0.25s var(--ease), box-shadow 0.25s var(--ease), transform 0.25s var(--ease);
+}
+.package-row:focus-visible {
+  outline: 2px solid var(--gold-bright);
+  outline-offset: 3px;
 }
 .package-row:hover {
   border-color: rgba(200, 162, 81, 0.45);

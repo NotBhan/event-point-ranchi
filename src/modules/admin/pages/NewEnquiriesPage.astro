@@ -1,6 +1,7 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import AdminPager from '../../../components/admin/AdminPager.astro';
+import Icon from '../../../components/Icon.astro';
 import { formatDate, formatDateTime, formatMoney } from '../../../core/http';
 import {
   bookingStatusLabel,
@@ -30,11 +31,6 @@ const listDescription =
   status === 'active'
     ? `${enquiries.length} enquir${enquiries.length === 1 ? 'y' : 'ies'} awaiting an admin decision.`
     : `${enquiries.length} enquir${enquiries.length === 1 ? 'y' : 'ies'} in this view.`;
-
-function namesSummary(names: string[]): string {
-  if (names.length <= 2) return names.join(', ');
-  return `${names.slice(0, 2).join(', ')} +${names.length - 2}`;
-}
 ---
 
 <AdminLayout title="New Enquiries" description={listDescription}>
@@ -78,118 +74,179 @@ function namesSummary(names: string[]): string {
           {status === 'active' && ' New customer enquiries will appear here.'}
         </div>
       ) : (
-        <div class="table-wrap">
-          <table class="table table-stack">
-            <thead>
-              <tr>
-                <th>Reference</th>
-                <th>Customer</th>
-                <th>Event</th>
-                <th>Venue</th>
-                <th>Selections</th>
-                <th>Pricing</th>
-                <th>Received</th>
-                <th>Status</th>
-                <th style="text-align:right;">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {enquiries.map((enquiry) => {
-                const selections = summariseEnquiryLines(enquiry.lines);
-                return (
-                  <tr>
-                    <td data-label="Reference">
-                      <a href={`/admin/new-enquiries/${enquiry.id}`} style="font-weight:600;color:var(--ink);">
-                        {enquiry.reference_code}
-                      </a>
-                      <div class="text-xs text-muted">#{enquiry.id}</div>
-                    </td>
-                    <td data-label="Customer">
+        <>
+          <div class="enquiry-inbox-list">
+            {enquiries.map((enquiry) => {
+              const selections = summariseEnquiryLines(enquiry.lines);
+              return (
+                <div class="enquiry-inbox-item">
+                  <button
+                    type="button"
+                    class="enquiry-inbox-row"
+                    data-inbox-open
+                    data-inbox-title={`${enquiry.reference_code} · ${enquiry.customer_name}`}
+                    data-inbox-subtitle={`${enquiry.event_type} · ${formatDate(enquiry.event_date)}`}
+                    data-inbox-full-href={`/admin/new-enquiries/${enquiry.id}`}
+                    data-inbox-booking-href={enquiry.booking ? `/admin/bookings/${enquiry.booking.id}` : ''}
+                    data-inbox-booking-label={enquiry.booking ? `Booking #${enquiry.booking.id}` : ''}
+                  >
+                    <span class="enquiry-inbox-ref">
+                      <strong>{enquiry.reference_code}</strong>
+                      <small>#{enquiry.id}</small>
+                    </span>
+                    <span class="enquiry-inbox-customer">
                       <strong>{enquiry.customer_name}</strong>
-                      <div class="text-xs text-muted">{enquiry.customer_phone}</div>
-                      {enquiry.customer_email && <div class="text-xs text-muted">{enquiry.customer_email}</div>}
-                    </td>
-                    <td data-label="Event">
-                      {enquiry.event_type}
-                      <div class="text-xs text-muted">
-                        {formatDate(enquiry.event_date)}
-                        {enquiry.end_date ? ` – ${formatDate(enquiry.end_date)}` : ''}
-                      </div>
-                      <div class="text-xs text-muted">{enquiry.guest_count} guests</div>
-                    </td>
-                    <td data-label="Venue" style="max-width:220px;">{enquiry.venue_location}</td>
-                    <td data-label="Selections" style="max-width:300px;">
-                      {selections.hasSelections ? (
-                        <div class="text-xs" style="display:grid;gap:4px;">
-                          {selections.mandap.length > 0 && (
-                            <div><span class="text-muted">Mandap:</span> {namesSummary(selections.mandap)}</div>
-                          )}
-                          {selections.stage.length > 0 && (
-                            <div><span class="text-muted">Stage:</span> {namesSummary(selections.stage)}</div>
-                          )}
-                          {selections.furniture.length > 0 && (
-                            <div><span class="text-muted">Furniture &amp; equipment:</span> {namesSummary(selections.furniture)}</div>
-                          )}
-                          {selections.catering.length > 0 ? (
-                            <div><span class="text-muted">Catering:</span> {namesSummary(selections.catering)}</div>
+                      <small>{enquiry.customer_phone}</small>
+                    </span>
+                    <span class="enquiry-inbox-event">
+                      <strong>{enquiry.event_type}</strong>
+                      <small>{formatDate(enquiry.event_date)} · {enquiry.guest_count} guests</small>
+                    </span>
+                    <span class="enquiry-inbox-price">
+                      <strong>{formatMoney(enquiry.priced_subtotal_paise ?? 0)}</strong>
+                      <small>{enquiry.budget_range || 'Budget not set'}</small>
+                    </span>
+                    <span class:list={['badge', enquiryStatusClass(enquiry.status)]}>
+                      {enquiryStatusLabel(enquiry.status)}
+                    </span>
+                    <Icon name="chevron-right" size={16} />
+                  </button>
+
+                  <template data-inbox-detail>
+                    <div class="inbox-detail-grid">
+                      <section class="inbox-detail-card">
+                        <h3>Customer</h3>
+                        <dl>
+                          <div><dt>Name</dt><dd>{enquiry.customer_name}</dd></div>
+                          <div><dt>Phone</dt><dd>{enquiry.customer_phone}</dd></div>
+                          <div><dt>Email</dt><dd>{enquiry.customer_email || 'Not provided'}</dd></div>
+                          <div><dt>Preferred contact</dt><dd>{enquiry.preferred_contact}</dd></div>
+                        </dl>
+                      </section>
+
+                      <section class="inbox-detail-card">
+                        <h3>Event</h3>
+                        <dl>
+                          <div><dt>Type</dt><dd>{enquiry.event_type}</dd></div>
+                          <div><dt>Date</dt><dd>{formatDate(enquiry.event_date)}{enquiry.end_date ? ` – ${formatDate(enquiry.end_date)}` : ''}</dd></div>
+                          <div><dt>Time</dt><dd>{enquiry.event_time || 'To be confirmed'}</dd></div>
+                          <div><dt>Guests</dt><dd>{enquiry.guest_count}</dd></div>
+                          <div><dt>Venue</dt><dd>{enquiry.venue_location}</dd></div>
+                          <div><dt>Received</dt><dd>{formatDateTime(enquiry.created_at)}</dd></div>
+                        </dl>
+                      </section>
+
+                      <section class="inbox-detail-card is-wide">
+                        <h3>Selected requirements</h3>
+                        <div class="inbox-selection-grid">
+                          <div><span>Mandap</span><p>{selections.mandap.length ? selections.mandap.join(', ') : 'Not selected'}</p></div>
+                          <div><span>Stage</span><p>{selections.stage.length ? selections.stage.join(', ') : 'Not selected'}</p></div>
+                          <div><span>Furniture &amp; equipment</span><p>{selections.furniture.length ? selections.furniture.join(', ') : 'Not selected'}</p></div>
+                          <div><span>Catering</span><p>{selections.catering.length ? selections.catering.join(', ') : 'Not selected'}</p></div>
+                        </div>
+                      </section>
+
+                      <section class="inbox-detail-card is-wide">
+                        <h3>Pricing &amp; status</h3>
+                        <dl class="inbox-pricing-list">
+                          <div><dt>Pricing status</dt><dd>{pricingStatusLabel(enquiry.pricing_status)}</dd></div>
+                          <div><dt>Priced subtotal</dt><dd>{formatMoney(enquiry.priced_subtotal_paise ?? 0)}</dd></div>
+                          <div><dt>Budget range</dt><dd>{enquiry.budget_range || 'Not provided'}</dd></div>
+                          {enquiry.booking ? (
+                            <div>
+                              <dt>Booking</dt>
+                              <dd>
+                                #{enquiry.booking.id} · {formatMoney(enquiry.booking.total_amount)}
+                                <span class="text-muted">({bookingStatusLabel(enquiry.booking.status)} · {paymentStatusLabel(enquiry.booking.payment_status)})</span>
+                              </dd>
+                            </div>
                           ) : (
-                            <div class="text-muted">Catering: not selected</div>
+                            <div><dt>Booking</dt><dd>Not created</dd></div>
                           )}
-                        </div>
-                      ) : (
-                        <span class="text-xs text-muted">No catalogue selections</span>
-                      )}
-                    </td>
-                    <td data-label="Pricing">
-                      <span class="text-sm">{pricingStatusLabel(enquiry.pricing_status)}</span>
-                      <div class="text-xs text-muted">
-                        Priced subtotal: {formatMoney(enquiry.priced_subtotal_paise ?? 0)}
-                      </div>
-                      <div class="text-xs text-muted">Budget: {enquiry.budget_range || '—'}</div>
-                      {enquiry.booking && (
-                        <div class="text-xs" style="margin-top:4px;">
-                          <a href={`/admin/bookings/${enquiry.booking.id}`} class="text-link">
-                            Booking #{enquiry.booking.id} · {formatMoney(enquiry.booking.total_amount)}
-                          </a>
-                          <div class="text-muted">
-                            {bookingStatusLabel(enquiry.booking.status)} · {paymentStatusLabel(enquiry.booking.payment_status)}
-                          </div>
-                        </div>
-                      )}
-                    </td>
-                    <td data-label="Received" class="text-xs">{formatDateTime(enquiry.created_at)}</td>
-                    <td data-label="Status">
-                      <span class:list={['badge', enquiryStatusClass(enquiry.status)]}>
-                        {enquiryStatusLabel(enquiry.status)}
-                      </span>
-                      {enquiry.booking && (
-                        <div class="text-xs text-muted" style="margin-top:4px;">Converted to booking</div>
-                      )}
-                    </td>
-                    <td data-label="Actions">
-                      <div class="admin-row-actions">
-                        <a href={`/admin/new-enquiries/${enquiry.id}`} class="btn btn-secondary btn-sm">Open</a>
-                        {enquiry.booking && (
-                          <a href={`/admin/bookings/${enquiry.booking.id}`} class="btn btn-ghost btn-sm">Booking</a>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <AdminPager
-          page={pagination.page}
-          totalPages={pagination.totalPages}
-          totalCount={pagination.totalCount}
-          startItem={pagination.startItem}
-          endItem={pagination.endItem}
-          label="enquiries"
-          href={pageHref}
-        />
+                        </dl>
+                      </section>
+                    </div>
+                  </template>
+                </div>
+              );
+            })}
+          </div>
+          <AdminPager
+            page={pagination.page}
+            totalPages={pagination.totalPages}
+            totalCount={pagination.totalCount}
+            startItem={pagination.startItem}
+            endItem={pagination.endItem}
+            label="enquiries"
+            href={pageHref}
+          />
+        </>
       )}
     </div>
   </div>
+
+  <dialog class="admin-dialog enquiry-inbox-dialog" data-inbox-dialog aria-labelledby="inboxDialogTitle">
+    <div class="enquiry-inbox-dialog-shell">
+      <header class="enquiry-inbox-dialog-head">
+        <div>
+          <span class="eyebrow">Enquiry details</span>
+          <h2 id="inboxDialogTitle" data-inbox-title>Enquiry</h2>
+          <p data-inbox-subtitle></p>
+        </div>
+        <button type="button" class="enquiry-inbox-dialog-close" data-inbox-close aria-label="Close enquiry details">×</button>
+      </header>
+      <div class="enquiry-inbox-dialog-body" data-inbox-body></div>
+      <footer class="enquiry-inbox-dialog-foot">
+        <a href="#" class="btn btn-secondary btn-sm" data-inbox-full-link>Open full enquiry</a>
+        <a href="#" class="btn btn-ghost btn-sm" data-inbox-booking-link hidden>Open booking</a>
+        <button type="button" class="btn btn-primary btn-sm" data-inbox-close>Close</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <script data-astro-rerun>
+    if (!document.documentElement.dataset.inboxDialogBound) {
+      document.documentElement.dataset.inboxDialogBound = 'true';
+
+      const closeInboxDialog = (dialog) => {
+        if (dialog.open) dialog.close();
+        else dialog.removeAttribute('open');
+      };
+
+      document.addEventListener('click', (event) => {
+        const target = event.target;
+        if (!target) return;
+        const dialog = document.querySelector('[data-inbox-dialog]');
+        const body = dialog ? dialog.querySelector('[data-inbox-body]') : null;
+        if (!dialog || !body) return;
+
+        const trigger = target.closest('[data-inbox-open]');
+        if (trigger) {
+          const item = trigger.closest('.enquiry-inbox-item');
+          const template = item ? item.querySelector('template[data-inbox-detail]') : null;
+          if (!template) return;
+          body.replaceChildren(template.content.cloneNode(true));
+
+          const title = dialog.querySelector('[data-inbox-title]');
+          const subtitle = dialog.querySelector('[data-inbox-subtitle]');
+          const fullLink = dialog.querySelector('[data-inbox-full-link]');
+          const bookingLink = dialog.querySelector('[data-inbox-booking-link]');
+          if (title) title.textContent = trigger.dataset.inboxTitle || 'Enquiry';
+          if (subtitle) subtitle.textContent = trigger.dataset.inboxSubtitle || '';
+          if (fullLink) fullLink.href = trigger.dataset.inboxFullHref || '#';
+          if (bookingLink) {
+            const bookingHref = trigger.dataset.inboxBookingHref || '';
+            bookingLink.hidden = !bookingHref;
+            bookingLink.href = bookingHref || '#';
+            bookingLink.textContent = trigger.dataset.inboxBookingLabel || 'Open booking';
+          }
+          if (typeof dialog.showModal === 'function') dialog.showModal();
+          else dialog.setAttribute('open', '');
+          return;
+        }
+
+        if (target.closest('[data-inbox-close]') || target === dialog) closeInboxDialog(dialog);
+      });
+    }
+  </script>
 </AdminLayout>

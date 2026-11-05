@@ -141,6 +141,19 @@ export interface VenueSuggestion {
   score: number;
 }
 
+export function venueMatchScore(query: string, candidate: string): number {
+  return score(normalise(query), normalise(candidate));
+}
+
+/** A short, curated starting list for an empty or focused venue field. */
+export function popularRanchiPlaces(limit = 8): VenueSuggestion[] {
+  return RANCHI_PLACES.slice(0, Math.max(0, limit)).map((place) => ({
+    name: place.name,
+    kind: place.kind,
+    score: 0,
+  }));
+}
+
 /**
  * Fuzzy search over Ranchi localities and venues.
  * Typo tolerance is intentionally short: two edits, so "hrmu" finds "Harmu"

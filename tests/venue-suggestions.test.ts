@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { RANCHI_PLACES, searchRanchiPlaces } from '../src/core/venues/ranchi';
+import { RANCHI_PLACES, popularRanchiPlaces, searchRanchiPlaces } from '../src/core/venues/ranchi';
 
 test('finds a locality from a prefix', () => {
   const results = searchRanchiPlaces('har');
@@ -38,4 +38,10 @@ test('caps results and never mutates the dataset', () => {
 test('every entry has a unique name', () => {
   const names = RANCHI_PLACES.map((p) => p.name);
   assert.equal(new Set(names).size, names.length);
+});
+
+test('provides a bounded starting list for an empty venue field', () => {
+  const popular = popularRanchiPlaces(8);
+  assert.equal(popular.length, 8);
+  assert.equal(popular[0].name, 'Harmu');
 });

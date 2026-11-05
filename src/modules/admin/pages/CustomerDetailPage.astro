@@ -1,5 +1,6 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
+import Icon from '../../../components/Icon.astro';
 import { formatDate, formatDateTime, formatMoney } from '../../../core/http';
 
 interface Props {
@@ -35,6 +36,13 @@ const statusClass: Record<string, string> = {
   cancelled: 'badge-danger',
   closed: 'badge-muted',
 };
+
+const customerInitials = String(data?.customer.name || 'Customer')
+  .split(/\s+/)
+  .filter(Boolean)
+  .slice(0, 2)
+  .map((part) => part[0]?.toUpperCase() ?? '')
+  .join('');
 ---
 
 {notFound || !data ? (
@@ -51,46 +59,90 @@ const statusClass: Record<string, string> = {
       <a href="/admin/customers" class="btn btn-secondary btn-sm">← All customers</a>
     </div>
 
-    <div class="admin-grid-2">
+    <div class="customer-profile-hero">
+      <span class="customer-profile-avatar">{customerInitials || 'C'}</span>
+      <div class="customer-profile-identity">
+        <span class="eyebrow">Customer record</span>
+        <h1>{data.customer.name}</h1>
+        <p>
+          Customer since {formatDate(data.customer.created_at)}
+          {' · '}
+          {data.bookings.length} booking{data.bookings.length === 1 ? '' : 's'}
+        </p>
+      </div>
+      <div class="customer-profile-actions">
+        <a href={`tel:${data.customer.phone.replace(/\s+/g, '')}`} class="btn btn-secondary btn-sm">
+          <Icon name="phone" size={14} /> Call
+        </a>
+        {data.customer.email && (
+          <a href={`mailto:${data.customer.email}`} class="btn btn-secondary btn-sm">
+            <Icon name="mail" size={14} /> Email
+          </a>
+        )}
+      </div>
+    </div>
+
+    <div class="admin-grid-2 customer-detail-grid">
       <div class="admin-panel">
-        <div class="admin-panel-head"><div><h2>Contact details</h2></div></div>
+        <div class="admin-panel-head">
+          <div>
+            <h2>Contact &amp; account</h2>
+            <p>Customer identity and communication details.</p>
+          </div>
+          <span class="badge badge-muted">{data.customer.username ? 'Registered' : 'Guest checkout'}</span>
+        </div>
         <div class="admin-panel-body">
-          <div class="summary-row"><div class="summary-left"><small>Name</small><h4>{data.customer.name}</h4></div></div>
-          <div class="summary-row"><div class="summary-left"><small>Phone</small><h4>{data.customer.phone}</h4></div></div>
-          <div class="summary-row"><div class="summary-left"><small>Email</small><h4>{data.customer.email || '—'}</h4></div></div>
-          <div class="summary-row"><div class="summary-left"><small>Address</small><h4>{data.customer.address || '—'}</h4></div></div>
-          <div class="summary-row"><div class="summary-left"><small>Account</small><h4>{data.customer.username ?? 'Guest checkout'}</h4></div></div>
+          <div class="customer-info-grid">
+            <div class="customer-info-item">
+              <span>Name</span>
+              <strong>{data.customer.name}</strong>
+            </div>
+            <div class="customer-info-item">
+              <span>Phone</span>
+              <a href={`tel:${data.customer.phone.replace(/\s+/g, '')}`}>{data.customer.phone}</a>
+            </div>
+            <div class="customer-info-item">
+              <span>Email</span>
+              {data.customer.email
+                ? <a href={`mailto:${data.customer.email}`}>{data.customer.email}</a>
+                : <strong class="text-muted">Not provided</strong>}
+            </div>
+            <div class="customer-info-item">
+              <span>Account</span>
+              <strong>{data.customer.username ?? 'Guest checkout'}</strong>
+            </div>
+            <div class="customer-info-item is-wide">
+              <span>Address</span>
+              <strong>{data.customer.address || 'Not provided'}</strong>
+            </div>
+          </div>
         </div>
       </div>
 
       <div class="admin-panel">
         <div class="admin-panel-head">
-          <div><h2>Booking history</h2><p>{data.bookings.length} reservations</p></div>
+          <div>
+            <h2>Booking history</h2>
+            <p>{data.bookings.length} reservation{data.bookings.length === 1 ? '' : 's'} linked to this customer.</p>
+          </div>
         </div>
         <div class="admin-panel-body flush">
           {data.bookings.length === 0 ? (
             <div class="admin-empty">No bookings yet.</div>
           ) : (
-            <div class="table-wrap">
-              <table class="table table-stack">
-                <thead>
-                  <tr><th>#</th><th>Event</th><th>Total</th><th>Status</th><th></th></tr>
-                </thead>
-                <tbody>
-                  {data.bookings.map((booking) => (
-                    <tr>
-                      <td data-label="Booking"><strong>#{booking.id}</strong></td>
-                      <td data-label="Event">
-                        {booking.event_type}
-                        <div class="text-xs text-muted">{formatDate(booking.event_date)} · created {formatDateTime(booking.created_at)}</div>
-                      </td>
-                      <td data-label="Total" class="money">{formatMoney(booking.total_amount)}</td>
-                      <td data-label="Status"><span class:list={['badge', statusClass[booking.status] ?? 'badge-muted']}>{booking.status}</span></td>
-                      <td data-label="Actions"><a href={`/admin/bookings/${booking.id}`} class="btn btn-secondary btn-sm">Open</a></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div class="customer-booking-list">
+              {data.bookings.map((booking) => (
+                <a href={`/admin/bookings/${booking.id}`} class="customer-booking-row">
+                  <span class="customer-booking-id">#{booking.id}</span>
+                  <span class="customer-booking-main">
+                    <strong>{booking.event_type}</strong>
+                    <small>{formatDate(booking.event_date)} · created {formatDateTime(booking.created_at)}</small>
+                  </span>
+                  <span class="customer-booking-total">{formatMoney(booking.total_amount)}</span>
+                  <span class:list={['badge', statusClass[booking.status] ?? 'badge-muted']}>{booking.status}</span>
+                  <Icon name="chevron-right" size={15} />
+                </a>
+              ))}
             </div>
           )}
         </div>

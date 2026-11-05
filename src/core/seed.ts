@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import { hashPassword } from './password';
 import { INITIAL_STORAGE_OBJECTS } from './storage/initial-storage-objects';
+import { optionalSeedCredential, requiredSeedCredential } from './seed-credentials';
 
 function isoDate(daysFromNow: number): string {
   const date = new Date();
@@ -18,10 +19,11 @@ export function seedDatabase(db: DatabaseSync): void {
         .lastInsertRowid,
     );
 
-  const adminPassword =
-    process.env.ADMIN_PASSWORD ||
-    (typeof import.meta !== 'undefined' && import.meta.env?.ADMIN_PASSWORD) ||
-    'admin';
+  const adminPassword = requiredSeedCredential('ADMIN_PASSWORD', 'admin');
+  const superadminPassword = optionalSeedCredential('SUPERADMIN_PASSWORD', 'Super@Royal2026!');
+  const managerPassword = optionalSeedCredential('MANAGER_PASSWORD', 'Manager@Royal2026!');
+  const editorPassword = requiredSeedCredential('EDITOR_PASSWORD', 'Editor@Royal2026!');
+  const customerPassword = optionalSeedCredential('CUSTOMER_SEED_PASSWORD', 'Client@2026!');
 
   db.exec('BEGIN');
   try {
@@ -31,15 +33,15 @@ export function seedDatabase(db: DatabaseSync): void {
     );
     insert(
       `INSERT INTO users (username, email, password_hash, first_name, role) VALUES (?, ?, ?, ?, ?)`,
-      ['superadmin', 'superadmin@eventpointranchi.com', hashPassword('Super@Royal2026!'), 'Vikramaditya', 'superadmin'],
+      ['superadmin', 'superadmin@eventpointranchi.com', hashPassword(superadminPassword), 'Vikramaditya', 'superadmin'],
     );
     insert(
       `INSERT INTO users (username, email, password_hash, first_name, role) VALUES (?, ?, ?, ?, ?)`,
-      ['event_manager', 'manager@eventpointranchi.com', hashPassword('Manager@Royal2026!'), 'Rajesh', 'admin'],
+      ['event_manager', 'manager@eventpointranchi.com', hashPassword(managerPassword), 'Rajesh', 'admin'],
     );
     insert(
       `INSERT INTO users (username, email, password_hash, first_name, role) VALUES (?, ?, ?, ?, ?)`,
-      ['content_editor', 'editor@eventpointranchi.com', hashPassword('Editor@Royal2026!'), 'Content Editor', 'editor'],
+      ['content_editor', 'editor@eventpointranchi.com', hashPassword(editorPassword), 'Content Editor', 'editor'],
     );
     const customerSeed = [
       ['rohit_sharma', 'Rohit Sharma', 'rohit.sharma@example.com', '9876543210', 'Flat 402, Sea Green Heights, Worli, Mumbai'],
@@ -54,7 +56,7 @@ export function seedDatabase(db: DatabaseSync): void {
     for (const [username, name, email, phone, address] of customerSeed) {
       const userId = insert(
         `INSERT INTO users (username, email, password_hash, first_name, role) VALUES (?, ?, ?, ?, 'customer')`,
-        [username, email, hashPassword('Client@2026!'), name.split(' ')[0]],
+        [username, email, hashPassword(customerPassword), name.split(' ')[0]],
       );
       customerIds.push(
         insert(
