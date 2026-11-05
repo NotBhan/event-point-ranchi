@@ -47,6 +47,7 @@ export class D1Client {
   private databaseId?: string;
   private apiToken?: string;
   private localDb: DatabaseSync | null = null;
+  private localDbPath?: string;
   private isRemote = false;
   private timeoutMs: number;
 
@@ -104,6 +105,10 @@ export class D1Client {
     return this.isRemote;
   }
 
+  public getLocalDbPath(): string | null {
+    return this.isRemote ? null : this.localDbPath ?? null;
+  }
+
   private initLocalDb(customPath?: string): void {
     if (this.localDb) return;
     const isVercelEnv = Boolean(
@@ -122,6 +127,7 @@ export class D1Client {
         );
     mkdirSync(dbDir, { recursive: true });
     const filePath = customPath || join(dbDir, 'event-point-d1.db');
+    this.localDbPath = filePath;
     if (isVercelEnv && !existsSync(filePath)) {
       const bundled = resolve(process.cwd(), './data/event-point-d1.db');
       if (existsSync(bundled)) {

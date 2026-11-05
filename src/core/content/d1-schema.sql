@@ -1,7 +1,3 @@
--- Cloudflare D1 Website Content Schema
--- Source of truth for mutable website content: site settings, homepage sections,
--- services, mandaps, stages, furniture/equipment, catering packages, gallery items, and SEO.
-
 CREATE TABLE IF NOT EXISTS site_settings (
   id                    TEXT PRIMARY KEY DEFAULT 'global',
   name                  TEXT NOT NULL,
@@ -29,11 +25,35 @@ CREATE TABLE IF NOT EXISTS site_settings (
   announcement_text     TEXT NOT NULL DEFAULT '',
   announcement_location TEXT NOT NULL DEFAULT '',
   announcement_phone    TEXT NOT NULL DEFAULT '',
+  google_maps_url       TEXT NOT NULL DEFAULT '',
+  latitude              REAL,
+  longitude             REAL,
+  footer_text           TEXT NOT NULL DEFAULT '',
+  contact_buttons_enabled INTEGER NOT NULL DEFAULT 1,
   maintenance_enabled   INTEGER NOT NULL DEFAULT 0,
   maintenance_message   TEXT NOT NULL DEFAULT '',
   created_at            TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at            TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS page_content (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  page_key         TEXT NOT NULL UNIQUE,
+  title            TEXT NOT NULL DEFAULT '',
+  subtitle         TEXT NOT NULL DEFAULT '',
+  description      TEXT NOT NULL DEFAULT '',
+  banner_image_url TEXT NOT NULL DEFAULT '',
+  banner_enabled   INTEGER NOT NULL DEFAULT 1,
+  content_json     TEXT NOT NULL DEFAULT '{}',
+  seo_title        TEXT NOT NULL DEFAULT '',
+  seo_description  TEXT NOT NULL DEFAULT '',
+  og_image_url     TEXT NOT NULL DEFAULT '',
+  published        INTEGER NOT NULL DEFAULT 1,
+  created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at       TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_page_content_key ON page_content(page_key);
 
 CREATE TABLE IF NOT EXISTS homepage_sections (
   id           TEXT PRIMARY KEY,
@@ -90,6 +110,13 @@ CREATE TABLE IF NOT EXISTS mandaps (
   image_url            TEXT NOT NULL DEFAULT '',
   full_description     TEXT NOT NULL DEFAULT '',
   image_alt            TEXT NOT NULL DEFAULT '',
+  location_name        TEXT NOT NULL DEFAULT '',
+  address              TEXT NOT NULL DEFAULT '',
+  latitude             REAL,
+  longitude            REAL,
+  google_maps_url      TEXT NOT NULL DEFAULT '',
+  directions_url       TEXT NOT NULL DEFAULT '',
+  show_location        INTEGER NOT NULL DEFAULT 0,
   is_featured          INTEGER NOT NULL DEFAULT 0,
   is_visible           INTEGER NOT NULL DEFAULT 1,
   is_archived          INTEGER NOT NULL DEFAULT 0,
@@ -203,6 +230,7 @@ CREATE TABLE IF NOT EXISTS furniture_item_images (
   sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
 CREATE INDEX IF NOT EXISTS idx_furniture_item_images_item ON furniture_item_images(item_id);
 
 CREATE TABLE IF NOT EXISTS catering_packages (
@@ -239,6 +267,7 @@ CREATE TABLE IF NOT EXISTS catering_package_images (
   sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
 CREATE INDEX IF NOT EXISTS idx_catering_package_images_package ON catering_package_images(package_id);
 
 CREATE TABLE IF NOT EXISTS gallery_categories (
@@ -355,4 +384,3 @@ CREATE TABLE IF NOT EXISTS menu_items (
 );
 
 CREATE INDEX IF NOT EXISTS idx_menu_items_category ON menu_items(category_id);
-
