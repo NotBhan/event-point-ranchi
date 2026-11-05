@@ -29,6 +29,7 @@ const COLUMN_MIGRATIONS: ColumnMigration[] = [
   { table: 'catering_packages', column: 'category', definition: "TEXT NOT NULL DEFAULT 'Signature'" },
   { table: 'catering_packages', column: 'is_archived', definition: 'INTEGER NOT NULL DEFAULT 0' },
   { table: 'catering_packages', column: 'archived_at', definition: 'TEXT' },
+  { table: 'menu_items', column: 'sort', definition: 'INTEGER NOT NULL DEFAULT 0' },
 ];
 
 const TABLE_MIGRATIONS = [

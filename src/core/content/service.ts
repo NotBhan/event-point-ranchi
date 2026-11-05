@@ -679,11 +679,14 @@ export async function getCateringPackages(): Promise<CateringPackage[]> {
 
   return getCached<CateringPackage[]>('catering_packages', async () => {
     const d1 = getD1Client();
-    const [packagesRes, pricingRes, featuresRes, imagesRes] = await d1.batch<any>([
+    const [packagesRes, pricingRes, featuresRes, imagesRes, sectionsRes, categoriesRes, itemsRes] = await d1.batch<any>([
       { sql: 'SELECT * FROM catering_packages WHERE is_visible = 1 AND is_archived = 0 ORDER BY sort_order ASC, id ASC' },
       { sql: 'SELECT package_id, guest_count, price_per_plate_paise, sort FROM guest_pricing ORDER BY sort ASC, guest_count ASC' },
       { sql: 'SELECT package_id, name FROM catering_features ORDER BY id ASC' },
       { sql: 'SELECT id, package_id, image_url, alt_text, sort_order FROM catering_package_images ORDER BY sort_order ASC, id ASC' },
+      { sql: 'SELECT id, package_id, title, has_category, available_items, max_selection, sort FROM menu_sections ORDER BY sort ASC, id ASC' },
+      { sql: 'SELECT id, section_id, title, sort FROM menu_categories ORDER BY sort ASC, id ASC' },
+      { sql: 'SELECT id, category_id, name, is_available, sort FROM menu_items ORDER BY sort ASC, id ASC' },
     ]);
     const pricingByPackage = new Map<number, any[]>();
     for (const tier of pricingRes.results || []) {
@@ -712,14 +715,45 @@ export async function getCateringPackages(): Promise<CateringPackage[]> {
       });
       imagesByPackage.set(image.package_id, list);
     }
+    const sectionsByPackage = new Map<number, any[]>();
+    const categoriesBySection = new Map<number, any[]>();
+    for (const category of categoriesRes.results || []) {
+      const list = categoriesBySection.get(category.section_id) ?? [];
+      list.push({ id: category.id, title: category.title, sort: category.sort, items: [] });
+      categoriesBySection.set(category.section_id, list);
+    }
+    for (const item of itemsRes.results || []) {
+      if (!Number(item.is_available)) continue;
+      for (const categories of categoriesBySection.values()) {
+        const category = categories.find((entry) => Number(entry.id) === Number(item.category_id));
+        if (category) {
+          category.items.push({ id: item.id, name: item.name, sort: item.sort });
+          break;
+        }
+      }
+    }
+    for (const section of sectionsRes.results || []) {
+      const categories = categoriesBySection.get(section.id) ?? [];
+      const list = sectionsByPackage.get(section.package_id) ?? [];
+      list.push({
+        id: section.id,
+        title: section.title,
+        max_selection: section.max_selection,
+        sort: section.sort,
+        categories,
+        items: categories.flatMap((category) => category.items),
+      });
+      sectionsByPackage.set(section.package_id, list);
+    }
 
     return (packagesRes.results || []).map((p) => {
       let features: string[] = [];
-      let menu_sections: any[] = [];
+      let legacyMenuSections: any[] = [];
       try { features = JSON.parse(p.features_json || '[]'); } catch {}
-      try { menu_sections = JSON.parse(p.menu_sections_json || '[]'); } catch {}
+      try { legacyMenuSections = JSON.parse(p.menu_sections_json || '[]'); } catch {}
       const normalizedFeatures = featuresByPackage.get(p.id);
       const normalizedPricing = pricingByPackage.get(p.id) || [];
+      const normalizedSections = sectionsByPackage.get(p.id) || [];
       let legacyPricing: any[] = [];
       try { legacyPricing = JSON.parse(p.guest_pricing_json || '[]'); } catch {}
       return {
@@ -735,7 +769,7 @@ export async function getCateringPackages(): Promise<CateringPackage[]> {
         is_archived: Boolean(p.is_archived),
         price_per_plate_paise: Number(p.price_per_plate_paise || 0),
         features: [...new Set([...(normalizedFeatures || []), ...features])],
-        menu_sections,
+        menu_sections: normalizedSections.length ? normalizedSections : legacyMenuSections,
         guest_pricing: normalizedPricing.length ? normalizedPricing : legacyPricing,
         images: imagesByPackage.get(p.id) || [],
         show_on_home: Boolean(p.show_on_home),
@@ -860,10 +894,15 @@ export async function getCateringCatalog(): Promise<CateringCatalog> {
         slug: pkg.slug,
         description: pkg.description,
         badge: pkg.badge,
+        category: pkg.category,
         image_url: pkg.image_url,
+        image_alt: pkg.image_alt,
+        full_description: pkg.full_description,
+        images: (pkg.images ?? []).map((image) => ({ ...image, package_id: pkg.id })),
         price_per_plate_paise: pkg.price_per_plate_paise,
         show_on_home: pkg.show_on_home ? 1 : 0,
         is_visible: pkg.is_visible ? 1 : 0,
+        is_archived: pkg.is_archived ? 1 : 0,
         sort_order: pkg.sort_order,
         created_at: '',
         updated_at: '',

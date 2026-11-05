@@ -131,6 +131,7 @@ function publishableRows(): PublicContentRows {
     galleryCategories: [{ id: 5, name: 'Designs', slug: 'designs', is_visible: 1, sort_order: 0 }],
     galleryItems: [{ id: 6, category_id: 5, image_url: '/storage/a.webp', is_visible: 1, sort_order: 0 }],
     videos: [],
+    cateringImages: [],
   };
 }
 

@@ -13,6 +13,7 @@ export interface PackageCard {
   badge: string;
   features: string[];
   bannerFeatures: string[];
+  images?: Array<{ id: number; image_url: string; alt_text: string; sort_order: number }>;
 }
 
 export interface MenuSectionData {
@@ -60,6 +61,7 @@ export async function loadCateringPage() {
       bannerFeatures: catalog.bannerFeatures
         .filter((feature) => feature.package_id === pkg.id)
         .map((feature) => feature.name),
+      images: pkg.images ?? [],
     }));
 
   return { settings: DEFAULT_SETTINGS, packages };
@@ -105,6 +107,7 @@ export async function loadPackageDetail(slug: string): Promise<PackageDetail | n
       bannerFeatures: catalog.bannerFeatures
         .filter((feature) => feature.package_id === pkg.id)
         .map((feature) => feature.name),
+      images: pkg.images ?? [],
     },
     guestPricing,
     sections: sections.map((section) => ({

@@ -1,5 +1,5 @@
 import { defineMiddleware } from 'astro:middleware';
-import { getAuth } from './core/auth';
+import { ADMIN_SESSION_COOKIE, getAdminAuth, getAuth, SESSION_COOKIE } from './core/auth';
 import { csrfMatches, ensureCsrf, submittedCsrfToken } from './core/csrf';
 import { takeFlash } from './core/flash';
 import { getSiteSettings } from './core/content/service';
@@ -77,6 +77,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
     const csrf = ensureCsrf(context.cookies);
     context.locals.csrf = csrf;
     context.locals.auth = await getAuth(context.cookies);
+    context.locals.adminAuth = await getAdminAuth(context.cookies);
     context.locals.flash = takeFlash(context.cookies);
 
     const isMutation = !['GET', 'HEAD', 'OPTIONS'].includes(method);
@@ -105,7 +106,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
       isPageCacheEnabled() &&
       isCacheablePagePath(context.url.pathname) &&
       !context.url.search &&
-      !context.cookies.get('rp_session') &&
+      !context.cookies.get(SESSION_COOKIE) &&
+      !context.cookies.get(ADMIN_SESSION_COOKIE) &&
       !context.cookies.get('rp_flash');
 
     if (cacheable) {

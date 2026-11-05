@@ -33,6 +33,7 @@ export interface PageContext {
   params: Record<string, string>;
   form: FormData | null;
   auth: AuthState;
+  adminAuth: AuthState;
   csrf: string;
   cookies: CookieJar;
 }

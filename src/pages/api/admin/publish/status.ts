@@ -19,7 +19,7 @@ function jsonResponse(body: unknown, status = 200): Response {
  * before reporting them as published.
  */
 export const GET: APIRoute = async ({ locals }) => {
-  if (!locals.auth?.isAdmin) {
+  if (!locals.adminAuth?.isAdmin) {
     return jsonResponse({ status: 'error', message: 'Administrator access is required.' }, 403);
   }
 

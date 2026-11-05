@@ -1,6 +1,5 @@
-import { requireAdmin } from '../../../core/auth';
+import { endAdminSession, requireAdmin, startAdminSession } from '../../../core/auth';
 import { paymentsEnabled } from '../../../core/features';
-import { endSession, startSession } from '../../../core/auth';
 import { setError, setSuccess } from '../../../core/flash';
 import { getInt, getString, parseMoneyToPaise, parsePageParams, redirect, safeNext } from '../../../core/http';
 import type { PageContext } from '../../../core/types';
@@ -34,11 +33,11 @@ import { updateBookingDepositConfig, type DepositType } from '../../../core/oper
 import { runFormAction } from './shared';
 
 export async function adminLogin(ctx: PageContext) {
-  const defaultRedirect = ctx.auth.user?.role === 'editor' ? '/admin/content' : '/admin';
+  const defaultRedirect = ctx.adminAuth.user?.role === 'editor' ? '/admin/content' : '/admin';
   const next = safeNext(ctx.url.searchParams.get('next'), defaultRedirect);
 
-  if (ctx.auth.isAdmin) return redirect(next);
-  if (ctx.auth.user?.role === 'editor') return redirect('/admin/content');
+  if (ctx.adminAuth.isAdmin) return redirect(next);
+  if (ctx.adminAuth.user?.role === 'editor') return redirect('/admin/content');
 
   if (ctx.request.method === 'POST') {
     const user = await authenticate(getString(ctx.form, 'username'), getString(ctx.form, 'password'));
@@ -47,7 +46,7 @@ export async function adminLogin(ctx: PageContext) {
       return { props: { error: 'Invalid credentials or insufficient privileges.', next } };
     }
 
-    startSession(ctx.cookies, user.id, user.password_hash);
+    startAdminSession(ctx.cookies, user.id, user.password_hash);
     setSuccess(ctx.cookies, `Welcome back, ${user.first_name || user.username}.`);
     const destination = user.role === 'editor' ? '/admin/content' : safeNext(getString(ctx.form, 'next') || next, '/admin');
     return redirect(destination);
@@ -57,13 +56,13 @@ export async function adminLogin(ctx: PageContext) {
 }
 
 export async function adminLogout(ctx: PageContext) {
-  endSession(ctx.cookies);
+  endAdminSession(ctx.cookies);
   setSuccess(ctx.cookies, 'You have been signed out of the admin console.');
   return redirect('/admin/login');
 }
 
 export async function dashboard(ctx: PageContext) {
-  if (ctx.auth.user?.role === 'editor') {
+  if (ctx.adminAuth.user?.role === 'editor') {
     return redirect('/admin/content');
   }
   const denied = requireAdmin(ctx);
@@ -119,7 +118,7 @@ export async function bookingDetail(ctx: PageContext) {
             bookingId: id,
             depositType,
             depositValue,
-            adminUserId: ctx.auth.user?.id,
+            adminUserId: ctx.adminAuth.user?.id,
           });
         },
       },
@@ -127,7 +126,7 @@ export async function bookingDetail(ctx: PageContext) {
     );
   }
 
-  const data = await loadBookingForViewer(id, ctx.auth, null);
+  const data = await loadBookingForViewer(id, ctx.adminAuth, null);
   if (data === 'not-found' || data === 'forbidden') return { props: { notFound: true }, status: 404 };
   return { props: { data } };
 }
@@ -206,7 +205,7 @@ export async function newEnquiryDetail(ctx: PageContext) {
   if (!Number.isInteger(id) || id <= 0) return { props: { notFound: true }, status: 404 };
 
   const backTo = `/admin/new-enquiries/${id}`;
-  const adminUserId = ctx.auth.user?.id;
+  const adminUserId = ctx.adminAuth.user?.id;
 
   if (ctx.request.method === 'POST') {
     const action = getString(ctx.form, 'action');
@@ -373,7 +372,7 @@ export async function paymentDetail(ctx: PageContext) {
       const refundAmount = Number(getString(ctx.form, 'refund_amount')) || 0;
       const reason = getString(ctx.form, 'refund_reason') || 'Customer requested cancellation';
       try {
-        await processRefundAdmin(id, Math.round(refundAmount * 100), reason, ctx.auth.user?.id);
+        await processRefundAdmin(id, Math.round(refundAmount * 100), reason, ctx.adminAuth.user?.id);
         setSuccess(ctx.cookies, `Refund of ₹${refundAmount.toLocaleString('en-IN')} successfully initiated.`);
       } catch (err: any) {
         return {

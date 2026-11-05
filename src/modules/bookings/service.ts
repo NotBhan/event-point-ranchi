@@ -149,6 +149,10 @@ export interface BookingLine {
   label: string;
   detail: string;
   amount: number;
+  categoryKey?: string;
+  quantity?: number;
+  unitPricePaise?: number;
+  onRequest?: boolean;
 }
 
 export interface QuotationData {
@@ -166,8 +170,12 @@ export interface QuotationData {
     amount_paid?: number;
     outstanding_balance?: number;
     payment_status?: string;
+    deposit_type?: string;
+    deposit_value?: number;
     access_token?: string;
     source_enquiry_id?: number | null;
+    source_quotation_id?: number | null;
+    source_quotation_version?: number | null;
     venue_location?: string | null;
   };
   customer: { name: string; phone: string; email: string; address: string };
@@ -238,11 +246,23 @@ function describeBookingLine(item: BookingItemRow): BookingLine {
       label,
       detail: `${reference ? `Quotation for ${reference}` : 'Quotation accepted by the admin'}${summary ? ` — ${summary}` : ''}`,
       amount: Number(item.subtotal),
+      categoryKey: item.category,
+      quantity: Number(item.quantity ?? 1),
+      unitPricePaise: Number(item.unit_price ?? 0),
+      onRequest: Number(item.subtotal) <= 0,
     };
   }
 
   if (item.category === 'furniture') {
-    return { label, detail: `${item.item_name} × ${item.quantity}`, amount: Number(item.subtotal) };
+    return {
+      label,
+      detail: `${item.item_name} × ${item.quantity}`,
+      amount: Number(item.subtotal),
+      categoryKey: item.category,
+      quantity: Number(item.quantity ?? 1),
+      unitPricePaise: Number(item.unit_price ?? 0),
+      onRequest: Number(item.subtotal) <= 0,
+    };
   }
 
   if (item.category === 'catering') {
@@ -263,11 +283,23 @@ function describeBookingLine(item: BookingItemRow): BookingLine {
       label,
       detail: `${item.item_name} · ${guestCount} plates × ₹${unitInr}${menu ? ` — ${menu}` : ''}`,
       amount: Number(item.subtotal),
+      categoryKey: item.category,
+      quantity: Number(item.quantity ?? guestCount),
+      unitPricePaise: Number(item.unit_price ?? 0),
+      onRequest: Number(item.subtotal) <= 0,
     };
   }
 
   const dimensions = typeof meta.dimensions === 'string' && meta.dimensions ? ` · ${meta.dimensions}` : '';
-  return { label, detail: `${item.item_name}${dimensions}`, amount: Number(item.subtotal) };
+  return {
+    label,
+    detail: `${item.item_name}${dimensions}`,
+    amount: Number(item.subtotal),
+    categoryKey: item.category,
+    quantity: Number(item.quantity ?? 1),
+    unitPricePaise: Number(item.unit_price ?? 0),
+    onRequest: Number(item.subtotal) <= 0,
+  };
 }
 
 /**
@@ -295,9 +327,13 @@ export async function loadBookingForViewer(
     outstanding_balance: number;
     payment_status: string;
     access_token: string;
+    deposit_type: string;
+    deposit_value: number;
     customer_id: number;
     user_id: number | null;
     source_enquiry_id?: number | null;
+    source_quotation_id?: number | null;
+    source_quotation_version?: number | null;
     venue_location?: string | null;
   }>(
     `SELECT b.*, c.user_id AS user_id
@@ -309,6 +345,19 @@ export async function loadBookingForViewer(
 
   const booking = bookingRes.rows[0];
   if (!booking) return 'not-found';
+
+  if (booking.source_quotation_id) {
+    try {
+      const quotationRes = await neon.query<{ version: number }>(
+        'SELECT version FROM enquiry_quotations WHERE id = $1 LIMIT 1',
+        [booking.source_quotation_id],
+      );
+      booking.source_quotation_version = quotationRes.rows[0]?.version ?? null;
+    } catch {
+      // Older deployments may not have the quotation table yet.
+      booking.source_quotation_version = null;
+    }
+  }
 
   const isOwner = Boolean(auth.user && Number(booking.user_id) === auth.user.id);
   const tokenMatches = Boolean(token && token === booking.access_token);

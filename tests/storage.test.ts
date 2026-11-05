@@ -224,6 +224,7 @@ function contextFor(auth: AuthState, form: FormData | null, method = 'POST'): Pa
     params: {},
     form,
     auth,
+    adminAuth: auth,
     csrf: 'test-csrf',
     cookies,
   };

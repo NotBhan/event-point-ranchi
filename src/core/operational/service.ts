@@ -430,6 +430,10 @@ export async function updateCustomerProfile(
 
 export async function ensureCustomerForUser(userId: number, defaults: Partial<CustomerRow> = {}): Promise<CustomerRow> {
   const neon = getNeonClient();
+  const roleRes = await neon.query<{ role: string }>('SELECT role FROM users WHERE id = $1 LIMIT 1', [userId]);
+  if (roleRes.rows[0]?.role !== 'customer') {
+    throw new Error('Only customer accounts can have a customer profile.');
+  }
   const existing = await neon.query<CustomerRow>('SELECT * FROM customers WHERE user_id = $1 LIMIT 1', [userId]);
   if (existing.rows[0]) return existing.rows[0];
 
@@ -1302,6 +1306,10 @@ export async function findOrCreateCustomer(params: {
   const neon = params.client ?? getNeonClient();
 
   if (params.userId) {
+    const roleRes = await neon.query<{ role: string }>('SELECT role FROM users WHERE id = $1 LIMIT 1', [params.userId]);
+    if (roleRes.rows[0]?.role !== 'customer') {
+      throw new Error('A booking cannot be linked to a staff account.');
+    }
     const res = await neon.query<{ id: number }>(
       `INSERT INTO customers (user_id, name, phone, email, address)
        VALUES ($1, $2, $3, $4, $5)

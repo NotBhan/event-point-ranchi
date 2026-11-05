@@ -136,7 +136,7 @@ const tabHref = (target: string) => `/admin/content?tab=${encodeURIComponent(tar
 const tabClass = (target: string) => (target === activeTab ? 'studio-tab-btn active' : 'studio-tab-btn');
 
 const csrf = Astro.locals.csrf;
-const isAdmin = Boolean(Astro.locals.auth?.isAdmin);
+const isAdmin = Boolean(Astro.locals.adminAuth?.isAdmin);
 
 const formatStamp = (value: string | null | undefined) => {
   if (!value) return '—';

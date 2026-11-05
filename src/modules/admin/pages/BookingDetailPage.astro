@@ -1,15 +1,17 @@
 ---
 import AdminLayout from '../../../layouts/AdminLayout.astro';
-import { formatDate, formatDateTime, formatMoney } from '../../../core/http';
+import { formatDate, formatDateTime } from '../../../core/http';
 import { bookingStatuses } from '../../../core/config';
 import {
   bookingStatusClass,
   bookingStatusLabel,
   enquiryStatusLabel,
-  paymentStatusClass,
   paymentStatusLabel,
 } from '../presentation';
 import type { QuotationData } from '../../bookings/service';
+import CanonicalDocument from '../../../components/documents/CanonicalDocument.astro';
+import { getSiteSettings } from '../../../core/content/service';
+import { buildBookingDocument } from '../../../core/documents/canonical';
 
 interface Props {
   data?: QuotationData;
@@ -19,6 +21,16 @@ interface Props {
 const { data, notFound = false } = Astro.props;
 const csrf = Astro.locals.csrf;
 const statuses = bookingStatuses;
+const settings = data ? await getSiteSettings() : null;
+const bookingDocument = data && settings
+  ? buildBookingDocument(data, {
+      name: settings.name,
+      phone: settings.phone,
+      email: settings.email,
+      address: settings.address,
+      website: 'https://eventpointranchi.com',
+    })
+  : null;
 ---
 
 {notFound || !data ? (
@@ -187,44 +199,26 @@ const statuses = bookingStatuses;
       </div>
     )}
 
-    <!-- Financial Breakdown & Deposit Configuration -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(320px, 100%), 1fr));gap:20px;margin-bottom:24px;">
-      <!-- Financial Overview -->
+    <!-- Canonical quotation / booking document -->
+    {bookingDocument && (
       <div class="admin-panel">
         <div class="admin-panel-head">
           <div>
-            <h2>Financial Breakdown</h2>
-            <p>Ledger balances and payment health</p>
+            <h2>Canonical booking document</h2>
+            <p>The same document rendered to customers and used for printing.</p>
           </div>
-          <span class:list={['badge', paymentStatusClass(data.booking.payment_status)]}>
-            {paymentStatusLabel(data.booking.payment_status)}
-          </span>
+          <a href={`/booking/${data.booking.id}/quotation`} target="_blank" rel="noopener" class="btn btn-secondary btn-sm">
+            Open printable document
+          </a>
         </div>
         <div class="admin-panel-body">
-          <div class="summary-row">
-            <div class="summary-left"><small>Total Booking Value</small><h4 class="money">{formatMoney(data.booking.total_amount)}</h4></div>
-          </div>
-          <div class="summary-row">
-            <div class="summary-left">
-              <small>Deposit / Advance Required</small>
-              <h4 class="money" style="color:var(--brand-maroon);">{formatMoney(data.booking.advance_amount ?? Math.round(data.booking.total_amount * 0.25))}</h4>
-            </div>
-          </div>
-          <div class="summary-row">
-            <div class="summary-left">
-              <small>Amount Paid</small>
-              <h4 class="money" style="color:#2e7d32;">{formatMoney(data.booking.amount_paid ?? 0)}</h4>
-            </div>
-          </div>
-          <div class="summary-row">
-            <div class="summary-left">
-              <small>Outstanding Balance</small>
-              <h4 class="money" style="color:var(--ink);">{formatMoney(data.booking.outstanding_balance ?? data.booking.total_amount)}</h4>
-            </div>
-          </div>
+          <CanonicalDocument document={bookingDocument} />
         </div>
       </div>
+    )}
 
+    <!-- Financial Breakdown & Deposit Configuration -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(320px, 100%), 1fr));gap:20px;margin-bottom:24px;">
       <!-- Deposit Configurator -->
       <div class="admin-panel">
         <div class="admin-panel-head">
@@ -304,36 +298,6 @@ const statuses = bookingStatuses;
           </form>
         </div>
       </div>
-    </div>
-
-    <div class="admin-panel">
-      <div class="admin-panel-head">
-        <div><h2>Items &amp; pricing</h2><p>Server-verified line items</p></div>
-        <strong class="money" style="font-size:1.05rem;">{formatMoney(data.booking.total_amount)}</strong>
-      </div>
-      <div class="admin-panel-body flush">
-        <div class="table-wrap">
-          <table class="table table-stack">
-            <thead>
-              <tr><th>Category</th><th>Details</th><th style="text-align:right;">Amount</th></tr>
-            </thead>
-            <tbody>
-              {data.lines.map((line) => (
-                <tr>
-                  <td data-label="Category"><strong>{line.label}</strong></td>
-                  <td data-label="Details">{line.detail}</td>
-                  <td data-label="Amount" class="money" style="text-align:right;">{formatMoney(line.amount)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      {data.booking.special_request && (
-        <div class="admin-panel-body">
-          <div class="muted-box"><strong>Special requests:</strong> {data.booking.special_request}</div>
-        </div>
-      )}
     </div>
   </AdminLayout>
 )}

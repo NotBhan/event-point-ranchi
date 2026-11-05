@@ -29,6 +29,7 @@ import {
   saveSiteSettings,
   saveSeoSettings,
   activateCatering,
+  addCateringImage,
   archiveCatering,
   addGalleryCategory,
   addGuestPricing,
@@ -37,6 +38,7 @@ import {
   addMenuSection,
   addPackageOption,
   batchUploadGalleryAdmin,
+  deleteCateringImage,
   deleteGalleryCategory,
   deleteGalleryItem,
   deleteGuestPricing,
@@ -48,6 +50,8 @@ import {
   listGalleryAdmin,
   loadCateringAdmin,
   loadContentAdmin,
+  moveCateringImage,
+  moveMenuItem,
   parseContentStudioTab,
   replaceGalleryItemAdmin,
   saveCatering,
@@ -66,6 +70,8 @@ import {
   toggleGalleryCategory,
   toggleGalleryItem,
   toggleMenuItem,
+  updateCateringImageAlt,
+  updateGuestPricing,
   updateMenuItem,
   updateMenuSection,
 } from '../service';
@@ -114,8 +120,16 @@ export async function cateringForm(ctx: PageContext) {
         update_item: () => updateMenuItem(getInt(ctx.form, 'item_id'), ctx.form),
         delete_item: () => deleteMenuItem(getInt(ctx.form, 'item_id')),
         toggle_item: () => toggleMenuItem(getInt(ctx.form, 'item_id')),
+        move_item_up: () => moveMenuItem(getInt(ctx.form, 'item_id'), -1),
+        move_item_down: () => moveMenuItem(getInt(ctx.form, 'item_id'), 1),
         add_pricing: () => addGuestPricing(id, ctx.form),
+        update_pricing: () => updateGuestPricing(getInt(ctx.form, 'pricing_id'), ctx.form),
         delete_pricing: () => deleteGuestPricing(getInt(ctx.form, 'pricing_id')),
+        add_image: () => addCateringImage(id, ctx.form),
+        update_image_alt: () => updateCateringImageAlt(getInt(ctx.form, 'image_id'), ctx.form),
+        delete_image: () => deleteCateringImage(getInt(ctx.form, 'image_id')),
+        move_image_up: () => moveCateringImage(getInt(ctx.form, 'image_id'), -1),
+        move_image_down: () => moveCateringImage(getInt(ctx.form, 'image_id'), 1),
         add_feature: () => addPackageOption('catering_features', id, ctx.form),
         delete_feature: () => deletePackageOption('catering_features', getInt(ctx.form, 'feature_id')),
         add_banner_feature: () => addPackageOption('banner_features', id, ctx.form),
@@ -136,6 +150,7 @@ export async function cateringForm(ctx: PageContext) {
       bannerFeatures: data?.bannerFeatures ?? [],
       pricing: data?.pricing ?? [],
       sections: data?.sections ?? [],
+      images: data?.images ?? [],
       id: id ?? null,
     },
   };
@@ -217,7 +232,7 @@ const PUBLISH_REDIRECT = '/admin/content?tab=publish';
 async function publishChangesAction(ctx: PageContext): Promise<Response> {
   const wantsJson = ctx.request.headers.get('accept')?.includes('application/json') ?? false;
 
-  if (!ctx.auth.isAdmin) {
+  if (!ctx.adminAuth.isAdmin) {
     return wantsJson
       ? json({ status: 'error', message: 'Administrator access is required to publish.' }, 403)
       : redirect('/admin/login');
@@ -232,8 +247,8 @@ async function publishChangesAction(ctx: PageContext): Promise<Response> {
 
     const manifest = await validatePublishReadiness();
     const created = await createPublication({
-      requestedBy: ctx.auth.user?.id ?? null,
-      requestedByName: ctx.auth.user?.firstName || ctx.auth.user?.username || 'Administrator',
+      requestedBy: ctx.adminAuth.user?.id ?? null,
+      requestedByName: ctx.adminAuth.user?.firstName || ctx.adminAuth.user?.username || 'Administrator',
       requestedVersion: manifest.contentVersion,
     });
 
@@ -337,7 +352,7 @@ function documentFromForm(base: Awaited<ReturnType<typeof getEditableDocument>>,
 }
 
 async function saveContentDraftAction(ctx: PageContext): Promise<Response> {
-  if (!ctx.auth.isEditor && !ctx.auth.isAdmin) {
+  if (!ctx.adminAuth.isEditor && !ctx.adminAuth.isAdmin) {
     setError(ctx.cookies, 'You do not have permission to edit content.');
     return redirect(CONTENT_PUBLISH_REDIRECT);
   }
@@ -354,7 +369,7 @@ async function saveContentDraftAction(ctx: PageContext): Promise<Response> {
       pageId,
       document,
       expectedRevision,
-      actor: ctx.auth.user?.username ?? 'admin',
+      actor: ctx.adminAuth.user?.username ?? 'admin',
     });
     setSuccess(ctx.cookies, `Draft saved (revision ${saved.revision}). It is not published yet.`);
   } catch (error) {
@@ -387,12 +402,12 @@ const CONTENT_PUBLISH_REDIRECT = '/admin/content?tab=publish';
  * is the write path that makes a version live.
  */
 async function publishObjectStoreAction(ctx: PageContext): Promise<Response> {
-  if (!ctx.auth.isAdmin) {
+  if (!ctx.adminAuth.isAdmin) {
     setError(ctx.cookies, 'Only administrators can publish content.');
     return redirect(CONTENT_PUBLISH_REDIRECT);
   }
 
-  const actor = { id: ctx.auth.user?.id ?? null, name: ctx.auth.user?.username ?? 'admin' };
+  const actor = { id: ctx.adminAuth.user?.id ?? null, name: ctx.adminAuth.user?.username ?? 'admin' };
 
   try {
     const { documents } = await buildDocumentsFromD1({ updatedBy: actor.name });
@@ -421,7 +436,7 @@ async function publishObjectStoreAction(ctx: PageContext): Promise<Response> {
  * object the target manifest references is verified before the pointer moves.
  */
 async function rollbackObjectStoreAction(ctx: PageContext): Promise<Response> {
-  if (!ctx.auth.isAdmin) {
+  if (!ctx.adminAuth.isAdmin) {
     setError(ctx.cookies, 'Only administrators can roll back content.');
     return redirect(CONTENT_PUBLISH_REDIRECT);
   }
@@ -433,8 +448,8 @@ async function rollbackObjectStoreAction(ctx: PageContext): Promise<Response> {
   }
 
   const actor = {
-    id: ctx.auth.user?.id ?? null,
-    name: ctx.auth.user?.username ?? 'admin',
+    id: ctx.adminAuth.user?.id ?? null,
+    name: ctx.adminAuth.user?.username ?? 'admin',
     isAdmin: true,
   };
 
@@ -482,7 +497,7 @@ export async function contentAdmin(ctx: PageContext) {
   }
 
   const tab = parseContentStudioTab(ctx.url.searchParams.get('tab'));
-  if (tab === 'publish' && !ctx.auth.isAdmin) {
+  if (tab === 'publish' && !ctx.adminAuth.isAdmin) {
     return redirect('/admin/content?tab=brand');
   }
 

@@ -3,6 +3,7 @@
 declare namespace App {
   interface Locals {
     auth: import('./core/types').AuthState;
+    adminAuth: import('./core/types').AuthState;
     csrf: string;
     flash: import('./core/types').FlashMessage | null;
   }

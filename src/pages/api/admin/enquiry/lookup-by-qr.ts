@@ -4,7 +4,7 @@ import { logAuditEvent } from '../../../../core/operational/service';
 
 export const POST: APIRoute = async ({ request, locals, url }) => {
   // 1. RBAC Authentication Check
-  if (!locals.auth?.isAdmin) {
+  if (!locals.adminAuth?.isAdmin) {
     return new Response(
       JSON.stringify({ success: false, error: 'Unauthorized. Admin credentials required to scan enquiries.' }),
       { status: 403, headers: { 'Content-Type': 'application/json' } }
@@ -54,9 +54,9 @@ export const POST: APIRoute = async ({ request, locals, url }) => {
           customerName: result.enquiry.customerName,
           inputLength: rawInput.length,
           hasToken: Boolean(result.qrToken),
-          scannerUserId: locals.auth?.user?.id,
+          scannerUserId: locals.adminAuth?.user?.id,
         },
-        locals.auth?.user?.id
+        locals.adminAuth?.user?.id
       );
     } catch (auditErr) {
       console.warn('[QR Scan Audit Warning]:', auditErr);
