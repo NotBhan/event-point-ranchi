@@ -103,6 +103,10 @@ test('2. Customer Enquiry Receipt - PDF Generation with pdf-lib & QR', async () 
   // Verify PDF header magic bytes: %PDF-
   const header = Buffer.from(pdfBytes.buffer, pdfBytes.byteOffset, 5).toString('ascii');
   assert.strictEqual(header, '%PDF-', 'Enquiry receipt PDF must start with %PDF- header');
+
+  const { PDFDocument } = await import('pdf-lib');
+  const pdf = await PDFDocument.load(pdfBytes);
+  assert.equal(pdf.getPageCount(), 1, 'Enquiry receipt PDF must remain a single A4 page');
 });
 
 test('3. Flexible Booking Deposits - Policy Calculations', () => {

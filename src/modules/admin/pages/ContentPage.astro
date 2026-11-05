@@ -175,6 +175,58 @@ const corePages = [
 ];
 
 const pageContentMap = new Map(pagesContent.map((p) => [p.page_key, p]));
+
+const contentTabGroups: Array<{
+  key: string;
+  label: string;
+  icon: string;
+  tabs: Array<{ key: string; label: string; icon: string; badge?: number }>;
+}> = [
+  {
+    key: 'site',
+    label: 'Site & contact',
+    icon: 'building',
+    tabs: [
+      { key: 'brand', label: 'Brand & Contact', icon: 'building' },
+      { key: 'locations', label: 'Mandap Map Locations', icon: 'pin', ...(mandaps.length > 0 ? { badge: mandaps.length } : {}) },
+    ],
+  },
+  {
+    key: 'pages',
+    label: 'Page content',
+    icon: 'home',
+    tabs: corePages.map((page) => ({
+      key: `page-${page.key}`,
+      label: page.label,
+      icon: page.icon,
+    })),
+  },
+  {
+    key: 'media',
+    label: 'Media & discovery',
+    icon: 'image',
+    tabs: [
+      { key: 'videos', label: 'Videos & Reels', icon: 'play', ...(videoPreviews.length > 0 ? { badge: videoPreviews.length } : {}) },
+      { key: 'seo', label: 'SEO Metadata', icon: 'search' },
+    ],
+  },
+  {
+    key: 'home',
+    label: 'Homepage modules',
+    icon: 'sparkles',
+    tabs: [{ key: 'features', label: 'Feature Tiles', icon: 'sparkles' }],
+  },
+  ...(isAdmin
+    ? [{
+        key: 'publishing',
+        label: 'Publishing',
+        icon: 'upload',
+        tabs: [{ key: 'publish', label: 'Publish Changes', icon: 'upload', ...(activePublication ? { badge: 1 } : {}) }],
+      }]
+    : []),
+];
+
+const activeTabGroup = contentTabGroups.find((group) => group.tabs.some((tab) => tab.key === activeTab))?.key ?? 'site';
 ---
 
 <AdminLayout title="Site Content Studio" description="Manage page copy, hero banners, brand contacts and mandap map locations.">
@@ -184,46 +236,34 @@ const pageContentMap = new Map(pagesContent.map((p) => [p.page_key, p]));
       <span><Icon name="alert" size={16} /> You have unsaved changes in this form.</span>
     </div>
 
-    <!-- Tab Bar (server-rendered per tab: only the active section is fetched and rendered) -->
-    <div class="studio-tab-bar" role="tablist" aria-label="Content Studio Sections">
-      <div class="studio-tabs">
-        <a class={tabClass('brand')} href={tabHref('brand')} role="tab" aria-selected={activeTab === 'brand'}>
-          <Icon name="building" size={15} />
-          <span>Brand &amp; Contact</span>
-        </a>
-        <a class={tabClass('locations')} href={tabHref('locations')} role="tab" aria-selected={activeTab === 'locations'}>
-          <Icon name="pin" size={15} />
-          <span>Mandap Map Locations</span>
-          {mandaps.length > 0 && <span class="tab-badge">{mandaps.length}</span>}
-        </a>
-        {corePages.map((page) => (
-          <a class={tabClass(`page-${page.key}`)} href={tabHref(`page-${page.key}`)} role="tab" aria-selected={activeTab === `page-${page.key}`}>
-            <Icon name={page.icon} size={15} />
-            <span>{page.label}</span>
-          </a>
-        ))}
-        <a class={tabClass('videos')} href={tabHref('videos')} role="tab" aria-selected={activeTab === 'videos'}>
-          <Icon name="play" size={15} />
-          <span>Videos &amp; Reels</span>
-          {videoPreviews.length > 0 && <span class="tab-badge">{videoPreviews.length}</span>}
-        </a>
-        <a class={tabClass('seo')} href={tabHref('seo')} role="tab" aria-selected={activeTab === 'seo'}>
-          <Icon name="search" size={15} />
-          <span>SEO Metadata</span>
-        </a>
-        <a class={tabClass('features')} href={tabHref('features')} role="tab" aria-selected={activeTab === 'features'}>
-          <Icon name="sparkles" size={15} />
-          <span>Feature Tiles</span>
-        </a>
-        {isAdmin && (
-          <a class={tabClass('publish')} href={tabHref('publish')} role="tab" aria-selected={activeTab === 'publish'}>
-            <Icon name="upload" size={15} />
-            <span>Publish Changes</span>
-            {activePublication && <span class="tab-badge">1</span>}
-          </a>
-        )}
-      </div>
-    </div>
+    <!-- Collapsible section navigation -->
+    <nav class="studio-tab-bar" aria-label="Content Studio Sections">
+      {contentTabGroups.map((group) => (
+        <details class="studio-nav-group" open={activeTabGroup === group.key}>
+          <summary>
+            <span class="studio-nav-summary">
+              <Icon name={group.icon} size={15} />
+              <span>{group.label}</span>
+            </span>
+            <span class="studio-nav-count">{group.tabs.length}</span>
+            <Icon name="chevron-down" size={14} class="studio-nav-chevron" />
+          </summary>
+          <div class="studio-nav-links">
+            {group.tabs.map((tab) => (
+              <a
+                class={tabClass(tab.key)}
+                href={tabHref(tab.key)}
+                aria-current={activeTab === tab.key ? 'page' : undefined}
+              >
+                <Icon name={tab.icon} size={15} />
+                <span>{tab.label}</span>
+                {tab.badge ? <span class="tab-badge">{tab.badge}</span> : null}
+              </a>
+            ))}
+          </div>
+        </details>
+      ))}
+    </nav>
 
     <!-- ==================== TAB 1: BRAND & CONTACT ==================== -->
     {activeTab === 'brand' && (
@@ -1267,31 +1307,71 @@ const pageContentMap = new Map(pagesContent.map((p) => [p.page_key, p]));
     font-weight: 500;
   }
   .studio-tab-bar {
-    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    overflow: visible;
+  }
+  .studio-nav-group {
     border: 1px solid var(--line);
     border-radius: var(--r-md);
-    padding: 6px;
-    overflow-x: auto;
+    background: var(--surface);
+    overflow: hidden;
   }
-  .studio-tabs {
+  .studio-nav-group > summary {
     display: flex;
-    gap: 4px;
-    min-width: max-content;
-  }
-  .studio-tab-btn {
-    display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 9px 14px;
+    padding: 11px 14px;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+    background: var(--canvas-warm);
+    color: var(--ink-2);
+    font-size: 12.5px;
+    font-weight: 600;
+    transition: background 0.15s ease;
+  }
+  .studio-nav-group > summary::-webkit-details-marker { display: none; }
+  .studio-nav-group > summary:hover { background: var(--surface); }
+  .studio-nav-group[open] > summary { border-bottom: 1px solid var(--line); }
+  .studio-nav-summary { display: inline-flex; align-items: center; gap: 8px; flex: 1; }
+  .studio-nav-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 21px;
+    height: 21px;
+    padding: 0 6px;
+    border-radius: var(--r-pill);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 10px;
+  }
+  .studio-nav-chevron { color: var(--muted); transition: transform 0.18s ease; }
+  .studio-nav-group[open] .studio-nav-chevron { transform: rotate(180deg); }
+  .studio-nav-links { display: flex; flex-direction: column; gap: 2px; padding: 6px; }
+  .studio-tab-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 10px;
     background: transparent;
     border: none;
     border-radius: var(--r-sm);
-    font-size: 13px;
+    font-size: 12.5px;
     font-weight: 500;
     color: var(--text-soft);
     cursor: pointer;
     transition: all 0.15s ease;
-    white-space: nowrap;
+    text-align: left;
   }
   .studio-tab-btn:hover {
     background: rgba(0, 0, 0, 0.04);
@@ -1302,6 +1382,7 @@ const pageContentMap = new Map(pagesContent.map((p) => [p.page_key, p]));
     color: #fff;
     font-weight: 600;
   }
+  .studio-tab-btn .tab-badge { margin-left: auto; }
   .tab-badge {
     background: rgba(255, 255, 255, 0.2);
     color: inherit;

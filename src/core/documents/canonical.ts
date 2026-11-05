@@ -30,6 +30,11 @@ export interface CanonicalFinancials {
   depositValue: number | null;
 }
 
+export interface CanonicalDetail {
+  label: string;
+  value: string;
+}
+
 export interface CanonicalDocumentData {
   documentType: string;
   reference: string;
@@ -50,6 +55,7 @@ export interface CanonicalDocumentData {
     venue: string;
   };
   lines: CanonicalDocumentLine[];
+  details?: CanonicalDetail[];
   financials: CanonicalFinancials | null;
   notes: string;
   terms: string[];
@@ -154,6 +160,30 @@ export function buildBookingDocument(data: QuotationData, business: CanonicalBus
 }
 
 export function buildEnquiryDocument(data: EnquiryReceiptData): CanonicalDocumentData {
+  const linked = data.enquiry.linkedBooking ?? null;
+  const linkedTotal = linked ? amount(linked.totalAmount) : 0;
+  const linkedDeposit = linked
+    ? amount(linked.advanceAmount) > 0
+      ? amount(linked.advanceAmount)
+      : calculateRequiredDeposit(linkedTotal, linked.depositType, linked.depositValue)
+    : 0;
+  const linkedPaid = linked ? amount(linked.amountPaid) : 0;
+  const linkedOutstanding = linked ? amount(linked.outstandingBalance) : 0;
+  const details: CanonicalDetail[] = [];
+  if (data.enquiry.endDate) details.push({ label: 'End date', value: data.enquiry.endDate });
+  if (data.enquiry.budgetRange) details.push({ label: 'Budget range', value: data.enquiry.budgetRange });
+  if (data.enquiry.preferredContact) details.push({ label: 'Preferred contact', value: data.enquiry.preferredContact });
+  if (data.enquiry.additionalServices) {
+    details.push({ label: 'Additional services', value: data.enquiry.additionalServices });
+  }
+  details.push({
+    label: 'Guest rooms',
+    value: data.enquiry.requiresRooms ? `${data.enquiry.roomCount} room(s) requested` : 'Not required',
+  });
+  if (linked) {
+    details.push({ label: 'Linked booking', value: `#${linked.id} · ${linked.status}` });
+  }
+
   return {
     documentType: 'Enquiry acknowledgement',
     reference: data.enquiry.referenceCode,
@@ -180,13 +210,29 @@ export function buildEnquiryDocument(data: EnquiryReceiptData): CanonicalDocumen
       unitPricePaise: null,
       amountPaise: null,
       onRequest: true,
-      note: item.dimensions,
+      note: [item.dimensions, item.requestedDimensions, item.specifications, item.notes]
+        .filter(Boolean)
+        .join(' · '),
     })),
-    financials: null,
+    details,
+    financials: linked
+      ? {
+          totalPaise: linkedTotal,
+          requiredDepositPaise: linkedDeposit,
+          amountPaidPaise: linkedPaid,
+          outstandingBalancePaise: linkedOutstanding,
+          amountDueNowPaise: linkedPaid < linkedDeposit
+            ? Math.max(0, linkedDeposit - linkedPaid)
+            : linkedOutstanding,
+          paymentStatus: linked.paymentStatus || 'unpaid',
+          depositType: linked.depositType || 'percentage',
+          depositValue: linked.depositValue ?? 25,
+        }
+      : null,
     notes: [data.enquiry.accommodationNotes, data.enquiry.decorationNotes].filter(Boolean).join('\n'),
     terms: [
       'This is an enquiry acknowledgement, not a confirmed booking or tax invoice.',
-      'No payment has been received for this enquiry.',
+      linked ? 'Amounts above reflect the linked booking record.' : 'No payment has been received for this enquiry.',
       'Your date is reserved only after a written quotation is accepted and the required deposit is received.',
     ],
     quotationVersion: null,
@@ -209,9 +255,15 @@ export interface QuotationDocumentInput {
     customer_address?: string | null;
     event_type: string;
     event_date: string;
+    end_date?: string | null;
     event_time: string | null;
     venue_location: string;
     guest_count: number;
+    budget_range?: string | null;
+    requires_rooms?: boolean | number | null;
+    room_count?: number | null;
+    preferred_contact?: string | null;
+    additional_services?: string | null;
     decoration_notes?: string | null;
     accommodation_notes?: string | null;
     created_at: string;
@@ -222,6 +274,7 @@ export interface QuotationDocumentInput {
     total_paise: number;
     notes: string | null;
     prepared_at: string | null;
+    prepared_by_name?: string | null;
   };
   lines: Array<{
     line_type: string;
@@ -245,6 +298,22 @@ export function buildQuotationDocument(
 ): CanonicalDocumentData {
   const totalPaise = amount(input.quotation.total_paise);
   const requiredDeposit = calculateRequiredDeposit(totalPaise, 'percentage', 25);
+  const details: CanonicalDetail[] = [];
+  if (input.enquiry.end_date) details.push({ label: 'End date', value: input.enquiry.end_date });
+  if (input.enquiry.budget_range) details.push({ label: 'Budget range', value: input.enquiry.budget_range });
+  if (input.enquiry.preferred_contact) details.push({ label: 'Preferred contact', value: input.enquiry.preferred_contact });
+  if (input.enquiry.additional_services) {
+    details.push({ label: 'Additional services', value: input.enquiry.additional_services });
+  }
+  details.push({
+    label: 'Guest rooms',
+    value: Number(input.enquiry.requires_rooms)
+      ? `${Number(input.enquiry.room_count ?? 0)} room(s) requested`
+      : 'Not required',
+  });
+  if (input.quotation.prepared_by_name) {
+    details.push({ label: 'Prepared by', value: input.quotation.prepared_by_name });
+  }
   return {
     documentType: 'Prepared quotation',
     reference: input.enquiry.reference_code,
@@ -273,6 +342,7 @@ export function buildQuotationDocument(
       onRequest: amount(line.quoted_subtotal_paise) <= 0,
       note: line.notes || '',
     })),
+    details,
     financials: {
       totalPaise,
       requiredDepositPaise: requiredDeposit,

@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { sqliteSchemaSql as schemaSql } from './sqlite-schema';
 import { hashPassword, verifyPassword } from './password';
 import { seedDatabase } from './seed';
+import { requiredSeedCredential } from './seed-credentials';
 import { initStorageSchema } from './storage/schema';
 import { recordDb } from './perf';
 
@@ -175,10 +176,7 @@ function migrateBookingsFinancials(db: DatabaseSync): void {
 }
 
 function ensureAdminUser(db: DatabaseSync): void {
-  const adminPassword =
-    process.env.ADMIN_PASSWORD ||
-    (typeof import.meta !== 'undefined' && import.meta.env?.ADMIN_PASSWORD) ||
-    'admin';
+  const adminPassword = requiredSeedCredential('ADMIN_PASSWORD', 'admin');
 
   const existing = db
     .prepare("SELECT id, password_hash, role, is_active FROM users WHERE username = 'admin' COLLATE NOCASE")
@@ -204,10 +202,7 @@ function ensureAdminUser(db: DatabaseSync): void {
 }
 
 function ensureEditorUser(db: DatabaseSync): void {
-  const editorPassword =
-    process.env.EDITOR_PASSWORD ||
-    (typeof import.meta !== 'undefined' && import.meta.env?.EDITOR_PASSWORD) ||
-    'Editor@Royal2026!';
+  const editorPassword = requiredSeedCredential('EDITOR_PASSWORD', 'Editor@Royal2026!');
 
   const existing = db
     .prepare("SELECT id, password_hash, role, is_active FROM users WHERE username = 'content_editor' COLLATE NOCASE")

@@ -8,7 +8,13 @@ import ProfilePage from './pages/ProfilePage.astro';
 import AccountPage from './pages/AccountPage.astro';
 import ForgotPasswordPage from './pages/ForgotPasswordPage.astro';
 import RegisterPage from './pages/RegisterPage.astro';
-import { authenticate, changePassword, ensureCustomerForUser, registerCustomer, updateOwnProfile } from './service';
+import { handlePublicLogin } from './login';
+import {
+  changePassword,
+  ensureCustomerForUser,
+  registerCustomer,
+  updateOwnProfile,
+} from './service';
 import { findUserById, updateUserName } from '../../core/operational/service';
 import { RATE_LIMITS, checkRateLimit, rateLimitKey } from '../../core/rate-limit';
 import { loadCustomerBookings } from '../bookings/service';
@@ -21,50 +27,7 @@ export default defineModule({
     {
       path: '/login',
       component: LoginPage,
-      handle: async (ctx) => {
-        const nextParam = ctx.url.searchParams.get('next') ?? '';
-
-        if (ctx.auth.user) return redirect(safeNext(nextParam, '/'));
-
-        if (ctx.request.method === 'POST') {
-          const limit = checkRateLimit(rateLimitKey(ctx.request, 'login'), RATE_LIMITS.login);
-          if (!limit.allowed) {
-            return {
-              props: {
-                error: `Too many sign-in attempts. Please try again in ${limit.retryAfterSeconds} seconds.`,
-                next: nextParam,
-                username: '',
-              },
-              status: 429,
-            };
-          }
-
-          const login = getString(ctx.form, 'username');
-          const password = getString(ctx.form, 'password');
-          const user = await authenticate(login, password);
-
-          if (!user) {
-            return { props: { error: 'Invalid username/email or password.', next: nextParam, username: login } };
-          }
-          if (user.role !== 'customer') {
-            return {
-              props: {
-                error: 'Staff accounts must sign in through the admin console.',
-                next: nextParam,
-                username: login,
-              },
-              status: 403,
-            };
-          }
-
-          startSession(ctx.cookies, user.id, user.password_hash);
-          setSuccess(ctx.cookies, `Welcome back, ${user.first_name || user.username}!`);
-          const target = getString(ctx.form, 'next') || nextParam;
-          return redirect(safeNext(target, '/'));
-        }
-
-        return { props: { error: null, next: nextParam, username: '' } };
-      },
+      handle: handlePublicLogin,
     },
     {
       path: '/register',

@@ -196,6 +196,7 @@ export interface EnquiryPayload {
     id?: unknown;
     guestCount?: unknown;
     notes?: unknown;
+    selectedItems?: Array<{ section?: unknown; item?: unknown }>;
   } | null;
   cateringNotes?: unknown;
   additionalServices?: unknown;
@@ -390,6 +391,17 @@ export async function createEnquiry(
     ? 'furniture'
     : 'equipment';
   const cateringId = payload.catering?.id ? integer(payload.catering.id, 0) : 0;
+  const cateringSelectedItems = Array.isArray(payload.catering?.selectedItems)
+    ? payload.catering.selectedItems
+        .map((entry) => {
+          const raw = record(entry);
+          return {
+            section: text(raw.section, 120) || 'Menu',
+            item: text(raw.item, 160),
+          };
+        })
+        .filter((entry) => entry.item)
+    : [];
   const hasCatalogueSelection =
     Boolean(payload.mandap?.id) ||
     Boolean(payload.stage?.id) ||
@@ -414,7 +426,9 @@ export async function createEnquiry(
           furniture: furniturePayload
             .map((entry) => ({ id: entry.id as string | number, quantity: integer(entry.quantity, 0) }))
             .filter((entry) => entry.quantity > 0),
-          catering: cateringId > 0 ? { id: cateringId, guestCount } : null,
+          catering: cateringId > 0
+            ? { id: cateringId, guestCount, selectedItems: cateringSelectedItems }
+            : null,
         },
         planCatalogue.pricing,
       );

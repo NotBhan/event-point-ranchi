@@ -528,7 +528,7 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
                 <div>
                   <div class="section-badge-pill">Inventory &amp; Seating</div>
                   <h3>Furniture, Dining &amp; Technical Equipment</h3>
-                  <p>Browse our verified Ranchi inventory ({equipmentCount} items available). Increment quantities directly on each item card.</p>
+                  <p>Browse our verified Ranchi inventory ({equipmentCount} items available). Set quantities in the list; each selected line shows its running amount.</p>
                 </div>
                 <div class="equipment-live-badge" data-plan-equipment-status>
                   0 items selected
@@ -589,6 +589,16 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
                 ))}
               </select>
 
+              <div class="plan-carried-catering" data-plan-carried-catering hidden>
+                <div class="plan-carried-catering-icon"><Icon name="utensils" size={17} /></div>
+                <div class="plan-carried-catering-copy">
+                  <span class="eyebrow">From package builder</span>
+                  <strong data-plan-carried-name></strong>
+                  <span data-plan-carried-meta></span>
+                  <div class="plan-carried-items" data-plan-carried-items></div>
+                </div>
+              </div>
+
               <div class="plan-visual-grid" role="radiogroup" aria-label="Catering packages">
                 <div
                   class="plan-visual-card plan-skip-card is-selected"
@@ -624,44 +634,47 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
                       <span class="card-cat-badge">{pkg.badge || 'Catering'}</span>
                       <span class="card-selected-tick" aria-hidden="true">✓</span>
                     </div>
-                    <div class="card-content">
-                      <h4 class="card-title">{pkg.name}</h4>
-                      <div class="card-price-status" style="font-size:13px;font-weight:700;color:var(--gold-ink);">
-                        {formatCataloguePrice(pkg.price_per_plate_paise)} <small style="font-weight:400;color:var(--muted);">/ plate</small>
+                    <div class="card-content catering-card-content">
+                      <div class="catering-card-head">
+                        <div class="catering-card-title-wrap">
+                          <h4 class="card-title">{pkg.name}</h4>
+                          <p class="catering-card-description">{pkg.description}</p>
+                        </div>
+                        <div class="catering-card-price">
+                          <strong>{formatCataloguePrice(pkg.price_per_plate_paise)}</strong>
+                          <span>/ plate</span>
+                        </div>
                       </div>
-                      <p class="card-snippet">{pkg.description}</p>
+
                       {pkg.features.length > 0 && (
-                        <ul class="text-xs text-muted" style="margin:8px 0 0;padding-left:18px;line-height:1.6;">
-                          {pkg.features.map((feature) => <li>{feature}</li>)}
-                        </ul>
-                      )}
-                      {pkg.guest_pricing.length > 0 && (
-                        <div class="text-xs text-muted" style="margin-top:8px;">
-                          <strong>Tier pricing:</strong>{' '}
-                          {pkg.guest_pricing.map((tier: any) => `${tier.guest_count} guests — ${formatCataloguePrice(tier.price_per_plate_paise)}/plate`).join(' · ')}
+                        <div class="catering-card-features">
+                          {pkg.features.slice(0, 4).map((feature) => <span>{feature}</span>)}
+                          {pkg.features.length > 4 && <span class="is-more">+{pkg.features.length - 4} more</span>}
                         </div>
                       )}
-                      {pkg.menu_sections.length > 0 && (
-                        <details class="dimension-accordion" style="margin-top:10px;">
-                          <summary class="dimension-accordion-trigger" style="padding:10px 0;">
-                            <div class="accordion-trigger-title"><Icon name="utensils" size={14} /><span>Menu &amp; inclusions</span></div>
-                            <span class="accordion-badge">View</span>
-                          </summary>
-                          <div class="dimension-accordion-body">
-                            {pkg.menu_sections.map((section: any) => (
-                              <div class="text-xs" style="margin-bottom:8px;">
-                                <strong>{section.title || section.name || 'Menu section'}</strong>
-                                {Array.isArray(section.items) && section.items.length > 0 && (
-                                  <div class="text-muted">{section.items.map((item: any) => typeof item === 'string' ? item : item.name).filter(Boolean).join(', ')}</div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </details>
-                      )}
-                      <button type="button" class="btn btn-secondary btn-sm card-select-btn" data-plan-catering-select={pkg.id}>
-                        Select Catering
-                      </button>
+
+                      <div class="catering-card-meta">
+                        {pkg.menu_sections.length > 0 && (
+                          <span>{pkg.menu_sections.length} menu section{pkg.menu_sections.length === 1 ? '' : 's'}</span>
+                        )}
+                        {pkg.guest_pricing.length > 0 && (
+                          <span>
+                            {pkg.guest_pricing.length} guest tier{pkg.guest_pricing.length === 1 ? '' : 's'} · from{' '}
+                            {formatCataloguePrice(Math.min(...pkg.guest_pricing.map((tier: any) => Number(tier.price_per_plate_paise))))}
+                          </span>
+                        )}
+                      </div>
+
+                      <div class="catering-card-selection" data-catering-card-summary hidden>
+                        <span>Menu choice</span>
+                        <strong data-catering-card-selected-items></strong>
+                      </div>
+
+                      <div class="catering-card-actions">
+                        <button type="button" class="btn btn-secondary btn-sm" data-plan-catering-select={pkg.id}>
+                          Build / review menu
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1005,6 +1018,45 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
     </div>
   </section>
 
+  <!-- Catering menu builder popup -->
+  <dialog class="catering-menu-dialog" data-catering-menu-dialog aria-labelledby="cateringMenuTitle">
+    <div class="catering-menu-shell">
+      <header class="catering-menu-head">
+        <div>
+          <span class="eyebrow">Catering package builder</span>
+          <h2 id="cateringMenuTitle" data-catering-menu-title>Build your menu</h2>
+          <p data-catering-menu-meta></p>
+        </div>
+        <button type="button" class="catering-menu-close" data-catering-menu-cancel aria-label="Close menu builder">×</button>
+      </header>
+
+      <div class="catering-menu-mode" role="group" aria-label="Menu selection mode">
+        <button type="button" class="is-active" data-catering-menu-mode="default" aria-pressed="true">
+          Default menu
+        </button>
+        <button type="button" data-catering-menu-mode="custom" aria-pressed="false">
+          Customize menu
+        </button>
+      </div>
+      <p class="catering-menu-mode-help" data-catering-menu-mode-help>
+        The package's curated default selection is included.
+      </p>
+
+      <div class="catering-menu-body" data-catering-menu-body></div>
+      <p class="catering-menu-message" data-catering-menu-message role="status" hidden></p>
+
+      <footer class="catering-menu-foot">
+        <button type="button" class="btn btn-ghost btn-sm" data-catering-menu-default>
+          Use default menu
+        </button>
+        <div class="catering-menu-actions">
+          <button type="button" class="btn btn-secondary btn-sm" data-catering-menu-cancel>Cancel</button>
+          <button type="button" class="btn btn-primary btn-sm" data-catering-menu-apply>Apply menu</button>
+        </div>
+      </footer>
+    </div>
+  </dialog>
+
   <!-- Official Digital Enquiry Slip Receipt -->
   <section class="section-sm plan-receipt-section" data-plan-receipt hidden aria-live="polite">
     <div class="container print-receipt-container">
@@ -1045,9 +1097,12 @@ const equipmentCount = catalogue.equipment.reduce((sum, category) => sum + categ
               <Icon name="external" size={15} /> View full receipt
             </a>
             <div class="receipt-qr-secondary">
-              <button type="button" class="btn btn-secondary" onclick="window.print()">
+              <button type="button" class="btn btn-secondary" data-receipt-print>
                 <Icon name="receipt" size={14} /> Print slip
               </button>
+              <a href="#" class="btn btn-gold" data-receipt-pdf-link download>
+                <Icon name="download" size={14} /> Download PDF
+              </a>
             </div>
           </div>
 

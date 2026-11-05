@@ -1374,6 +1374,17 @@
     padding-right: 2px;
   }
 
+  body .equipment-list-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  body .equipment-list-qty,
+  body .equipment-list-amount {
+    align-items: flex-start;
+    text-align: left;
+  }
+
   body .equipment-mini-stepper {
     align-self: stretch;
     justify-content: space-between;

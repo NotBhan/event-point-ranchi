@@ -125,10 +125,9 @@ function adminFocusables(root: HTMLElement): HTMLElement[] {
 function revealActiveStudioTab(): void {
   const active = document.querySelector<HTMLElement>('.studio-tab-btn.active');
   if (!active) return;
-  const rail = active.closest<HTMLElement>('.studio-tab-bar');
-  if (!rail) return;
-  const target = active.offsetLeft - rail.clientWidth / 2 + active.clientWidth / 2;
-  rail.scrollTo({ left: Math.max(0, target), behavior: 'auto' });
+  const group = active.closest<HTMLDetailsElement>('details');
+  if (group) group.open = true;
+  active.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
 
 document.addEventListener('click', (event) => {

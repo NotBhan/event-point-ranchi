@@ -10,3 +10,10 @@ content-snapshot/*.json
 .env
 .DS_Store
 *.log
+.commandcode/
+coverage/
+test-results/
+playwright-report/
+*.tsbuildinfo
+.env.*
+!.env.example

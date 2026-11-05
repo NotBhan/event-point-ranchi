@@ -7,9 +7,11 @@ interface Props {
 }
 
 const { initialToken = '' } = Astro.props;
+const csrf = Astro.locals.csrf;
 ---
 
 <AdminLayout title="Enquiry QR Scanner" description="Instant smartphone & webcam QR decoder for customer event enquiries.">
+  <input type="hidden" id="scanCsrf" value={csrf} />
   <div class="admin-toolbar">
     <a href="/admin/new-enquiries" class="btn btn-secondary btn-sm">← New Enquiries</a>
     <span class="text-xs text-muted">Admin Quick Dispatch Desk</span>
@@ -413,14 +415,21 @@ const { initialToken = '' } = Astro.props;
       `;
 
       try {
+        const csrf = document.getElementById('scanCsrf') as HTMLInputElement | null;
         const response = await fetch('/api/admin/enquiry/lookup-by-qr', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-csrf-token': csrf?.value ?? '',
+          },
           body: JSON.stringify({ input: rawInput }),
         });
 
-        const data = await response.json();
-        if (!response.ok || !data.success || !data.enquiry) {
+        const contentType = response.headers.get('content-type') ?? '';
+        const data = contentType.includes('application/json')
+          ? await response.json().catch(() => null)
+          : { success: false, error: (await response.text()).trim() };
+        if (!response.ok || !data?.success || !data?.enquiry) {
           resultBadge.textContent = 'Not Found';
           resultBadge.className = 'badge badge-danger';
           resultBody.innerHTML = `
@@ -430,7 +439,7 @@ const { initialToken = '' } = Astro.props;
               </div>
               <h3 style="margin:0 0 8px;font-size:1.15rem;">Enquiry Not Found</h3>
               <p style="color:var(--muted);font-size:13px;max-width:340px;margin:0 auto 16px;">
-                ${esc(data.error || 'No matching customer enquiry was located in the Neon database.')}
+                ${esc(data?.error || 'No matching customer enquiry was located in the Neon database.')}
               </p>
               <button type="button" class="btn btn-secondary btn-sm" data-scan-again>
                 Scan Again

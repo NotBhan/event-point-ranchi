@@ -30,14 +30,20 @@ npm run db:reset     # delete the SQLite file; it is reseeded on the next reques
 
 ### Seeded accounts
 
+Local SQLite seeds these usernames for development and tests. Passwords are read
+from the environment; no production credentials are committed.
 
-| Role                   | Username                                                                                      | Password             |
-| ---------------------- | --------------------------------------------------------------------------------------------- | -------------------- |
-| Developer (full admin) | `admin`                                                                                       | `Admin@Royal2026!`   |
-| Superadmin             | `superadmin`                                                                                  | `Super@Royal2026!`   |
-| Admin (operations)     | `event_manager`                                                                               | `Manager@Royal2026!` |
-| Customers              | `rohit_sharma`, `priya_patel`, `vikram_mehta`, `ananya_singh`, `kavita_reddy`, `arjun_kapoor` | `Client@2026!`       |
+| Role                   | Username                                                                                      | Password source |
+| ---------------------- | --------------------------------------------------------------------------------------------- | --------------- |
+| Developer (full admin) | `admin`                                                                                       | `ADMIN_PASSWORD` |
+| Superadmin             | `superadmin`                                                                                  | `SUPERADMIN_PASSWORD` |
+| Admin (operations)     | `event_manager`                                                                               | `MANAGER_PASSWORD` |
+| Content editor         | `content_editor`                                                                              | `EDITOR_PASSWORD` |
+| Customers              | `rohit_sharma`, `priya_patel`, `vikram_mehta`, `ananya_singh`, `kavita_reddy`, `arjun_kapoor` | `CUSTOMER_SEED_PASSWORD` |
 
+`ADMIN_PASSWORD` and `EDITOR_PASSWORD` are required when seeding privileged
+accounts in production. Demo-only passwords are generated randomly in
+production if their environment variables are unset.
 
 Admin console: `/admin`. Customer account pages: `/profile`, `/my-bookings`.
 

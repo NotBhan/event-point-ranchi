@@ -55,6 +55,17 @@ const isLegacy = Boolean(document.isLegacy);
     </section>
   </div>
 
+  {document.details && document.details.length > 0 && (
+    <section class="canonical-section canonical-detail-section">
+      <h2>Additional event details</h2>
+      <dl class="canonical-detail-grid">
+        {document.details.map((detail) => (
+          <div><dt>{detail.label}</dt><dd>{detail.value}</dd></div>
+        ))}
+      </dl>
+    </section>
+  )}
+
   <section class="canonical-section">
     <div class="canonical-section-head">
       <h2>Itemised selections</h2>
@@ -181,6 +192,11 @@ const isLegacy = Boolean(document.isLegacy);
   .canonical-card dt { color: #75676a; }
   .canonical-card dd { margin: 0; text-align: right; font-weight: 600; overflow-wrap: anywhere; }
   .canonical-section { margin: 24px 0; }
+  .canonical-detail-section { border-top: 1px solid #eadfce; padding-top: 18px; }
+  .canonical-detail-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 20px; margin: 0; }
+  .canonical-detail-grid div { display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
+  .canonical-detail-grid dt { color: #75676a; }
+  .canonical-detail-grid dd { margin: 0; color: #2c1b20; font-weight: 600; overflow-wrap: anywhere; }
   .canonical-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
   .canonical-section-head h2 { margin: 0; }
   .canonical-table-wrap { overflow-x: auto; border: 1px solid #eadfce; border-radius: 8px; }
@@ -213,6 +229,7 @@ const isLegacy = Boolean(document.isLegacy);
   .canonical-contact strong { color: #2c1b20; }
   @media (max-width: 700px) {
     .canonical-grid, .canonical-financials { grid-template-columns: 1fr; }
+    .canonical-detail-grid { grid-template-columns: 1fr; }
     .canonical-head { flex-direction: column; }
     .canonical-meta { align-items: flex-start; text-align: left; }
     .canonical-footer { flex-direction: column; align-items: center; }

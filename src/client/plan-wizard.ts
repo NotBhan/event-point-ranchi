@@ -17,6 +17,18 @@ import {
 } from './requirements';
 import { clearEnquiryBrowserState } from './enquiry-state';
 import {
+  groupCateringItems,
+  readCateringHandoff,
+  summariseCateringItems,
+  type CateringHandoff,
+} from './catering-handoff';
+import {
+  defaultPlanMenuItems,
+  normalisePlanMenuSections,
+  planMenuItemsPreview,
+} from './plan-catering';
+import type { CartMenuItem } from './cart';
+import {
   calculateSelectionPricing,
   formatCataloguePrice,
   formatPricingStatus,
@@ -137,6 +149,7 @@ interface PlanDraft {
 }
 
 type DimensionResult = DimensionSet | null | 'invalid';
+type CateringMenuMode = 'default' | 'custom';
 
 const STEP_LABELS = [
   'Event & Venue Essentials',
@@ -154,6 +167,7 @@ const progressText = document.querySelector<HTMLElement>('[data-plan-progress-te
 const progressBar = document.querySelector<HTMLElement>('[data-plan-progress-bar]');
 const steps = Array.from(document.querySelectorAll<HTMLElement>('[data-plan-step]'));
 const progressButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-plan-step-link]'));
+const cateringMenuDialog = document.querySelector<HTMLDialogElement>('[data-catering-menu-dialog]');
 
 const state: {
   catalogue: PlanCatalogue;
@@ -172,6 +186,12 @@ const state: {
 
 const today = form?.dataset.today ?? new Date().toISOString().slice(0, 10);
 const csrf = form?.dataset.csrf ?? '';
+let carriedCatering: CateringHandoff | null = null;
+let carriedCateringMode: CateringMenuMode = 'default';
+let planCatering: CateringHandoff | null = null;
+let planCateringMode: CateringMenuMode = 'default';
+let cateringMenuPackageId = '';
+let cateringMenuMode: CateringMenuMode = 'default';
 
 function esc(value: unknown): string {
   return String(value ?? '')
@@ -659,6 +679,36 @@ function syncDimensionsFromInputs(kind: 'mandap' | 'stage'): void {
   renderLiveSummary();
 }
 
+function cateringPackageFor(id: string): PlanCatalogue['catering'][number] | null {
+  return (state?.catalogue.catering ?? []).find((entry) => String(entry.id) === id) ?? null;
+}
+
+function createPlanCatering(id: string, selectedItems?: CartMenuItem[]): CateringHandoff | null {
+  const pkg = cateringPackageFor(id);
+  if (!pkg) return null;
+  return {
+    id: String(pkg.id),
+    name: pkg.name,
+    guestCount: Math.max(1, Number(fieldValue('guestCount')) || 1),
+    pricePerPlate: Math.max(0, Number(pkg.price_per_plate_paise) || 0),
+    selectedItems: selectedItems ?? defaultPlanMenuItems(normalisePlanMenuSections(pkg.menu_sections)),
+  };
+}
+
+function selectedCateringHandoff(): CateringHandoff | null {
+  const selectedId = fieldValue('cateringPackageId');
+  if (carriedCatering && String(carriedCatering.id) === selectedId) return carriedCatering;
+  if (planCatering && String(planCatering.id) === selectedId) return planCatering;
+  return null;
+}
+
+function selectedCateringMode(): CateringMenuMode {
+  const selectedId = fieldValue('cateringPackageId');
+  if (carriedCatering && String(carriedCatering.id) === selectedId) return carriedCateringMode;
+  if (planCatering && String(planCatering.id) === selectedId) return planCateringMode;
+  return 'default';
+}
+
 function syncCateringSelection(): void {
   const selected = fieldValue('cateringPackageId');
   document.querySelectorAll<HTMLElement>('[data-plan-catering-card]').forEach((card) => {
@@ -667,20 +717,305 @@ function syncCateringSelection(): void {
     card.classList.toggle('is-selected', isSelected);
     card.setAttribute('aria-checked', String(isSelected));
   });
+
+  document.querySelectorAll<HTMLElement>('[data-catering-card-summary]').forEach((summary) => {
+    const card = summary.closest<HTMLElement>('[data-plan-catering-card]');
+    const id = card?.getAttribute('data-plan-catering-card') ?? '';
+    const choice = id === selected ? selectedCateringHandoff() : null;
+    const items = summary.querySelector<HTMLElement>('[data-catering-card-selected-items]');
+    if (!choice) {
+      summary.hidden = true;
+      if (items) items.textContent = '';
+      return;
+    }
+    summary.hidden = false;
+    if (items) {
+      items.textContent = selectedCateringMode() === 'custom' ? 'Custom menu' : 'Default menu';
+    }
+  });
+
+  renderCarriedCatering();
+}
+
+function renderCarriedCatering(): void {
+  const panel = document.querySelector<HTMLElement>('[data-plan-carried-catering]');
+  if (!panel) return;
+
+  const selectedId = fieldValue('cateringPackageId');
+  const pkg = cateringPackageFor(selectedId);
+  if (!carriedCatering || !pkg || String(carriedCatering.id) !== selectedId) {
+    panel.hidden = true;
+    return;
+  }
+
+  panel.hidden = false;
+  const name = panel.querySelector<HTMLElement>('[data-plan-carried-name]');
+  if (name) name.textContent = pkg.name;
+  const meta = panel.querySelector<HTMLElement>('[data-plan-carried-meta]');
+  if (meta) {
+    meta.textContent = `${carriedCatering.guestCount} guests · built from the catering package page`;
+  }
+
+  const items = panel.querySelector<HTMLElement>('[data-plan-carried-items]');
+  if (!items) return;
+  items.replaceChildren();
+  const groups = groupCateringItems(carriedCatering.selectedItems);
+  if (groups.length === 0) {
+    const note = document.createElement('span');
+    note.className = 'text-xs text-muted';
+    note.textContent = 'No individual menu items were selected.';
+    items.appendChild(note);
+    return;
+  }
+  for (const group of groups) {
+    const row = document.createElement('div');
+    row.className = 'plan-carried-item';
+    const label = document.createElement('strong');
+    label.textContent = group.section;
+    const value = document.createElement('span');
+    value.textContent = group.items.join(', ');
+    row.append(label, value);
+    items.appendChild(row);
+  }
 }
 
 function applyCateringSelection(id: string): void {
   const select = field<HTMLSelectElement>('cateringPackageId');
   if (select) select.value = id;
+  if (!id) {
+    carriedCatering = null;
+    carriedCateringMode = 'default';
+    planCatering = null;
+    planCateringMode = 'default';
+  } else if (carriedCatering && String(carriedCatering.id) !== id) {
+    carriedCatering = null;
+    carriedCateringMode = 'default';
+  } else if (planCatering && String(planCatering.id) !== id) {
+    planCatering = null;
+    planCateringMode = 'default';
+  }
+  if (id && !selectedCateringHandoff()) {
+    planCatering = createPlanCatering(id);
+    planCateringMode = 'default';
+  }
   syncCateringSelection();
   schedulePlanRender();
 }
 
-// Interactive Equipment Grid & Tabs
+function updateCateringMenuCounts(): void {
+  if (!cateringMenuDialog) return;
+  cateringMenuDialog.querySelectorAll<HTMLElement>('[data-catering-menu-section]').forEach((section) => {
+    const boxes = Array.from(section.querySelectorAll<HTMLInputElement>('[data-catering-menu-item]'));
+    const checked = boxes.filter((box) => box.checked).length;
+    const max = Number(section.dataset.menuMax ?? 0);
+    const count = section.querySelector<HTMLElement>('[data-catering-menu-count]');
+    if (count) {
+      count.textContent = max > 0 ? `${checked} / ${max} selected` : `${checked} selected`;
+    }
+    section.classList.toggle('limit-reached', max > 0 && checked >= max);
+  });
+}
+
+function setCateringMenuMessage(message = ''): void {
+  const node = cateringMenuDialog?.querySelector<HTMLElement>('[data-catering-menu-message]');
+  if (!node) return;
+  node.textContent = message;
+  node.hidden = !message;
+}
+
+function setCateringMenuMode(mode: CateringMenuMode, resetSelections = false): void {
+  cateringMenuMode = mode;
+  if (!cateringMenuDialog) return;
+  cateringMenuDialog.dataset.menuMode = mode;
+  setCateringMenuMessage();
+
+  cateringMenuDialog.querySelectorAll<HTMLButtonElement>('[data-catering-menu-mode]').forEach((button) => {
+    const active = button.dataset.cateringMenuMode === mode;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+
+  const locked = mode === 'default';
+  cateringMenuDialog.querySelectorAll<HTMLInputElement>('[data-catering-menu-item]').forEach((box) => {
+    box.disabled = locked;
+    box.closest('.catering-menu-option')?.classList.toggle('is-locked', locked);
+  });
+
+  const help = cateringMenuDialog.querySelector<HTMLElement>('[data-catering-menu-mode-help]');
+  if (help) {
+    help.textContent = locked
+      ? "The package's curated default selection is included. Switch to Customize menu to change items."
+      : 'Choose up to the section limits. Your custom selection will be saved with this package.';
+  }
+
+  if (locked && resetSelections) {
+    const pkg = cateringPackageFor(cateringMenuPackageId);
+    if (pkg) setCateringMenuSelection(defaultPlanMenuItems(normalisePlanMenuSections(pkg.menu_sections)));
+  }
+}
+
+function setCateringMenuSelection(items: CartMenuItem[]): void {
+  if (!cateringMenuDialog) return;
+  const selected = new Set(items.map((item) => `${item.section}|${item.item}`));
+  cateringMenuDialog.querySelectorAll<HTMLInputElement>('[data-catering-menu-item]').forEach((box) => {
+    box.checked = selected.has(`${box.dataset.menuSection ?? ''}|${box.value}`);
+  });
+  updateCateringMenuCounts();
+}
+
+function renderCateringMenu(pkg: PlanCatalogue['catering'][number], selectedItems: CartMenuItem[]): void {
+  if (!cateringMenuDialog) return;
+  const sections = normalisePlanMenuSections(pkg.menu_sections);
+  const title = cateringMenuDialog.querySelector<HTMLElement>('[data-catering-menu-title]');
+  const meta = cateringMenuDialog.querySelector<HTMLElement>('[data-catering-menu-meta]');
+  const body = cateringMenuDialog.querySelector<HTMLElement>('[data-catering-menu-body]');
+  if (title) title.textContent = `Build your menu — ${pkg.name}`;
+  if (meta) {
+    const guests = fieldValue('guestCount');
+    meta.textContent = `${formatCataloguePrice(pkg.price_per_plate_paise)} / plate${guests ? ` · ${guests} guests` : ''}`;
+  }
+  setCateringMenuMessage();
+
+  if (!body) return;
+  if (sections.length === 0) {
+    body.innerHTML = '<p class="catering-menu-empty">This package has no individual menu items configured yet. The package price still applies.</p>';
+    return;
+  }
+
+  const selected = new Set(selectedItems.map((item) => `${item.section}|${item.item}`));
+  body.innerHTML = sections
+    .map(
+      (section) => `
+        <section class="catering-menu-section" data-catering-menu-section data-menu-max="${section.maxSelection}">
+          <div class="catering-menu-section-head">
+            <h3>${esc(section.title)}</h3>
+            <span data-catering-menu-count>0 selected</span>
+          </div>
+          <div class="catering-menu-options">
+            ${section.items
+              .map(
+                (item) => `
+                  <label class="catering-menu-option">
+                    <input
+                      type="checkbox"
+                      data-catering-menu-item
+                      data-menu-section="${esc(section.title)}"
+                      value="${esc(item.name)}"
+                      ${selected.has(`${section.title}|${item.name}`) ? 'checked' : ''}
+                    />
+                    <span>${esc(item.name)}</span>
+                  </label>`,
+              )
+              .join('')}
+          </div>
+        </section>`,
+    )
+    .join('');
+
+  updateCateringMenuCounts();
+}
+
+function openCateringMenu(id: string): void {
+  const pkg = cateringPackageFor(id);
+  if (!pkg || !cateringMenuDialog) {
+    applyCateringSelection(id);
+    return;
+  }
+  cateringMenuPackageId = String(pkg.id);
+  const mode = selectedCateringMode();
+  const current = selectedCateringHandoff();
+  const initialItems = mode === 'custom' && current && String(current.id) === cateringMenuPackageId && current.selectedItems.length > 0
+    ? current.selectedItems
+    : defaultPlanMenuItems(normalisePlanMenuSections(pkg.menu_sections));
+  renderCateringMenu(pkg, initialItems);
+  setCateringMenuMode(mode, mode === 'default');
+  if (!cateringMenuDialog.open) cateringMenuDialog.showModal();
+  cateringMenuDialog.querySelector<HTMLElement>('[data-catering-menu-apply]')?.focus({ preventScroll: true });
+}
+
+function closeCateringMenu(): void {
+  cateringMenuPackageId = '';
+  if (cateringMenuDialog?.open) cateringMenuDialog.close();
+}
+
+function applyCateringMenu(): void {
+  if (!cateringMenuDialog) return;
+  const pkg = cateringPackageFor(cateringMenuPackageId);
+  if (!pkg) {
+    closeCateringMenu();
+    return;
+  }
+
+  const items = cateringMenuMode === 'default'
+    ? defaultPlanMenuItems(normalisePlanMenuSections(pkg.menu_sections))
+    : Array.from(
+        cateringMenuDialog.querySelectorAll<HTMLInputElement>('[data-catering-menu-item]:checked'),
+      ).map((input) => ({
+        section: input.dataset.menuSection ?? '',
+        item: input.value,
+      }));
+
+  const sameAsCarried =
+    carriedCatering &&
+    String(carriedCatering.id) === String(pkg.id) &&
+    carriedCateringMode === cateringMenuMode &&
+    carriedCatering.selectedItems.length === items.length &&
+    carriedCatering.selectedItems.every(
+      (item, index) => item.section === items[index]?.section && item.item === items[index]?.item,
+    );
+
+  if (sameAsCarried) {
+    planCatering = null;
+  } else {
+    carriedCatering = null;
+    carriedCateringMode = 'default';
+    planCatering = createPlanCatering(String(pkg.id), items);
+    planCateringMode = cateringMenuMode;
+  }
+
+  const select = field<HTMLSelectElement>('cateringPackageId');
+  if (select) select.value = String(pkg.id);
+  closeCateringMenu();
+  syncCateringSelection();
+  schedulePlanRender();
+}
+
+// Interactive Equipment List & Tabs
+function equipmentUnitLabel(unit: string): string {
+  return unit.replace(/^per\s+/i, '').trim() || 'item';
+}
+
+function equipmentAmount(item: CatalogueEquipmentItem, quantity: number): string {
+  if (quantity <= 0) return '—';
+  if (Number(item.price_paise) <= 0) return 'On request';
+  return formatSubtotalPaise(Number(item.price_paise) * quantity);
+}
+
+function equipmentLineMeta(item: CatalogueEquipmentItem, quantity: number): string {
+  if (quantity <= 0) return 'Not selected';
+  return `${quantity} ${equipmentUnitLabel(item.unit)}${quantity === 1 ? '' : 's'} × ${formatCataloguePrice(item.price_paise)}`;
+}
+
+function updateEquipmentStatus(): void {
+  const status = document.querySelector<HTMLElement>('[data-plan-equipment-status]');
+  if (!status || !state) return;
+  const equipment = readRequirements().equipment;
+  const totalUnits = equipment.reduce((sum, item) => sum + item.quantity, 0);
+  const pricedTotal = equipment.reduce((sum, requirement) => {
+    const item = state.catalogue.equipment
+      .flatMap((category) => category.items)
+      .find((candidate) => String(candidate.id) === String(requirement.id));
+    return item && item.price_paise > 0 ? sum + item.price_paise * requirement.quantity : sum;
+  }, 0);
+  status.textContent =
+    equipment.length === 0
+      ? '0 items selected'
+      : `${equipment.length} line items · ${totalUnits} units${pricedTotal > 0 ? ` · ${formatSubtotalPaise(pricedTotal)}` : ''}`;
+}
+
 function renderEquipmentGrid(): void {
   if (!state) return;
   const grid = document.querySelector<HTMLElement>('[data-equipment-grid]');
-  const status = document.querySelector<HTMLElement>('[data-plan-equipment-status]');
   if (!grid) return;
 
   if (!state.activeEquipmentCategory) {
@@ -691,58 +1026,63 @@ function renderEquipmentGrid(): void {
   const equipment = readRequirements().equipment;
   const equipmentMap = new Map(equipment.map((item) => [item.id, item.quantity]));
 
-  if (status) {
-    const totalUnits = equipment.reduce((sum, item) => sum + item.quantity, 0);
-    status.textContent =
-      equipment.length === 0
-        ? '0 items selected'
-        : `${equipment.length} line items · ${totalUnits} units`;
-  }
+  updateEquipmentStatus();
 
   if (!category || category.items.length === 0) {
     grid.innerHTML = '<p class="empty-inline">No inventory items available in this category.</p>';
     return;
   }
 
+  grid.setAttribute('role', 'list');
   grid.innerHTML = category.items
     .map((item) => {
       const currentQty = equipmentMap.get(String(item.id)) || 0;
       const isSelected = currentQty > 0;
+      const unit = equipmentUnitLabel(item.unit);
       return `
-        <div class="equipment-mini-card ${isSelected ? 'is-selected' : ''}" data-equipment-id="${item.id}">
-          <div class="equipment-mini-info">
-            <strong class="equipment-mini-title">${esc(item.name)}</strong>
-            <span class="equipment-mini-specs">${esc(item.specifications || item.description)}</span>
-            <small class="equipment-mini-unit">Per ${esc(item.unit)} · Min ${item.min_quantity}</small>
-            <small class="equipment-mini-price" style="display:block;margin-top:3px;font-weight:700;color:var(--gold-ink);">${esc(formatCataloguePrice(item.price_paise))}</small>
+        <div class="equipment-list-row ${isSelected ? 'is-selected' : ''}" data-equipment-id="${item.id}" role="listitem">
+          <div class="equipment-list-copy">
+            <div class="equipment-list-title-line">
+              <strong class="equipment-list-title">${esc(item.name)}</strong>
+              <span class="equipment-list-min">Min ${item.min_quantity}</span>
+            </div>
+            <span class="equipment-list-specs">${esc(item.specifications || item.description)}</span>
+            <small class="equipment-list-unit">Per ${esc(unit)}${item.dimensions ? ` · ${esc(item.dimensions)}` : ''}</small>
           </div>
-          <div class="equipment-mini-stepper">
-            <button
-              type="button"
-              class="stepper-btn minus"
-              data-plan-qty-step="-1"
-              data-plan-equipment-id="${item.id}"
-              aria-label="Decrease ${esc(item.name)} quantity"
-            >−</button>
-            <input
-              type="number"
-              class="stepper-input"
-              min="0"
-              max="10000"
-              step="1"
-              value="${currentQty}"
-              inputmode="numeric"
-              data-plan-qty-input
-              data-plan-equipment-id="${item.id}"
-              aria-label="${esc(item.name)} quantity"
-            />
-            <button
-              type="button"
-              class="stepper-btn plus"
-              data-plan-qty-step="1"
-              data-plan-equipment-id="${item.id}"
-              aria-label="Increase ${esc(item.name)} quantity"
-            >+</button>
+          <div class="equipment-list-qty">
+            <span class="equipment-list-qty-label">Quantity</span>
+            <div class="equipment-mini-stepper">
+              <button
+                type="button"
+                class="stepper-btn minus"
+                data-plan-qty-step="-1"
+                data-plan-equipment-id="${item.id}"
+                aria-label="Decrease ${esc(item.name)} quantity"
+              >−</button>
+              <input
+                type="number"
+                class="stepper-input"
+                min="0"
+                max="10000"
+                step="1"
+                value="${currentQty}"
+                inputmode="numeric"
+                data-plan-qty-input
+                data-plan-equipment-id="${item.id}"
+                aria-label="${esc(item.name)} quantity"
+              />
+              <button
+                type="button"
+                class="stepper-btn plus"
+                data-plan-qty-step="1"
+                data-plan-equipment-id="${item.id}"
+                aria-label="Increase ${esc(item.name)} quantity"
+              >+</button>
+            </div>
+          </div>
+          <div class="equipment-list-amount">
+            <strong data-equipment-line-total>${isSelected ? equipmentAmount(item, currentQty) : '—'}</strong>
+            <small data-equipment-line-meta>${equipmentLineMeta(item, currentQty)}</small>
           </div>
         </div>`;
     })
@@ -797,33 +1137,40 @@ function updateEquipmentQuantity(id: string, nextQty: number): void {
   schedulePlanRender();
 }
 
-/** Updates only the affected equipment card instead of rebuilding the grid. */
+/** Updates only the affected equipment row instead of rebuilding the list. */
 function updateEquipmentCard(id: string, quantity: number): void {
-  const card = document.querySelector<HTMLElement>(`.equipment-mini-card[data-equipment-id="${CSS.escape(id)}"]`);
-  if (card) {
-    const input = card.querySelector<HTMLInputElement>('[data-plan-qty-input]');
+  if (!state) return;
+  const row = document.querySelector<HTMLElement>(`.equipment-list-row[data-equipment-id="${CSS.escape(id)}"]`);
+  if (row) {
+    const input = row.querySelector<HTMLInputElement>('[data-plan-qty-input]');
     if (input && Number(input.value) !== quantity) {
       input.value = String(quantity);
     }
-    card.classList.toggle('is-selected', quantity > 0);
+    row.classList.toggle('is-selected', quantity > 0);
+
+    const item = state.catalogue.equipment
+      .flatMap((category) => category.items)
+      .find((candidate) => String(candidate.id) === id);
+    if (item) {
+      const total = row.querySelector<HTMLElement>('[data-equipment-line-total]');
+      if (total) total.textContent = equipmentAmount(item, quantity);
+      const meta = row.querySelector<HTMLElement>('[data-equipment-line-meta]');
+      if (meta) meta.textContent = equipmentLineMeta(item, quantity);
+    }
   }
 
-  const status = document.querySelector<HTMLElement>('[data-plan-equipment-status]');
-  if (status) {
-    const equipment = readRequirements().equipment;
-    const totalUnits = equipment.reduce((sum, entry) => sum + entry.quantity, 0);
-    status.textContent =
-      equipment.length === 0
-        ? '0 items selected'
-        : `${equipment.length} line items · ${totalUnits} units`;
-  }
+  updateEquipmentStatus();
 }
 
 function pricingSelection(): {
   mandap: { id: string | number } | null;
   stage: { id: string | number } | null;
   furniture: Array<{ id: string | number; quantity: number }>;
-  catering: { id: string | number; guestCount: number } | null;
+  catering: {
+    id: string | number;
+    guestCount: number;
+    selectedItems: Array<{ section: string; item: string }>;
+  } | null;
 } {
   const requirements = readRequirements();
   const cateringId = fieldValue('cateringPackageId');
@@ -833,7 +1180,13 @@ function pricingSelection(): {
     mandap: requirements.mandap ? { id: requirements.mandap.id } : null,
     stage: requirements.stage ? { id: requirements.stage.id } : null,
     furniture: requirements.equipment.map((item) => ({ id: item.id, quantity: item.quantity })),
-    catering: cateringId && guestCount > 0 ? { id: cateringId, guestCount } : null,
+    catering: cateringId && guestCount > 0
+      ? {
+          id: cateringId,
+          guestCount,
+          selectedItems: selectedCateringHandoff()?.selectedItems ?? [],
+        }
+      : null,
   };
 }
 
@@ -851,23 +1204,34 @@ function formatSubtotalPaise(paise: number): string {
   return `₹${(Number(paise || 0) / 100).toLocaleString('en-IN')}`;
 }
 
+function compactPricingStatus(status: SelectionPricing['pricingStatus']): string {
+  if (status === 'fully_priced') return 'Fully priced';
+  if (status === 'partially_priced') return 'Partial estimate';
+  return 'Quote required';
+}
+
 function pricingLinesHtml(pricing: SelectionPricing): string {
   if (pricing.items.length === 0) {
-    return '<p class="text-xs text-muted" style="margin:8px 0 0;">No catalogue selections yet.</p>';
+    return '<p class="text-xs text-muted plan-pricing-empty">No catalogue selections yet.</p>';
   }
 
   return `
     <div class="plan-pricing-lines">
       ${pricing.items
         .map((item) => {
-          const quantity = item.quantity > 1 ? ` × ${item.quantity}` : '';
-          const unit =
+          const unitLabel =
             item.category === 'catering'
               ? `${formatCataloguePrice(item.unitPricePaise)} / plate × ${item.quantity} guests`
-              : `${formatCataloguePrice(item.unitPricePaise)}${quantity}`;
-          return `<div class="plan-pricing-line">
-            <span><strong>${esc(item.name)}</strong>${item.category === 'catering' ? ` <small class="text-muted">(${item.quantity} guests)</small>` : ''}</span>
-            <span class="${item.pricingStatus === 'on_request' ? 'text-muted' : ''}">${esc(unit)}</span>
+              : `${item.quantity} × ${formatCataloguePrice(item.unitPricePaise)}`;
+          const subtotal = item.pricingStatus === 'priced'
+            ? formatSubtotalPaise(item.subtotalPaise ?? 0)
+            : 'On request';
+          return `<div class="plan-pricing-line ${item.pricingStatus === 'on_request' ? 'is-on-request' : ''}">
+            <div class="plan-pricing-line-main">
+              <strong>${esc(item.name)}</strong>
+              <small>${esc(unitLabel)}</small>
+            </div>
+            <strong class="plan-pricing-line-amount">${esc(subtotal)}</strong>
           </div>`;
         })
         .join('')}
@@ -876,8 +1240,10 @@ function pricingLinesHtml(pricing: SelectionPricing): string {
       <span>Priced subtotal</span>
       <strong>${formatSubtotalPaise(pricing.pricedSubtotalPaise)}</strong>
     </div>
-    ${pricing.unpricedItemCount > 0 ? `<p class="text-xs text-muted" style="margin:6px 0 0;">${pricing.unpricedItemCount} item${pricing.unpricedItemCount === 1 ? '' : 's'} require a final quotation.</p>` : ''}
-    <p class="text-xs" style="margin:6px 0 0;font-weight:600;">${esc(formatPricingStatus(pricing.pricingStatus))}</p>
+    <div class="plan-pricing-status status-${pricing.pricingStatus}">
+      <span>${esc(formatPricingStatus(pricing.pricingStatus))}</span>
+      ${pricing.unpricedItemCount > 0 ? `<small>${pricing.unpricedItemCount} item${pricing.unpricedItemCount === 1 ? '' : 's'} quoted separately</small>` : ''}
+    </div>
   `;
 }
 
@@ -900,47 +1266,56 @@ function renderLiveSummary(): void {
   const nonAcRooms = Number(fieldValue('nonAcRoomCount')) || 0;
   const cateringId = fieldValue('cateringPackageId');
   const catering = (state?.catalogue.catering ?? []).find((entry) => String(entry.id) === cateringId);
+  const cateringHandoff = selectedCateringHandoff();
+  const cateringSelectionSummary = cateringHandoff
+    ? planMenuItemsPreview(cateringHandoff.selectedItems, 4)
+    : '';
   const dateFormatted = eventDate ? new Date(`${eventDate}T00:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Date pending';
 
   const summaryHtml = `
-    <div class="blueprint-row">
-      <span class="blueprint-label">Celebration</span>
-      <strong class="blueprint-value">${esc(eventType)} · ${esc(dateFormatted)}</strong>
+    <div class="blueprint-event-summary">
+      <span class="blueprint-event-kicker">${esc(eventType)}</span>
+      <strong>${esc(dateFormatted)}</strong>
+      <span>${esc(venue || 'Ranchi location pending')}${guests ? ` · ${esc(guests)} guests` : ''}</span>
     </div>
-    <div class="blueprint-row">
-      <span class="blueprint-label">Venue</span>
-      <strong class="blueprint-value">${esc(venue || 'Ranchi location pending')}</strong>
-    </div>
-    <div class="blueprint-row">
-      <span class="blueprint-label">Attendance</span>
-      <strong class="blueprint-value">${guests ? `${esc(guests)} Guests` : 'Guest count pending'}</strong>
-    </div>
-    <div class="blueprint-row">
-      <span class="blueprint-label">Mandap</span>
-      <strong class="blueprint-value">${requirements.mandap ? esc(requirements.mandap.name) : '— No mandap'}</strong>
-    </div>
-    <div class="blueprint-row">
-      <span class="blueprint-label">Stage</span>
-      <strong class="blueprint-value">${requirements.stage ? esc(requirements.stage.name) : '— No stage'}</strong>
-    </div>
-    <div class="blueprint-row">
-      <span class="blueprint-label">Furniture &amp; equipment</span>
-      <strong class="blueprint-value">${requirements.equipment.length > 0 ? `${requirements.equipment.length} items (${totalUnits} units)` : '— None selected'}</strong>
-    </div>
-    <div class="blueprint-row">
-      <span class="blueprint-label">Catering</span>
-      <strong class="blueprint-value">${catering ? `${esc(catering.name)}${guests ? ` · ${esc(guests)} guests` : ''}` : '— Not selected'}</strong>
-    </div>
-    <div class="blueprint-row">
-      <span class="blueprint-label">Rooms</span>
-      <strong class="blueprint-value">${requiresRooms ? `${acRooms} AC, ${nonAcRooms} Non-AC` : 'Self-arranged'}</strong>
-    </div>
-    <div class="blueprint-pricing-panel">
+
+    <div class="blueprint-group">
+      <span class="blueprint-group-label">Decor &amp; stage</span>
       <div class="blueprint-row">
-        <span class="blueprint-label">Pricing</span>
-        <strong class="blueprint-value">${pricing ? esc(formatPricingStatus(pricing.pricingStatus)) : 'Pricing on quotation'}</strong>
+        <span class="blueprint-label">Mandap</span>
+        <strong class="blueprint-value">${requirements.mandap ? esc(requirements.mandap.name) : '— No mandap'}</strong>
       </div>
-      ${pricing ? pricingLinesHtml(pricing) : '<p class="text-xs text-muted" style="margin:8px 0 0;">Select valid items and a guest count to see the estimate.</p>'}
+      <div class="blueprint-row">
+        <span class="blueprint-label">Stage</span>
+        <strong class="blueprint-value">${requirements.stage ? esc(requirements.stage.name) : '— No stage'}</strong>
+      </div>
+    </div>
+
+    <div class="blueprint-group">
+      <span class="blueprint-group-label">Seating &amp; hospitality</span>
+      <div class="blueprint-row">
+        <span class="blueprint-label">Furniture &amp; equipment</span>
+        <strong class="blueprint-value">${requirements.equipment.length > 0 ? `${requirements.equipment.length} items (${totalUnits} units)` : '— None selected'}</strong>
+      </div>
+      <div class="blueprint-row">
+        <span class="blueprint-label">Catering</span>
+        <strong class="blueprint-value">${catering ? `${esc(catering.name)}${guests ? ` · ${esc(guests)} guests` : ''}` : '— Not selected'}${cateringSelectionSummary ? `<small class="blueprint-subvalue">${esc(cateringSelectionSummary)}</small>` : ''}</strong>
+      </div>
+      <div class="blueprint-row">
+        <span class="blueprint-label">Rooms</span>
+        <strong class="blueprint-value">${requiresRooms ? `${acRooms} AC, ${nonAcRooms} Non-AC` : 'Self-arranged'}</strong>
+      </div>
+    </div>
+
+    <div class="blueprint-pricing-panel">
+      <div class="blueprint-pricing-head">
+        <div>
+          <span class="blueprint-pricing-kicker">Live estimate</span>
+          <strong>${pricing ? formatSubtotalPaise(pricing.pricedSubtotalPaise) : 'Quotation required'}</strong>
+        </div>
+        <span class="blueprint-pricing-status">${pricing ? esc(compactPricingStatus(pricing.pricingStatus)) : 'Pricing on quotation'}</span>
+      </div>
+      ${pricing ? pricingLinesHtml(pricing) : '<p class="text-xs text-muted plan-pricing-empty">Select valid items and a guest count to see the estimate.</p>'}
     </div>
   `;
 
@@ -965,7 +1340,7 @@ function renderLiveSummary(): void {
   const statusNode = document.querySelector<HTMLElement>('[data-plan-mobile-status]');
   if (statusNode) {
     statusNode.textContent = pricing
-      ? formatPricingStatus(pricing.pricingStatus)
+      ? compactPricingStatus(pricing.pricingStatus)
       : 'Pricing on quotation';
   }
 }
@@ -1011,8 +1386,12 @@ function renderReview(): void {
       : 'No hotel room blocks required';
 
   const catering = state.catalogue.catering.find((entry) => String(entry.id) === draft.cateringPackageId);
+  const cateringHandoff = selectedCateringHandoff();
+  const cateringMenuText = cateringHandoff && String(cateringHandoff.id) === draft.cateringPackageId
+    ? planMenuItemsPreview(cateringHandoff.selectedItems, 6)
+    : '';
   const cateringText = catering
-    ? `<strong>${esc(catering.name)}</strong>${draft.guestCount ? ` · ${esc(draft.guestCount)} guests` : ''}${draft.cateringNotes ? `<br><small>${esc(draft.cateringNotes)}</small>` : ''}`
+    ? `<strong>${esc(catering.name)}</strong>${draft.guestCount ? ` · ${esc(draft.guestCount)} guests` : ''}${cateringMenuText ? `<br><small>Menu: ${esc(cateringMenuText)}</small>` : ''}${draft.cateringNotes ? `<br><small>${esc(draft.cateringNotes)}</small>` : ''}`
     : 'No catering package selected';
   const pricing = currentPricing();
   const pricingHtml = pricing
@@ -1133,6 +1512,7 @@ function buildPayload() {
           id: Number(fieldValue('cateringPackageId')),
           guestCount: Number(fieldValue('guestCount')),
           notes: fieldValue('cateringNotes'),
+          selectedItems: selectedCateringHandoff()?.selectedItems ?? [],
         }
       : null,
     cateringNotes: fieldValue('cateringNotes'),
@@ -1222,6 +1602,8 @@ function receiptSummaryHtml(pricing: SelectionPricing | null): string {
   const requirements = readRequirements();
   const cateringId = fieldValue('cateringPackageId');
   const catering = (state?.catalogue.catering ?? []).find((entry) => String(entry.id) === cateringId);
+  const carriedItems = selectedCateringHandoff();
+  const carriedSummary = carriedItems ? summariseCateringItems(carriedItems.selectedItems) : '';
   const eventType = fieldValue('eventType') || 'Celebration';
   const eventDate = fieldValue('eventDate');
   const venue = fieldValue('venueLocation');
@@ -1234,7 +1616,7 @@ function receiptSummaryHtml(pricing: SelectionPricing | null): string {
       <div><span class="text-muted">Mandap:</span> ${requirements.mandap ? esc(requirements.mandap.name) : 'Not selected'}</div>
       <div><span class="text-muted">Stage:</span> ${requirements.stage ? esc(requirements.stage.name) : 'Not selected'}</div>
       <div><span class="text-muted">Furniture &amp; equipment:</span> ${requirements.equipment.length ? `${requirements.equipment.length} selected line(s)` : 'Not selected'}</div>
-      <div><span class="text-muted">Catering:</span> ${catering ? esc(catering.name) : 'Not selected'}</div>
+      <div><span class="text-muted">Catering:</span> ${catering ? esc(catering.name) : 'Not selected'}${carriedSummary ? `<br><span class="text-xs text-muted">${esc(carriedSummary)}</span>` : ''}</div>
     </div>
     ${pricing ? pricingLinesHtml(pricing) : '<p class="text-sm text-muted">Pricing on quotation.</p>'}
     <p class="text-xs text-muted" style="margin-top:10px;">This is an enquiry acknowledgement, not a confirmed booking. Our team will review the requirements and prepare the quotation.</p>
@@ -1273,6 +1655,15 @@ function showReceipt(
       if (viewLink) viewLink.href = receiptUrl;
       const primaryLink = receipt.querySelector<HTMLAnchorElement>('[data-receipt-primary-link]');
       if (primaryLink) primaryLink.href = receiptUrl;
+
+      const pdfLink = receipt.querySelector<HTMLAnchorElement>('[data-receipt-pdf-link]');
+      if (pdfLink) {
+        const parsed = new URL(receiptUrl, window.location.origin);
+        const token = parsed.searchParams.get('token');
+        pdfLink.href = `/api/enquiries/receipt/${encodeURIComponent(reference)}/pdf${
+          token ? `?token=${encodeURIComponent(token)}` : ''
+        }`;
+      }
     }
 
     const heading = receipt.querySelector<HTMLElement>('h2');
@@ -1292,6 +1683,16 @@ if (state && form) {
   // The listeners below must always be attached. A failure while restoring or
   // painting package selections must never leave the wizard inert.
   try {
+    const handoff = readCateringHandoff();
+    if (handoff && state.catalogue.catering.some((entry) => String(entry.id) === handoff.id)) {
+      carriedCatering = handoff;
+      carriedCateringMode = handoff.selectedItems.length > 0 ? 'custom' : 'default';
+      const cateringSelect = field<HTMLSelectElement>('cateringPackageId');
+      if (cateringSelect) cateringSelect.value = handoff.id;
+      const guestField = field<HTMLInputElement>('guestCount');
+      if (guestField) guestField.value = String(handoff.guestCount);
+    }
+
     consumeRequirementsForPlan();
     syncSelectionInputs('mandap');
     syncSelectionInputs('stage');
@@ -1317,6 +1718,13 @@ if (state && form) {
     console.error('[plan-wizard] initial selections could not be rendered; navigation stays active.', error);
     goToStep(1, false);
   }
+
+  cateringMenuDialog?.addEventListener('click', (event) => {
+    if (event.target === cateringMenuDialog) closeCateringMenu();
+  });
+  cateringMenuDialog?.addEventListener('close', () => {
+    cateringMenuPackageId = '';
+  });
 
   form.addEventListener('input', (event) => {
     if (event.target instanceof HTMLElement) clearFieldError(event.target);
@@ -1347,6 +1755,11 @@ if (state && form) {
 
   document.addEventListener('click', (event) => {
     const target = event.target as HTMLElement;
+
+    if (target.closest('[data-receipt-print]')) {
+      window.print();
+      return;
+    }
 
     // Compact mobile summary sheet
     const mobileToggle = target.closest<HTMLElement>('[data-plan-mobile-toggle]');
@@ -1392,10 +1805,37 @@ if (state && form) {
       return;
     }
 
-    // Catering package selection
+    // Catering package selection opens the menu builder. Applying the builder
+    // is what records the package and its item selection.
     const cateringCard = target.closest<HTMLElement>('[data-plan-catering-card]');
     if (cateringCard) {
-      applyCateringSelection(cateringCard.getAttribute('data-plan-catering-card') ?? '');
+      const id = cateringCard.getAttribute('data-plan-catering-card') ?? '';
+      if (id) openCateringMenu(id);
+      else applyCateringSelection('');
+      return;
+    }
+
+    const cateringMenuApply = target.closest<HTMLElement>('[data-catering-menu-apply]');
+    if (cateringMenuApply) {
+      applyCateringMenu();
+      return;
+    }
+
+    if (target.closest('[data-catering-menu-cancel]')) {
+      closeCateringMenu();
+      return;
+    }
+
+    const cateringMenuDefault = target.closest<HTMLElement>('[data-catering-menu-default]');
+    if (cateringMenuDefault) {
+      setCateringMenuMode('default', true);
+      return;
+    }
+
+    const cateringMenuModeButton = target.closest<HTMLElement>('[data-catering-menu-mode]');
+    if (cateringMenuModeButton) {
+      const mode = cateringMenuModeButton.dataset.cateringMenuMode === 'custom' ? 'custom' : 'default';
+      setCateringMenuMode(mode, mode === 'default');
       return;
     }
 
@@ -1460,6 +1900,27 @@ if (state && form) {
 
   document.addEventListener('change', (event) => {
     const target = event.target as HTMLElement;
+
+    if (target.matches('[data-catering-menu-item]')) {
+      const input = target as HTMLInputElement;
+      const section = input.closest<HTMLElement>('[data-catering-menu-section]');
+      const max = Number(section?.dataset.menuMax ?? 0);
+      if (input.checked && max > 0) {
+        const checked = section
+          ? Array.from(section.querySelectorAll<HTMLInputElement>('[data-catering-menu-item]')).filter((box) => box.checked).length
+          : 0;
+        if (checked > max) {
+          input.checked = false;
+          setCateringMenuMessage(`Choose up to ${max} item${max === 1 ? '' : 's'} from this section.`);
+        } else {
+          setCateringMenuMessage();
+        }
+      } else {
+        setCateringMenuMessage();
+      }
+      updateCateringMenuCounts();
+      return;
+    }
 
     if (target.matches('[data-plan-qty-input]')) {
       const input = target as HTMLInputElement;

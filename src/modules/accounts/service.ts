@@ -21,6 +21,42 @@ export interface UserRow {
   password_hash: string;
 }
 
+export const PUBLIC_LOGIN_ACCOUNT_NOT_FOUND =
+  'Account not found. Please check your username or create a customer account.';
+export const PUBLIC_LOGIN_INVALID_PASSWORD = 'Invalid username/email or password.';
+
+export type CustomerLoginResult =
+  | { kind: 'success'; user: UserRow }
+  | { kind: 'invalid-password' }
+  | { kind: 'account-not-found' };
+
+const DUMMY_PASSWORD_HASH = hashPassword('not-a-public-account-password');
+
+function consumePasswordCheck(password: string, hash: string): boolean {
+  return verifyPassword(password, hash);
+}
+
+/**
+ * Public login only authenticates customer accounts.
+ *
+ * Staff and nonexistent usernames deliberately collapse into the same
+ * account-not-found result. Password hashing is still performed for every
+ * lookup, including unknown usernames, to avoid an obvious early-return timing
+ * difference.
+ */
+export async function authenticateCustomer(login: string, password: string): Promise<CustomerLoginResult> {
+  const user = await findUserByLogin(login);
+  if (!user) {
+    consumePasswordCheck(password, DUMMY_PASSWORD_HASH);
+    return { kind: 'account-not-found' };
+  }
+
+  const passwordValid = consumePasswordCheck(password, user.password_hash);
+  if (user.role !== 'customer') return { kind: 'account-not-found' };
+  if (!passwordValid) return { kind: 'invalid-password' };
+  return { kind: 'success', user };
+}
+
 export async function findUserByLogin(login: string): Promise<UserRow | undefined> {
   const user = await neonFindUserByLogin(login);
   return user as UserRow | undefined;
