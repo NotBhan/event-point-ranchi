@@ -1,7 +1,7 @@
 import { endAdminSession, requireAdmin, startAdminSession } from '../../../core/auth';
 import { paymentsEnabled } from '../../../core/features';
 import { setError, setSuccess } from '../../../core/flash';
-import { getInt, getString, parseMoneyToPaise, parsePageParams, redirect, safeNext } from '../../../core/http';
+import { getInt, getPassword, getString, parseMoneyToPaise, parsePageParams, redirect, safeNext } from '../../../core/http';
 import type { PageContext } from '../../../core/types';
 import { authenticate } from '../../accounts/service';
 import { loadBookingForViewer } from '../../bookings/service';
@@ -40,7 +40,7 @@ export async function adminLogin(ctx: PageContext) {
   if (ctx.adminAuth.user?.role === 'editor') return redirect('/admin/content');
 
   if (ctx.request.method === 'POST') {
-    const user = await authenticate(getString(ctx.form, 'username'), getString(ctx.form, 'password'));
+    const user = await authenticate(getString(ctx.form, 'username'), getPassword(ctx.form, 'password'));
 
     if (!user || user.role === 'customer') {
       return { props: { error: 'Invalid credentials or insufficient privileges.', next } };

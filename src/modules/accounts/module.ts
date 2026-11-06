@@ -1,7 +1,7 @@
 import { defineModule } from '../../core/define-module';
 import { endSession, refreshSession, requireCustomer, startSession } from '../../core/auth';
 import { setError, setSuccess } from '../../core/flash';
-import { getString, isEmail, redirect, safeNext } from '../../core/http';
+import { getPassword, getString, isEmail, redirect, safeNext } from '../../core/http';
 import LoginPage from './pages/LoginPage.astro';
 import MyBookingsPage from './pages/MyBookingsPage.astro';
 import ProfilePage from './pages/ProfilePage.astro';
@@ -55,8 +55,8 @@ export default defineModule({
             username: getString(ctx.form, 'username'),
             email: getString(ctx.form, 'email'),
             phone: getString(ctx.form, 'phone'),
-            password: getString(ctx.form, 'password'),
-            confirmPassword: getString(ctx.form, 'confirm_password'),
+            password: getPassword(ctx.form, 'password'),
+            confirmPassword: getPassword(ctx.form, 'confirm_password'),
           });
 
           if (!result.ok) {

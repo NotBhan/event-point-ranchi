@@ -51,6 +51,10 @@ const csrf = Astro.locals.csrf;
       <p class="auth-foot">
         New to Event Point Ranchi? <a href={`/register${next ? `?next=${encodeURIComponent(next)}` : ''}`}>Create an account</a>
       </p>
+
+      <p class="auth-foot" style="margin-top: 0.75rem; font-size: 0.85rem; color: var(--text-muted, #71717a);">
+        Staff or management console? <a href="/admin/login">Sign in here</a>
+      </p>
     </div>
   </section>
 </BaseLayout>

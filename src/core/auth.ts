@@ -209,7 +209,7 @@ export function requireAdmin(ctx: PageContext): Response | null {
 
 export function requireEditor(ctx: PageContext): Response | null {
   if (ctx.adminAuth?.isEditor) return null;
-  const next = safeNext(`${ctx.url.pathname}${ctx.url.search}`, '/admin/studio');
+  const next = safeNext(`${ctx.url.pathname}${ctx.url.search}`, '/admin/content');
   return redirect(`/admin/login?next=${encodeURIComponent(next)}`);
 }
 

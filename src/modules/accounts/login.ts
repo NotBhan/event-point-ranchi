@@ -1,6 +1,6 @@
 import { startSession } from '../../core/auth';
 import { setSuccess } from '../../core/flash';
-import { getString, redirect, safeNext } from '../../core/http';
+import { getPassword, getString, redirect, safeNext } from '../../core/http';
 import { RATE_LIMITS, checkRateLimit, rateLimitKey } from '../../core/rate-limit';
 import type { PageContext, PageHandlerResult } from '../../core/types';
 import {
@@ -31,7 +31,7 @@ export async function handlePublicLogin(ctx: PageContext): Promise<PageHandlerRe
   }
 
   const login = getString(ctx.form, 'username');
-  const password = getString(ctx.form, 'password');
+  const password = getPassword(ctx.form, 'password');
   const result = await authenticateCustomer(login, password);
 
   if (result.kind !== 'success') {
