@@ -36,6 +36,11 @@ export function getString(form: FormData | null, name: string): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+export function getPassword(form: FormData | null, name = 'password'): string {
+  const value = form?.get(name);
+  return typeof value === 'string' ? value : '';
+}
+
 export function getInt(form: FormData | null, name: string, fallback = 0): number {
   const value = Number.parseInt(getString(form, name), 10);
   return Number.isFinite(value) ? value : fallback;

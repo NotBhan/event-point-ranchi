@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { getNeonClient, type NeonOperationalClient } from './neon-client';
 import { verifyPassword, hashPassword } from '../password';
+import { optionalSeedCredential, requiredSeedCredential } from '../seed-credentials';
 import type { Role } from '../types';
 
 export interface UserRow {
@@ -206,12 +207,19 @@ export interface StorageObjectRow {
 
 export async function findUserByLogin(login: string): Promise<UserRow | undefined> {
   const neon = getNeonClient();
+  const trimmed = login.trim().toLowerCase();
+  const aliases: Record<string, string> = {
+    editor: 'content_editor',
+    manager: 'event_manager',
+  };
+  const aliasTarget = aliases[trimmed] || trimmed;
+
   const res = await neon.query<UserRow>(
-    `SELECT * FROM users WHERE LOWER(username) = LOWER($1) AND is_active = true
+    `SELECT * FROM users WHERE (LOWER(username) = LOWER($1) OR LOWER(username) = LOWER($2)) AND is_active = true
      UNION ALL
-     SELECT * FROM users WHERE LOWER(email) = LOWER($2) AND is_active = true
+     SELECT * FROM users WHERE LOWER(email) = LOWER($3) AND is_active = true
      LIMIT 1`,
-    [login, login],
+    [trimmed, aliasTarget, trimmed],
   );
   return res.rows[0];
 }
@@ -272,7 +280,161 @@ export async function findUserByIdCached(id: number): Promise<UserRow | undefine
   return row;
 }
 
+let privilegedSyncPromise: Promise<void> | null = null;
+
+export async function syncPrivilegedAccounts(options?: {
+  client?: NeonOperationalClient;
+  force?: boolean;
+}): Promise<void> {
+  const isTest =
+    process.env.TEST_MODE === '1' ||
+    process.env.NODE_ENV === 'test' ||
+    process.env.VITEST === 'true';
+  if (isTest && !options?.force) {
+    return;
+  }
+
+  const neon = options?.client || getNeonClient();
+  const adminPassword = requiredSeedCredential('ADMIN_PASSWORD', 'admin');
+  const editorPassword = requiredSeedCredential('EDITOR_PASSWORD', 'Editor@Royal2026!');
+  const superadminPassword = optionalSeedCredential('SUPERADMIN_PASSWORD', 'Super@Royal2026!');
+  const managerPassword = optionalSeedCredential('MANAGER_PASSWORD', 'Manager@Royal2026!');
+  const customerPassword = optionalSeedCredential('CUSTOMER_SEED_PASSWORD', 'Client@2026!');
+
+  const adminUsername = process.env.ADMIN_USERNAME?.trim() || 'admin';
+  const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase() || 'admin@eventpointranchi.com';
+
+  const accounts = [
+    {
+      username: adminUsername,
+      email: adminEmail,
+      password: adminPassword,
+      firstName: 'Root',
+      role: 'developer' as Role,
+    },
+    {
+      username: 'content_editor',
+      email: 'editor@eventpointranchi.com',
+      password: editorPassword,
+      firstName: 'Content Editor',
+      role: 'editor' as Role,
+    },
+    {
+      username: 'superadmin',
+      email: 'superadmin@eventpointranchi.com',
+      password: superadminPassword,
+      firstName: 'Vikramaditya',
+      role: 'superadmin' as Role,
+    },
+    {
+      username: 'event_manager',
+      email: 'manager@eventpointranchi.com',
+      password: managerPassword,
+      firstName: 'Rajesh',
+      role: 'admin' as Role,
+    },
+  ];
+
+  for (const acc of accounts) {
+    const res = await neon.query<UserRow>(
+      `SELECT id, username, email, password_hash, role, is_active FROM users WHERE LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($2) LIMIT 1`,
+      [acc.username, acc.email],
+    );
+    const existing = res.rows[0];
+
+    if (existing) {
+      const passwordMatches = verifyPassword(acc.password, existing.password_hash);
+      const isActive = Boolean(existing.is_active);
+      const roleMatches = existing.role === acc.role;
+
+      if (!passwordMatches || !isActive || !roleMatches) {
+        await neon.query(
+          `UPDATE users SET password_hash = $1, role = $2, is_active = true WHERE id = $3`,
+          [hashPassword(acc.password), acc.role, existing.id],
+        );
+        invalidateAuthUser(existing.id);
+      }
+    } else {
+      await neon.query(
+        `INSERT INTO users (username, email, password_hash, first_name, role, is_active)
+         VALUES ($1, $2, $3, $4, $5, true)`,
+        [acc.username, acc.email, hashPassword(acc.password), acc.firstName, acc.role],
+      );
+    }
+  }
+
+  // Also check if any customers exist; if zero, seed demo customers
+  const customerCountRes = await neon.query<{ count: string | number }>(
+    `SELECT COUNT(*) as count FROM users WHERE role = 'customer'`,
+  );
+  const customerCount = Number(customerCountRes.rows[0]?.count ?? 0);
+  if (customerCount === 0) {
+    const customerSeed = [
+      ['rohit_sharma', 'Rohit Sharma', 'rohit.sharma@example.com', '9876543210', 'Flat 402, Sea Green Heights, Worli, Mumbai'],
+      ['priya_patel', 'Priya Patel', 'priya.patel@example.com', '9812345678', 'Villa 12, Palm Meadows, Whitefield, Bangalore'],
+      ['vikram_mehta', 'Vikram Mehta', 'vikram.mehta@example.com', '9823456789', 'A-15, Civil Lines, Jaipur, Rajasthan'],
+      ['ananya_singh', 'Ananya Singh', 'ananya.singh@example.com', '9834567890', 'Tower 3, Sector 62, Golf Course Road, Gurgaon'],
+      ['kavita_reddy', 'Kavita Reddy', 'kavita.reddy@example.com', '9845678901', 'Road No. 36, Jubilee Hills, Hyderabad'],
+      ['arjun_kapoor', 'Arjun Kapoor', 'arjun.kapoor@example.com', '9856789012', 'Bungalow 7, Queens Park, Alipore, Kolkata'],
+    ] as const;
+
+    for (const [username, name, email, phone, address] of customerSeed) {
+      await neon.query(
+        `INSERT INTO users (username, email, password_hash, first_name, role, is_active)
+         VALUES ($1, $2, $3, $4, 'customer', true)`,
+        [username, email, hashPassword(customerPassword), name.split(' ')[0]],
+      );
+      const inserted = await neon.query<UserRow>(
+        `SELECT id FROM users WHERE LOWER(username) = LOWER($1) LIMIT 1`,
+        [username],
+      );
+      const userId = inserted.rows[0]?.id;
+      if (userId) {
+        await neon.query(
+          `INSERT INTO customers (user_id, name, phone, email, address)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [userId, name, phone, email, address],
+        );
+      }
+    }
+  } else if (process.env.CUSTOMER_SEED_PASSWORD) {
+    const seedCustomerUsernames = [
+      'rohit_sharma',
+      'priya_patel',
+      'vikram_mehta',
+      'ananya_singh',
+      'kavita_reddy',
+      'arjun_kapoor',
+    ];
+    for (const uname of seedCustomerUsernames) {
+      const uRes = await neon.query<UserRow>(
+        `SELECT id, password_hash FROM users WHERE username = $1 AND role = 'customer' LIMIT 1`,
+        [uname],
+      );
+      const u = uRes.rows[0];
+      if (u && !verifyPassword(customerPassword, u.password_hash)) {
+        await neon.query(
+          `UPDATE users SET password_hash = $1 WHERE id = $2`,
+          [hashPassword(customerPassword), u.id],
+        );
+        invalidateAuthUser(u.id);
+      }
+    }
+  }
+}
+
+export function ensurePrivilegedAccountsSynced(): Promise<void> {
+  if (!privilegedSyncPromise) {
+    privilegedSyncPromise = syncPrivilegedAccounts().catch((err) => {
+      console.error('[auth] Privileged account synchronization failed:', err);
+      privilegedSyncPromise = null;
+    });
+  }
+  return privilegedSyncPromise;
+}
+
 export async function authenticate(login: string, password: string): Promise<UserRow | null> {
+  await ensurePrivilegedAccountsSynced();
   const user = await findUserByLogin(login);
   if (!user) return null;
   return verifyPassword(password, user.password_hash) ? user : null;

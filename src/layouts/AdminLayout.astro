@@ -20,7 +20,10 @@ const { title = 'Dashboard', description = '' } = Astro.props;
 Astro.response.headers.set('Cache-Control', 'private, no-store');
 Astro.response.headers.set('Pragma', 'no-cache');
 const auth = Astro.locals.adminAuth;
-if (!auth?.user) return Astro.redirect('/admin/login');
+if (!auth?.user) {
+  const next = encodeURIComponent(Astro.url.pathname + Astro.url.search);
+  return Astro.redirect(`/admin/login?next=${next}`);
+}
 const user = auth.user;
 const csrf = Astro.locals.csrf;
 const nav = getAdminNav();
