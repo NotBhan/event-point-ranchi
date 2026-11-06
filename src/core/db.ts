@@ -4,7 +4,12 @@ import { DatabaseSync } from 'node:sqlite';
 import { sqliteSchemaSql as schemaSql } from './sqlite-schema';
 import { hashPassword, verifyPassword } from './password';
 import { seedDatabase } from './seed';
-import { requiredSeedCredential } from './seed-credentials';
+import {
+  configuredValue,
+  isProduction,
+  optionalSeedCredential,
+  requiredSeedCredential,
+} from './seed-credentials';
 import { initStorageSchema } from './storage/schema';
 import { recordDb } from './perf';
 
@@ -176,7 +181,13 @@ function migrateBookingsFinancials(db: DatabaseSync): void {
 }
 
 function ensureAdminUser(db: DatabaseSync): void {
-  const adminPassword = requiredSeedCredential('ADMIN_PASSWORD', 'admin');
+  let adminPassword: string;
+  try {
+    adminPassword = requiredSeedCredential('ADMIN_PASSWORD', 'admin');
+  } catch (err) {
+    console.error('[db] Cannot seed admin user in production without ADMIN_PASSWORD:', err);
+    return;
+  }
 
   const existing = db
     .prepare("SELECT id, password_hash, role, is_active FROM users WHERE username = 'admin' COLLATE NOCASE")
@@ -202,22 +213,32 @@ function ensureAdminUser(db: DatabaseSync): void {
 }
 
 function ensureEditorUser(db: DatabaseSync): void {
-  const editorPassword = requiredSeedCredential('EDITOR_PASSWORD', 'Editor@Royal2026!');
+  const explicitPassword = configuredValue('EDITOR_PASSWORD');
+  const editorPassword = explicitPassword || optionalSeedCredential('EDITOR_PASSWORD', 'Editor@Royal2026!');
 
   const existing = db
     .prepare("SELECT id, password_hash, role, is_active FROM users WHERE username = 'content_editor' COLLATE NOCASE")
     .get() as { id: number; password_hash: string; role: string; is_active: number } | undefined;
 
   if (existing) {
+    const shouldUpdatePassword = Boolean(explicitPassword) || !isProduction();
+    const passwordNeedsUpdate = shouldUpdatePassword && !verifyPassword(editorPassword, existing.password_hash);
+
     if (
-      !verifyPassword(editorPassword, existing.password_hash) ||
+      passwordNeedsUpdate ||
       existing.is_active !== 1 ||
       existing.role !== 'editor'
     ) {
-      db.prepare("UPDATE users SET password_hash = ?, role = 'editor', is_active = 1 WHERE id = ?").run(
-        hashPassword(editorPassword),
-        existing.id,
-      );
+      if (passwordNeedsUpdate) {
+        db.prepare("UPDATE users SET password_hash = ?, role = 'editor', is_active = 1 WHERE id = ?").run(
+          hashPassword(editorPassword),
+          existing.id,
+        );
+      } else {
+        db.prepare("UPDATE users SET role = 'editor', is_active = 1 WHERE id = ?").run(
+          existing.id,
+        );
+      }
     }
     return;
   }

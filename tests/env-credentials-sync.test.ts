@@ -137,3 +137,61 @@ test('getPassword preserves whitespace unlike getString', () => {
   assert.equal(getString(form, 'username'), 'admin');
   assert.equal(getPassword(form, 'password'), '  P@ssw0rd With Spaces  ');
 });
+
+test('syncPrivilegedAccounts succeeds in production mode when EDITOR_PASSWORD is unset', async () => {
+  const neon = getNeonClient();
+  const prevEnv = process.env.NODE_ENV;
+  const prevTestMode = process.env.TEST_MODE;
+  const prevAdminPass = process.env.ADMIN_PASSWORD;
+  const prevEditorPass = process.env.EDITOR_PASSWORD;
+
+  process.env.NODE_ENV = 'production';
+  delete process.env.TEST_MODE;
+  process.env.ADMIN_PASSWORD = 'ProdAdminSecret123!';
+  delete process.env.EDITOR_PASSWORD;
+
+  try {
+    await syncPrivilegedAccounts({ client: neon, force: true });
+    const editor = await findUserByLogin('content_editor');
+    assert.ok(editor, 'content_editor should be created even without EDITOR_PASSWORD');
+    assert.equal(editor.role, 'editor');
+    assert.ok(editor.password_hash.length > 20);
+  } finally {
+    if (prevEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = prevEnv;
+    if (prevTestMode === undefined) delete process.env.TEST_MODE;
+    else process.env.TEST_MODE = prevTestMode;
+    if (prevAdminPass === undefined) delete process.env.ADMIN_PASSWORD;
+    else process.env.ADMIN_PASSWORD = prevAdminPass;
+    if (prevEditorPass === undefined) delete process.env.EDITOR_PASSWORD;
+    else process.env.EDITOR_PASSWORD = prevEditorPass;
+  }
+});
+
+test('getDb succeeds in production mode when EDITOR_PASSWORD is unset', async () => {
+  const { getDb } = await import('../src/core/db');
+  const prevEnv = process.env.NODE_ENV;
+  const prevTestMode = process.env.TEST_MODE;
+  const prevAdminPass = process.env.ADMIN_PASSWORD;
+  const prevEditorPass = process.env.EDITOR_PASSWORD;
+
+  process.env.NODE_ENV = 'production';
+  delete process.env.TEST_MODE;
+  process.env.ADMIN_PASSWORD = 'ProdAdminSecret123!';
+  delete process.env.EDITOR_PASSWORD;
+
+  try {
+    assert.doesNotThrow(() => {
+      getDb();
+    });
+  } finally {
+    if (prevEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = prevEnv;
+    if (prevTestMode === undefined) delete process.env.TEST_MODE;
+    else process.env.TEST_MODE = prevTestMode;
+    if (prevAdminPass === undefined) delete process.env.ADMIN_PASSWORD;
+    else process.env.ADMIN_PASSWORD = prevAdminPass;
+    if (prevEditorPass === undefined) delete process.env.EDITOR_PASSWORD;
+    else process.env.EDITOR_PASSWORD = prevEditorPass;
+  }
+});

@@ -22,7 +22,7 @@ export function seedDatabase(db: DatabaseSync): void {
   const adminPassword = requiredSeedCredential('ADMIN_PASSWORD', 'admin');
   const superadminPassword = optionalSeedCredential('SUPERADMIN_PASSWORD', 'Super@Royal2026!');
   const managerPassword = optionalSeedCredential('MANAGER_PASSWORD', 'Manager@Royal2026!');
-  const editorPassword = requiredSeedCredential('EDITOR_PASSWORD', 'Editor@Royal2026!');
+  const editorPassword = optionalSeedCredential('EDITOR_PASSWORD', 'Editor@Royal2026!');
   const customerPassword = optionalSeedCredential('CUSTOMER_SEED_PASSWORD', 'Client@2026!');
 
   db.exec('BEGIN');

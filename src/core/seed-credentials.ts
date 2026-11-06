@@ -1,13 +1,13 @@
 import { randomBytes } from 'node:crypto';
 
-function configuredValue(name: string): string {
+export function configuredValue(name: string): string {
   const fromProcess = String(process.env[name] ?? '').trim();
   if (fromProcess) return fromProcess;
   const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
   return String(env?.[name] ?? '').trim();
 }
 
-function isProduction(): boolean {
+export function isProduction(): boolean {
   const testMode =
     process.env.TEST_MODE === '1' ||
     process.env.NODE_ENV === 'test' ||

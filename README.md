@@ -41,9 +41,9 @@ from the environment; no production credentials are committed.
 | Content editor         | `content_editor`                                                                              | `EDITOR_PASSWORD` |
 | Customers              | `rohit_sharma`, `priya_patel`, `vikram_mehta`, `ananya_singh`, `kavita_reddy`, `arjun_kapoor` | `CUSTOMER_SEED_PASSWORD` |
 
-`ADMIN_PASSWORD` and `EDITOR_PASSWORD` are required when seeding privileged
-accounts in production. Demo-only passwords are generated randomly in
-production if their environment variables are unset.
+`ADMIN_PASSWORD` is required when seeding privileged accounts in production.
+`EDITOR_PASSWORD`, `SUPERADMIN_PASSWORD`, `MANAGER_PASSWORD`, and `CUSTOMER_SEED_PASSWORD`
+are optional; unusable secure random values are generated in production if unset.
 
 Admin console: `/admin`. Customer account pages: `/profile`, `/my-bookings`.
 

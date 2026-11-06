@@ -1,7 +1,12 @@
 import { randomBytes } from 'node:crypto';
 import { getNeonClient, type NeonOperationalClient } from './neon-client';
 import { verifyPassword, hashPassword } from '../password';
-import { optionalSeedCredential, requiredSeedCredential } from '../seed-credentials';
+import {
+  configuredValue,
+  isProduction,
+  optionalSeedCredential,
+  requiredSeedCredential,
+} from '../seed-credentials';
 import type { Role } from '../types';
 
 export interface UserRow {
@@ -295,8 +300,21 @@ export async function syncPrivilegedAccounts(options?: {
   }
 
   const neon = options?.client || getNeonClient();
-  const adminPassword = requiredSeedCredential('ADMIN_PASSWORD', 'admin');
-  const editorPassword = requiredSeedCredential('EDITOR_PASSWORD', 'Editor@Royal2026!');
+
+  const explicitAdmin = configuredValue('ADMIN_PASSWORD');
+  const explicitEditor = configuredValue('EDITOR_PASSWORD');
+  const explicitSuperadmin = configuredValue('SUPERADMIN_PASSWORD');
+  const explicitManager = configuredValue('MANAGER_PASSWORD');
+
+  let adminPassword: string;
+  try {
+    adminPassword = requiredSeedCredential('ADMIN_PASSWORD', 'admin');
+  } catch (err) {
+    console.error('[auth] Cannot sync admin user in production without ADMIN_PASSWORD:', err);
+    return;
+  }
+
+  const editorPassword = optionalSeedCredential('EDITOR_PASSWORD', 'Editor@Royal2026!');
   const superadminPassword = optionalSeedCredential('SUPERADMIN_PASSWORD', 'Super@Royal2026!');
   const managerPassword = optionalSeedCredential('MANAGER_PASSWORD', 'Manager@Royal2026!');
   const customerPassword = optionalSeedCredential('CUSTOMER_SEED_PASSWORD', 'Client@2026!');
@@ -309,6 +327,7 @@ export async function syncPrivilegedAccounts(options?: {
       username: adminUsername,
       email: adminEmail,
       password: adminPassword,
+      hasExplicitPassword: Boolean(explicitAdmin) || !isProduction(),
       firstName: 'Root',
       role: 'developer' as Role,
     },
@@ -316,6 +335,7 @@ export async function syncPrivilegedAccounts(options?: {
       username: 'content_editor',
       email: 'editor@eventpointranchi.com',
       password: editorPassword,
+      hasExplicitPassword: Boolean(explicitEditor) || !isProduction(),
       firstName: 'Content Editor',
       role: 'editor' as Role,
     },
@@ -323,6 +343,7 @@ export async function syncPrivilegedAccounts(options?: {
       username: 'superadmin',
       email: 'superadmin@eventpointranchi.com',
       password: superadminPassword,
+      hasExplicitPassword: Boolean(explicitSuperadmin) || !isProduction(),
       firstName: 'Vikramaditya',
       role: 'superadmin' as Role,
     },
@@ -330,6 +351,7 @@ export async function syncPrivilegedAccounts(options?: {
       username: 'event_manager',
       email: 'manager@eventpointranchi.com',
       password: managerPassword,
+      hasExplicitPassword: Boolean(explicitManager) || !isProduction(),
       firstName: 'Rajesh',
       role: 'admin' as Role,
     },
@@ -343,15 +365,22 @@ export async function syncPrivilegedAccounts(options?: {
     const existing = res.rows[0];
 
     if (existing) {
-      const passwordMatches = verifyPassword(acc.password, existing.password_hash);
+      const passwordNeedsUpdate = acc.hasExplicitPassword && !verifyPassword(acc.password, existing.password_hash);
       const isActive = Boolean(existing.is_active);
       const roleMatches = existing.role === acc.role;
 
-      if (!passwordMatches || !isActive || !roleMatches) {
-        await neon.query(
-          `UPDATE users SET password_hash = $1, role = $2, is_active = true WHERE id = $3`,
-          [hashPassword(acc.password), acc.role, existing.id],
-        );
+      if (passwordNeedsUpdate || !isActive || !roleMatches) {
+        if (passwordNeedsUpdate) {
+          await neon.query(
+            `UPDATE users SET password_hash = $1, role = $2, is_active = true WHERE id = $3`,
+            [hashPassword(acc.password), acc.role, existing.id],
+          );
+        } else {
+          await neon.query(
+            `UPDATE users SET role = $1, is_active = true WHERE id = $2`,
+            [acc.role, existing.id],
+          );
+        }
         invalidateAuthUser(existing.id);
       }
     } else {
@@ -425,10 +454,13 @@ export async function syncPrivilegedAccounts(options?: {
 
 export function ensurePrivilegedAccountsSynced(): Promise<void> {
   if (!privilegedSyncPromise) {
-    privilegedSyncPromise = syncPrivilegedAccounts().catch((err) => {
-      console.error('[auth] Privileged account synchronization failed:', err);
-      privilegedSyncPromise = null;
-    });
+    privilegedSyncPromise = (async () => {
+      try {
+        await syncPrivilegedAccounts();
+      } catch (err) {
+        console.error('[auth] Privileged account synchronization failed:', err);
+      }
+    })();
   }
   return privilegedSyncPromise;
 }

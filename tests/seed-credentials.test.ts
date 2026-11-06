@@ -67,3 +67,18 @@ test('production never reuses a known demo password', () => {
     leaveProduction();
   }
 });
+
+test('production treats EDITOR_PASSWORD as optional and generates safe random secret', () => {
+  const leaveProduction = enterProductionTestMode();
+  const previousPassword = process.env.EDITOR_PASSWORD;
+  delete process.env.EDITOR_PASSWORD;
+  try {
+    const generated = optionalSeedCredential('EDITOR_PASSWORD', 'Editor@Royal2026!');
+    assert.notEqual(generated, 'Editor@Royal2026!');
+    assert.ok(generated.length >= 40);
+  } finally {
+    if (previousPassword === undefined) delete process.env.EDITOR_PASSWORD;
+    else process.env.EDITOR_PASSWORD = previousPassword;
+    leaveProduction();
+  }
+});
