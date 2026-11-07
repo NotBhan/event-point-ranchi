@@ -473,3 +473,52 @@ test('8. Subsequent publication recovers correctly after prior failure', async (
 
   destClient.close();
 });
+
+test('9. Rollback failure retains both original and rollback errors and leaves destination marked unsafe', async () => {
+  const runtimeClient = getD1Client();
+  const destDbPath = join(tempRoot, 'fail-rollback-dest.db');
+  const destClient = new D1Client({ localDbPath: destDbPath });
+  await seedBaselineDestination(destClient);
+
+  // Both sync fails AND rollback fails
+  await assert.rejects(
+    async () => {
+      await syncContentTables(runtimeClient, destClient, {
+        onBeforeDestClear: async () => {
+          throw new D1SyncError('Primary sync clearing failed');
+        },
+        onBeforeRollback: async () => {
+          throw new Error('Secondary rollback connection dropped');
+        },
+      });
+    },
+    (err: Error) => {
+      assert.ok(err instanceof D1SyncError);
+      assert.match(err.message, /Primary sync clearing failed/);
+      assert.match(err.message, /Rollback also failed: Secondary rollback connection dropped/);
+      return true;
+    },
+  );
+
+  // Verify _content_sync_state contains BOTH errors in diagnostic information
+  const syncState = await destClient.query<any>('SELECT * FROM _content_sync_state WHERE id = 1');
+  assert.equal(syncState.results?.[0]?.status, 'failed');
+  assert.match(syncState.results?.[0]?.error, /Primary sync clearing failed/);
+  assert.match(syncState.results?.[0]?.error, /Rollback also failed: Secondary rollback connection dropped/);
+
+  // Destination strictly blocks snapshot generation
+  await assert.rejects(
+    async () => assertContentSyncStateReady(destClient, 'build-d1'),
+    (err: Error) => err instanceof ContentBuildSyncStateError && err.message.includes("'failed' state"),
+  );
+
+  // Subsequent publication recovers cleanly without touching Production
+  const recoveredResult = await syncContentTables(runtimeClient, destClient);
+  assert.equal(recoveredResult.success, true);
+  const recoveredState = await destClient.query<any>('SELECT * FROM _content_sync_state WHERE id = 1');
+  assert.equal(recoveredState.results?.[0]?.status, 'ready');
+  assert.equal(recoveredState.results?.[0]?.error, null);
+
+  destClient.close();
+});
+

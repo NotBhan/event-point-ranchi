@@ -57,6 +57,7 @@ export interface SyncContentOptions {
   onMiddleCopyBatch?: (table: string, batchIndex: number) => Promise<void> | void;
   onBeforeIntegrityVerify?: (dest: D1QueryExecutor) => Promise<void> | void;
   onBeforeFinalFingerprint?: (source: D1QueryExecutor) => Promise<void> | void;
+  onBeforeRollback?: () => Promise<void> | void;
 }
 
 export class D1SyncError extends Error {
@@ -538,16 +539,25 @@ export async function syncContentTables(
   } catch (syncError) {
     const errorMessage = syncError instanceof Error ? syncError.message : String(syncError);
     console.error(`[d1-sync] Synchronization error: ${errorMessage}. Rolling back destination to pre-sync state...`);
+    let rollbackErrorMessage: string | null = null;
     try {
+      if (options?.onBeforeRollback) {
+        await options.onBeforeRollback();
+      }
       await restoreDestinationSnapshot(dest, destSnapshot);
       console.log('[d1-sync] Destination successfully restored to pre-sync state.');
     } catch (rollbackError) {
+      rollbackErrorMessage = rollbackError instanceof Error ? rollbackError.message : String(rollbackError);
       console.error(
-        `[d1-sync] Destination rollback failed: ${rollbackError instanceof Error ? rollbackError.message : String(rollbackError)}`,
+        `[d1-sync] Destination rollback failed: ${rollbackErrorMessage}`,
       );
     }
 
-    // Ensure destination sync state reflects failed status
+    const combinedError = rollbackErrorMessage
+      ? `${errorMessage} (Rollback also failed: ${rollbackErrorMessage})`
+      : errorMessage;
+
+    // Ensure destination sync state reflects failed status with diagnostic details
     await recordSyncState(dest, {
       status: 'failed',
       syncId,
@@ -556,8 +566,14 @@ export async function syncContentTables(
       totalRows,
       startedAt,
       completedAt: new Date().toISOString(),
-      error: errorMessage,
+      error: combinedError,
     }).catch(() => {});
+
+    if (rollbackErrorMessage) {
+      const err = new D1SyncError(combinedError);
+      err.cause = syncError;
+      throw err;
+    }
 
     throw syncError;
   }
@@ -616,6 +632,7 @@ export async function syncRuntimeToBuildD1(options?: {
   onMiddleCopyBatch?: (table: string, batchIndex: number) => Promise<void> | void;
   onBeforeIntegrityVerify?: (dest: D1QueryExecutor) => Promise<void> | void;
   onBeforeFinalFingerprint?: (source: D1QueryExecutor) => Promise<void> | void;
+  onBeforeRollback?: () => Promise<void> | void;
 }): Promise<SyncD1Result | SyncD1SkippedResult> {
   const env = options?.env ?? process.env;
   const source = options?.sourceClient ?? getD1Client();
