@@ -422,3 +422,13 @@ export async function moveCatalogueImage(
     { sql: `UPDATE ${config.galleryTable} SET sort_order = ? WHERE id = ?`, params: [row.sort_order, other.id] },
   ]);
 }
+
+export async function getNextCatalogueOrder(kind: CatalogueKind): Promise<number> {
+  const config = configFor(kind);
+  const result = await getD1Client().query<{ max_order: number | null }>(
+    `SELECT MAX(sort_order) AS max_order FROM ${config.table}`,
+  );
+  const maxOrder = result.results?.[0]?.max_order;
+  if (maxOrder === null || maxOrder === undefined) return 1;
+  return Number(maxOrder) + 1;
+}

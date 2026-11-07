@@ -9,6 +9,8 @@ import {
   triggerDeployHook,
   validatePublishReadiness,
 } from '../../../core/operational/publication-service';
+import { syncRuntimeToBuildD1 } from '../../../core/content/d1-sync';
+import { getNextCateringOrder } from '../../../core/content/catalog-store';
 import { buildDocumentsFromD1 } from '../../../core/content-storage/export';
 import {
   clearPublishedDrafts,
@@ -143,6 +145,7 @@ export async function cateringForm(ctx: PageContext) {
 
   const data = id ? await loadCateringAdmin(id) : null;
   if (id && !data) return { props: { notFound: true }, status: 404 };
+  const nextOrder = id ? Number(data?.package?.sort_order ?? 0) : await getNextCateringOrder();
   return {
     props: {
       packageData: data?.package ?? null,
@@ -152,6 +155,7 @@ export async function cateringForm(ctx: PageContext) {
       sections: data?.sections ?? [],
       images: data?.images ?? [],
       id: id ?? null,
+      nextOrder,
     },
   };
 }
@@ -246,6 +250,8 @@ async function publishChangesAction(ctx: PageContext): Promise<Response> {
     }
 
     const manifest = await validatePublishReadiness();
+
+    // 1. Acquire exclusive publication lock in the ledger before performing synchronization
     const created = await createPublication({
       requestedBy: ctx.adminAuth.user?.id ?? null,
       requestedByName: ctx.adminAuth.user?.firstName || ctx.adminAuth.user?.username || 'Administrator',
@@ -256,19 +262,38 @@ async function publishChangesAction(ctx: PageContext): Promise<Response> {
       throw new Error('A publication is already in progress. Wait for it to finish before publishing again.');
     }
 
+    const publicationId = created.publication.id;
+
+    // 2. Synchronize live runtime D1 tables to the dedicated build D1 (CONTENT_BUILD_D1_*)
+    try {
+      const syncResult = await syncRuntimeToBuildD1({ manifestVersion: manifest.contentVersion });
+      if ('skipped' in syncResult) {
+        console.log(`[publish] ${syncResult.reason}`);
+      } else {
+        console.log(
+          `[publish] Synchronized ${syncResult.totalRows} rows across ${Object.keys(syncResult.tableCounts).length} tables to build D1 in ${syncResult.durationMs}ms`,
+        );
+      }
+    } catch (syncError) {
+      const message = syncError instanceof Error ? syncError.message : 'D1 synchronization failed.';
+      await markFailed(publicationId, message);
+      throw new Error(message);
+    }
+
+    // 3. Trigger deploy hook
     let hookStatus: number;
     try {
       hookStatus = await triggerDeployHook();
-      await markDeploying(created.publication.id, { deployHookStatus: hookStatus });
+      await markDeploying(publicationId, { deployHookStatus: hookStatus });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'The deploy hook could not be triggered.';
-      await markFailed(created.publication.id, message);
+      await markFailed(publicationId, message);
       throw new Error(message);
     }
 
     const message = `Publication started for content version ${manifest.contentVersion}. The status updates here once Vercel reports the deployment.`;
     return wantsJson
-      ? json({ status: 'ok', data: { publicationId: created.publication.id, contentVersion: manifest.contentVersion } })
+      ? json({ status: 'ok', data: { publicationId, contentVersion: manifest.contentVersion } })
       : (setSuccess(ctx.cookies, message), redirect(PUBLISH_REDIRECT));
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Publishing failed.';

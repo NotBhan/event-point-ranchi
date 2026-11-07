@@ -144,11 +144,13 @@ const statusBadge = (item: Props['items'][number]) =>
                         <input type="hidden" name="action" value="duplicate" />
                         <button type="submit" class="btn btn-secondary btn-sm">Duplicate</button>
                       </form>
-                      <form method="POST" action={`${base}/${item.id}/action`}>
-                        <input type="hidden" name="_csrf" value={csrf} />
-                        <input type="hidden" name="action" value={item.is_visible ? 'draft' : 'activate'} />
-                        <button type="submit" class="btn btn-secondary btn-sm">{item.is_visible ? 'Unpublish' : 'Publish'}</button>
-                      </form>
+                      {!item.is_archived && (
+                        <form method="POST" action={`${base}/${item.id}/action`}>
+                          <input type="hidden" name="_csrf" value={csrf} />
+                          <input type="hidden" name="action" value={item.is_visible ? 'draft' : 'activate'} />
+                          <button type="submit" class="btn btn-secondary btn-sm">{item.is_visible ? 'Unpublish' : 'Publish'}</button>
+                        </form>
+                      )}
                       {item.is_archived ? (
                         <form method="POST" action={`${base}/${item.id}/action`}>
                           <input type="hidden" name="_csrf" value={csrf} />

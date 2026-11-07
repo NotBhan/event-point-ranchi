@@ -11,9 +11,10 @@ interface Props {
   item: Record<string, unknown> | null;
   images: Array<{ id: number; image_url: string; alt_text: string; sort_order: number }>;
   categories: Array<{ value: string; label: string }>;
+  nextOrder?: number;
 }
 
-const { kind, id, item, images, categories } = Astro.props;
+const { kind, id, item, images, categories, nextOrder = 1 } = Astro.props;
 const label = CATALOGUE_LABELS[kind];
 const singular = kind === 'mandaps' ? 'Mandap' : kind === 'stages' ? 'Stage' : 'Equipment item';
 const base = catalogueBasePath(kind);
@@ -30,7 +31,7 @@ const features = (() => {
     return '';
   }
 })();
-const status = item ? (Number(item.is_archived) ? 'archived' : Number(item.is_visible) ? 'active' : 'draft') : 'draft';
+const status = item ? (Number(item.is_archived) ? 'archived' : Number(item.is_visible) ? 'active' : 'draft') : 'active';
 const categoryValue = kind === 'equipment' ? value('category_id') : kind === 'stages' ? value('style_category') : value('category');
 const action = id ? `${base}/${id}` : `${base}/new`;
 const preview = kind === 'mandaps' ? `/mandaps/${value('slug')}` : kind === 'stages' ? `/stages/${value('slug')}` : `/equipment?item=${encodeURIComponent(value('slug'))}`;
@@ -173,7 +174,7 @@ const preview = kind === 'mandaps' ? `/mandaps/${value('slug')}` : kind === 'sta
           </div>
           <div class="field">
             <label for="sort_order">Display order</label>
-            <input class="input" id="sort_order" name="sort_order" type="number" value={numberValue('sort_order', 0)} />
+            <input class="input" id="sort_order" name="sort_order" type="number" value={item ? numberValue('sort_order', 0) : nextOrder} />
           </div>
           <label class="switch"><input type="checkbox" name="is_featured" checked={checked('is_featured')} /> Feature on homepage</label>
           <button type="submit" name="action" value="save" class="btn btn-primary btn-block" style="margin-top:16px;">{id ? 'Save changes' : 'Create item'}</button>

@@ -12,11 +12,13 @@ import {
   draftCatalogue,
   duplicateCatalogue,
   editCatalogueImage,
+  getNextCatalogueOrder,
   loadCatalogueEditor,
   loadCatalogueList,
   reorderCatalogueImage,
   saveCatalogueEditor,
 } from '../catalogue-service';
+import { listCatalogueCategories } from '../../../core/content/catalogue-admin-store';
 import { runFormAction } from './shared';
 
 function editPath(kind: CatalogueKind, id: number): string {
@@ -68,13 +70,16 @@ export async function catalogueForm(ctx: PageContext, kind: CatalogueKind) {
 
   const data = id ? await loadCatalogueEditor(kind, id) : null;
   if (id && !data) return { props: { notFound: true }, status: 404 };
+  const categories = data?.categories ?? (await listCatalogueCategories(kind));
+  const nextOrder = id ? Number(data?.item?.sort_order ?? 0) : await getNextCatalogueOrder(kind);
   return {
     props: {
       kind,
       id: id ?? null,
       item: data?.item ?? null,
       images: data?.images ?? [],
-      categories: data?.categories ?? [],
+      categories,
+      nextOrder,
     },
   };
 }

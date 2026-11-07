@@ -503,7 +503,7 @@ export async function deleteCateringPackage(id: number): Promise<void> {
 
 export async function toggleCateringVisibility(id: number): Promise<void> {
   await getD1Client().query(
-    'UPDATE catering_packages SET is_visible = CASE is_visible WHEN 1 THEN 0 ELSE 1 END WHERE id = ?',
+    "UPDATE catering_packages SET is_visible = CASE is_visible WHEN 1 THEN 0 ELSE 1 END, updated_at = datetime('now') WHERE id = ?",
     [id],
   );
 }
@@ -730,4 +730,13 @@ export async function deletePackageOption(
   id: number,
 ): Promise<void> {
   await getD1Client().query(`DELETE FROM ${table} WHERE id = ?`, [id]);
+}
+
+export async function getNextCateringOrder(): Promise<number> {
+  const result = await getD1Client().query<{ max_order: number | null }>(
+    'SELECT MAX(sort_order) AS max_order FROM catering_packages',
+  );
+  const maxOrder = result.results?.[0]?.max_order;
+  if (maxOrder === null || maxOrder === undefined) return 1;
+  return Number(maxOrder) + 1;
 }
