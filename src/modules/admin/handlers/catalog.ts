@@ -251,16 +251,7 @@ async function publishChangesAction(ctx: PageContext): Promise<Response> {
 
     const manifest = await validatePublishReadiness();
 
-    // Synchronize live runtime D1 tables to the dedicated build D1 (CONTENT_BUILD_D1_*)
-    const syncResult = await syncRuntimeToBuildD1();
-    if ('skipped' in syncResult) {
-      console.log(`[publish] ${syncResult.reason}`);
-    } else {
-      console.log(
-        `[publish] Synchronized ${syncResult.totalRows} rows across ${Object.keys(syncResult.tableCounts).length} tables to build D1 in ${syncResult.durationMs}ms`,
-      );
-    }
-
+    // 1. Acquire exclusive publication lock in the ledger before performing synchronization
     const created = await createPublication({
       requestedBy: ctx.adminAuth.user?.id ?? null,
       requestedByName: ctx.adminAuth.user?.firstName || ctx.adminAuth.user?.username || 'Administrator',
@@ -271,19 +262,38 @@ async function publishChangesAction(ctx: PageContext): Promise<Response> {
       throw new Error('A publication is already in progress. Wait for it to finish before publishing again.');
     }
 
+    const publicationId = created.publication.id;
+
+    // 2. Synchronize live runtime D1 tables to the dedicated build D1 (CONTENT_BUILD_D1_*)
+    try {
+      const syncResult = await syncRuntimeToBuildD1({ manifestVersion: manifest.contentVersion });
+      if ('skipped' in syncResult) {
+        console.log(`[publish] ${syncResult.reason}`);
+      } else {
+        console.log(
+          `[publish] Synchronized ${syncResult.totalRows} rows across ${Object.keys(syncResult.tableCounts).length} tables to build D1 in ${syncResult.durationMs}ms`,
+        );
+      }
+    } catch (syncError) {
+      const message = syncError instanceof Error ? syncError.message : 'D1 synchronization failed.';
+      await markFailed(publicationId, message);
+      throw new Error(message);
+    }
+
+    // 3. Trigger deploy hook
     let hookStatus: number;
     try {
       hookStatus = await triggerDeployHook();
-      await markDeploying(created.publication.id, { deployHookStatus: hookStatus });
+      await markDeploying(publicationId, { deployHookStatus: hookStatus });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'The deploy hook could not be triggered.';
-      await markFailed(created.publication.id, message);
+      await markFailed(publicationId, message);
       throw new Error(message);
     }
 
     const message = `Publication started for content version ${manifest.contentVersion}. The status updates here once Vercel reports the deployment.`;
     return wantsJson
-      ? json({ status: 'ok', data: { publicationId: created.publication.id, contentVersion: manifest.contentVersion } })
+      ? json({ status: 'ok', data: { publicationId, contentVersion: manifest.contentVersion } })
       : (setSuccess(ctx.cookies, message), redirect(PUBLISH_REDIRECT));
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Publishing failed.';

@@ -10,7 +10,7 @@ import {
   type SnapshotRowFetcher,
 } from '../src/core/content/snapshot-builder';
 import type { PublicContentSnapshot, SnapshotManifest } from '../src/core/content/snapshot-types';
-import { assertContentBuildSchema } from '../src/core/content/d1-schema-check';
+import { assertContentBuildSchema, assertContentSyncStateReady } from '../src/core/content/d1-schema-check';
 
 const REQUIRED_ENV = [
   'CLOUDFLARE_ACCOUNT_ID',
@@ -147,6 +147,10 @@ async function main(): Promise<void> {
     : `Cloudflare D1 ${config.databaseId}`;
   console.log(`[sync:content] Content source: ${identity}`);
   await assertContentBuildSchema(client, identity);
+  const isVercelBuild =
+    process.env.D1_LOCAL !== '1' &&
+    (process.env.BUILD_TARGET === 'vercel' || process.env.VERCEL === '1' || Boolean(process.env.VERCEL_ENV));
+  await assertContentSyncStateReady(client, identity, { isVercelBuild });
 
   const manifest = await syncContent({ fetcher: client, outputDir: config.outputDir, log: console.log });
   const counts = manifest.counts;
