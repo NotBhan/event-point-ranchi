@@ -9,6 +9,8 @@ import {
   triggerDeployHook,
   validatePublishReadiness,
 } from '../../../core/operational/publication-service';
+import { syncRuntimeToBuildD1 } from '../../../core/content/d1-sync';
+import { getNextCateringOrder } from '../../../core/content/catalog-store';
 import { buildDocumentsFromD1 } from '../../../core/content-storage/export';
 import {
   clearPublishedDrafts,
@@ -143,6 +145,7 @@ export async function cateringForm(ctx: PageContext) {
 
   const data = id ? await loadCateringAdmin(id) : null;
   if (id && !data) return { props: { notFound: true }, status: 404 };
+  const nextOrder = id ? Number(data?.package?.sort_order ?? 0) : await getNextCateringOrder();
   return {
     props: {
       packageData: data?.package ?? null,
@@ -152,6 +155,7 @@ export async function cateringForm(ctx: PageContext) {
       sections: data?.sections ?? [],
       images: data?.images ?? [],
       id: id ?? null,
+      nextOrder,
     },
   };
 }
@@ -246,6 +250,17 @@ async function publishChangesAction(ctx: PageContext): Promise<Response> {
     }
 
     const manifest = await validatePublishReadiness();
+
+    // Synchronize live runtime D1 tables to the dedicated build D1 (CONTENT_BUILD_D1_*)
+    const syncResult = await syncRuntimeToBuildD1();
+    if ('skipped' in syncResult) {
+      console.log(`[publish] ${syncResult.reason}`);
+    } else {
+      console.log(
+        `[publish] Synchronized ${syncResult.totalRows} rows across ${Object.keys(syncResult.tableCounts).length} tables to build D1 in ${syncResult.durationMs}ms`,
+      );
+    }
+
     const created = await createPublication({
       requestedBy: ctx.adminAuth.user?.id ?? null,
       requestedByName: ctx.adminAuth.user?.firstName || ctx.adminAuth.user?.username || 'Administrator',

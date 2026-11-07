@@ -18,9 +18,10 @@ interface Props {
   sections: Section[];
   images: Array<{ id: number; image_url: string; alt_text: string; sort_order: number }>;
   id: number | null;
+  nextOrder?: number;
 }
 
-const { packageData, features, bannerFeatures, pricing, sections, images, id } = Astro.props;
+const { packageData, features, bannerFeatures, pricing, sections, images, id, nextOrder = 1 } = Astro.props;
 const csrf = Astro.locals.csrf;
 
 const value = (key: string, fallback = '') => String(packageData?.[key] ?? fallback);
@@ -80,7 +81,7 @@ const action = id ? `/admin/catering/${id}` : '/admin/catering/new';
             </div>
             <div class="field">
               <label for="sort_order">Display order</label>
-              <input class="input" id="sort_order" name="sort_order" type="number" value={packageData ? Number(packageData.sort_order ?? 0) : 0} />
+              <input class="input" id="sort_order" name="sort_order" type="number" value={packageData ? Number(packageData.sort_order ?? 0) : nextOrder} />
             </div>
           </div>
           <ImageUploadDropzone

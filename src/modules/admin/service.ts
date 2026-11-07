@@ -174,6 +174,7 @@ function toCateringAdminItem(
     is_active: row.is_visible,
     is_archived: row.is_archived ?? 0,
     show_on_home: row.show_on_home,
+    sort_order: Number(row.sort_order ?? 0),
     section_count: Number(row.section_count ?? 0),
     item_count: Number(row.item_count ?? 0),
   };
@@ -243,7 +244,10 @@ export async function saveCatering(form: FormData | null, id?: number): Promise<
     badge: getString(form, 'badge'),
     showOnHome: getBoolean(form, 'show_on_home') ? 1 : 0,
     isVisible: getBoolean(form, 'is_active') ? 1 : 0,
-    sortOrder: getInt(form, 'sort_order', 0),
+    sortOrder:
+      getString(form, 'sort_order') !== ''
+        ? getInt(form, 'sort_order', 0)
+        : (id ? Number(existingPackage?.sort_order ?? 0) : await catalog.getNextCateringOrder()),
   };
 
   if (id) {

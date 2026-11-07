@@ -5,6 +5,7 @@ import {
   addCatalogueImage,
   catalogueSlugTaken,
   duplicateCatalogueItem,
+  getNextCatalogueOrder,
   listCatalogueAdmin,
   listCatalogueCategories,
   loadCatalogueAdmin,
@@ -44,6 +45,8 @@ export function isCatalogueKind(value: string): value is CatalogueKind {
 export function catalogueBasePath(kind: CatalogueKind): string {
   return `/admin/${kind}`;
 }
+
+export { getNextCatalogueOrder } from '../../core/content/catalogue-admin-store';
 
 export function cataloguePreviewPath(kind: CatalogueKind, slug: string): string {
   if (kind === 'mandaps') return `/mandaps/${slug}`;
@@ -120,20 +123,27 @@ export async function saveCatalogueEditor(
 ): Promise<number> {
   const name = formValue(form, 'name').trim();
   if (!name) throw new Error('Name is required.');
-  const slugInput = formValue(form, 'slug').trim() || name;
+  const current = id ? await loadCatalogueAdmin(kind, id) : null;
+  const rawSlug = formValue(form, 'slug').trim();
+  const slugInput = rawSlug || (current?.item.slug as string) || name;
   const slug = await uniqueSlug(slugInput, id ?? 0, kind);
-  const status = formValue(form, 'status', 'draft');
+  const status = formValue(form, 'status', 'active');
   if (!['active', 'draft', 'archived'].includes(status)) throw new Error('Invalid publication status.');
   const pricingMode = formValue(form, 'pricing_mode', 'fixed');
   const price = pricingMode === 'on_request' ? 0 : parseMoneyToPaise(formValue(form, 'price'));
   if (price < 0) throw new Error('Price cannot be negative.');
 
-  const current = id ? await loadCatalogueAdmin(kind, id) : null;
   const image = await saveUploadedImage(form, 'image', KIND_FOLDERS[kind], {
     entityType: KIND_ENTITY_TYPES[kind],
     entityId: id ?? slug,
     slot: 'primary',
   });
+
+  const rawSortOrder = formValue(form, 'sort_order');
+  const sortOrder =
+    rawSortOrder !== ''
+      ? formNumber(form, 'sort_order', 0)
+      : (id ? Number(current?.item.sort_order ?? 0) : await getNextCatalogueOrder(kind));
 
   const common: Record<string, unknown> = {
     name,
@@ -146,7 +156,7 @@ export async function saveCatalogueEditor(
     is_visible: status === 'active' ? 1 : 0,
     is_archived: status === 'archived' ? 1 : 0,
     archived_at: status === 'archived' ? new Date().toISOString() : null,
-    sort_order: getInt(form, 'sort_order', 0),
+    sort_order: sortOrder,
   };
 
   let values: Record<string, unknown>;
