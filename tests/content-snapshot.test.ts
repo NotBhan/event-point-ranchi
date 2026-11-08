@@ -192,6 +192,7 @@ function validRows(overrides: Partial<PublicContentRows> = {}): PublicContentRow
       },
     ],
     cateringImages: [],
+    furnitureImages: [],
     ...overrides,
   };
 }
@@ -213,9 +214,10 @@ test('only published and visible rows are requested from D1', async () => {
   assert.match(joined, /mandaps WHERE is_visible = 1/);
   assert.match(joined, /stages WHERE is_visible = 1/);
   assert.match(joined, /furniture_items WHERE is_visible = 1/);
+  assert.match(joined, /furniture_item_images/);
   assert.match(joined, /gallery_items WHERE is_visible = 1/);
   assert.match(joined, /video_previews WHERE is_published = 1/);
-  assert.equal(statements.length, 22, 'all public tables come from one batch');
+  assert.equal(statements.length, 23, 'all public tables come from one batch');
 });
 
 test('builds a valid snapshot and a stable content version', () => {
@@ -347,7 +349,7 @@ test('validation failure is an error and leaves no files behind', async () => {
     syncContent({
       fetcher: {
         async batch<T>(input: Array<{ sql: string }>): Promise<Array<{ results: T[] }>> {
-          assert.equal(input.length, 22);
+          assert.equal(input.length, 23);
           return rowsToBatchResults(rows) as Array<{ results: T[] }>;
         },
       },
@@ -438,5 +440,6 @@ function rowsToBatchResults(rows: PublicContentRows): Array<{ results: Array<Rec
     { results: rows.galleryItems },
     { results: rows.videos },
     { results: rows.cateringImages },
+    { results: rows.furnitureImages ?? [] },
   ];
 }

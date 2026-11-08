@@ -167,6 +167,7 @@ export async function fetchPublicContentRows(client: SnapshotRowFetcher): Promis
     { sql: 'SELECT * FROM gallery_items WHERE is_visible = 1 ORDER BY sort_order ASC, id ASC' },
     { sql: 'SELECT * FROM video_previews WHERE is_published = 1 ORDER BY sort_order ASC, id DESC' },
     { sql: 'SELECT id, package_id, image_url, alt_text, sort_order FROM catering_package_images ORDER BY sort_order ASC, id ASC' },
+    { sql: 'SELECT id, item_id, image_url, alt_text, sort_order FROM furniture_item_images ORDER BY sort_order ASC, id ASC' },
   ];
 
   const results = await client.batch(statements);
@@ -195,6 +196,7 @@ export async function fetchPublicContentRows(client: SnapshotRowFetcher): Promis
     galleryItems: rowsAt(19),
     videos: rowsAt(20),
     cateringImages: rowsAt(21),
+    furnitureImages: rowsAt(22),
   };
 }
 
@@ -310,7 +312,7 @@ function mapFurnitureCategory(row: ContentRow): FurnitureCategory {
   };
 }
 
-function mapFurnitureItem(row: ContentRow): FurnitureItem {
+function mapFurnitureItem(row: ContentRow, gallery: NonNullable<FurnitureItem['gallery']> = []): FurnitureItem {
   return {
     id: Number(row.id ?? 0),
     category_id: Number(row.category_id ?? 0),
@@ -320,6 +322,7 @@ function mapFurnitureItem(row: ContentRow): FurnitureItem {
     image_url: String(row.image_url ?? ''),
     full_description: String(row.full_description ?? ''),
     image_alt: String(row.image_alt ?? ''),
+    gallery,
     price_paise: Number(row.price_paise ?? 0),
     pricing_unit: String(row.pricing_unit ?? 'per item'),
     dimensions: String(row.dimensions ?? ''),
@@ -489,6 +492,18 @@ export function buildSnapshot(rows: PublicContentRows): PublicContentSnapshot {
     });
   }
 
+  const furnitureGallery = new Map<number, NonNullable<FurnitureItem['gallery']>>();
+  for (const img of rows.furnitureImages ?? []) {
+    const itemId = Number(img.item_id ?? 0);
+    if (!furnitureGallery.has(itemId)) furnitureGallery.set(itemId, []);
+    furnitureGallery.get(itemId)!.push({
+      id: Number(img.id ?? 0),
+      image_url: String(img.image_url ?? ''),
+      alt_text: String(img.alt_text ?? ''),
+      sort_order: Number(img.sort_order ?? 0),
+    });
+  }
+
   const galleryCategories = rows.galleryCategories.map(mapGalleryCategory);
   const gallerySlugById = new Map(galleryCategories.map((c) => [c.id, c.slug]));
 
@@ -501,7 +516,9 @@ export function buildSnapshot(rows: PublicContentRows): PublicContentSnapshot {
     mandaps: rows.mandaps.map((row) => mapMandap(row, mandapGallery.get(Number(row.id ?? 0)) ?? [])),
     stages: rows.stages.map((row) => mapStage(row, stageGallery.get(Number(row.id ?? 0)) ?? [])),
     furnitureCategories: rows.furnitureCategories.map(mapFurnitureCategory),
-    furnitureItems: rows.furnitureItems.map(mapFurnitureItem),
+    furnitureItems: rows.furnitureItems.map((row) =>
+      mapFurnitureItem(row, furnitureGallery.get(Number(row.id ?? 0)) ?? []),
+    ),
     cateringPackages: rows.cateringPackages.map((row) => {
       const pkg = mapCateringPackage(row);
       const packageId = pkg.id;

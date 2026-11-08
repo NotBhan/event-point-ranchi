@@ -48,9 +48,9 @@ function cachedPageResponse(entry: PageCacheEntry): Response {
 
 const STATIC_ASSET_PREFIXES = ['/storage/', '/uploads/', '/_astro/', '/images/'];
 
-// Server-to-server endpoints authenticate with their own secret header instead
-// of the browser CSRF token.
-const CSRF_EXEMPT_PREFIXES = ['/api/internal/'];
+// Server-to-server endpoints authenticate with their own secret header or HMAC
+// signature instead of the browser CSRF token.
+const CSRF_EXEMPT_PREFIXES = ['/api/internal/', '/api/payment/webhook/'];
 
 function isStaticAssetRequest(pathname: string, method: string): boolean {
   if (method !== 'GET' && method !== 'HEAD') return false;

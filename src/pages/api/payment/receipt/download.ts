@@ -1,12 +1,22 @@
 import type { APIRoute } from 'astro';
 import { paymentsEnabled } from '../../../../core/features';
 
-export const GET: APIRoute = async ({ url }) => {
+export const GET: APIRoute = async ({ url, locals }) => {
   if (!paymentsEnabled()) return notFound();
   const { getReceiptService } = await import('../../../../core/payment/receipt-service');
-  const token = url.searchParams.get('token');
-  const receiptNumber = url.searchParams.get('receiptNumber');
-  const paymentIdParam = url.searchParams.get('paymentId');
+  const token = url.searchParams.get('token')?.trim();
+  const receiptNumber = url.searchParams.get('receiptNumber')?.trim();
+  const paymentIdParam = url.searchParams.get('paymentId')?.trim();
+  const isAdmin = Boolean(locals.adminAuth?.isAdmin);
+
+  // Require a cryptographic token for public access; looking up by sequential
+  // paymentId or receiptNumber without a token is restricted to administrators.
+  if (!token && !isAdmin) {
+    return new Response(
+      JSON.stringify({ error: 'A secure document token or administrator credentials are required.' }),
+      { status: 403, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } },
+    );
+  }
 
   const receiptService = getReceiptService(url.origin);
   let receiptPayload = null;
@@ -14,9 +24,9 @@ export const GET: APIRoute = async ({ url }) => {
   try {
     if (token) {
       receiptPayload = await receiptService.getReceiptByToken(token, url.origin);
-    } else if (receiptNumber) {
+    } else if (isAdmin && receiptNumber) {
       receiptPayload = await receiptService.getReceiptByNumber(receiptNumber, url.origin);
-    } else if (paymentIdParam) {
+    } else if (isAdmin && paymentIdParam) {
       const pId = Number(paymentIdParam);
       if (!isNaN(pId) && pId > 0) {
         receiptPayload = await receiptService.getOrCreateReceipt(pId, url.origin);

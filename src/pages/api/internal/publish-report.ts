@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import type { APIRoute } from 'astro';
 import { getActivePublication, markBuilt } from '../../../core/operational/publication-service';
 
@@ -8,6 +9,13 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+function safeSecretMatch(provided: string, expected: string): boolean {
+  if (!provided || !expected) return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 /**
  * Called by the post-build `report:publish` step on Vercel. Marks the active
  * publication as built; the deployment is only shown as published once Vercel
@@ -16,7 +24,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 export const POST: APIRoute = async ({ request }) => {
   const secret = (process.env.PUBLISH_REPORT_SECRET ?? '').trim();
   const provided = (request.headers.get('x-publish-secret') ?? '').trim();
-  if (!secret || provided !== secret) {
+  if (!secret || !safeSecretMatch(provided, secret)) {
     return jsonResponse({ status: 'error', message: 'Unauthorized.' }, 401);
   }
 

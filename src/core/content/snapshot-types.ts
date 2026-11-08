@@ -119,4 +119,5 @@ export interface PublicContentRows {
   galleryItems: ContentRow[];
   videos: ContentRow[];
   cateringImages: ContentRow[];
+  furnitureImages?: ContentRow[];
 }

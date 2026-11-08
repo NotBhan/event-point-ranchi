@@ -221,11 +221,42 @@ export async function saveCatering(form: FormData | null, id?: number): Promise<
   const name = getString(form, 'name');
   if (!name) throw new Error('Package name is required.');
 
+  const rawPriceStr = getString(form, 'price');
+  if (rawPriceStr.trim() !== '') {
+    const cleaned = rawPriceStr.replace(/[₹,\s]/g, '');
+    const num = Number(cleaned);
+    if (!Number.isFinite(num)) {
+      throw new Error('Invalid price format.');
+    }
+    if (num < 0) {
+      throw new Error('Price cannot be negative.');
+    }
+  }
+  const pricePaise = parseMoneyToPaise(rawPriceStr);
+  if (pricePaise < 0) throw new Error('Price cannot be negative.');
+
   const existingId = id ?? 0;
   const existingPackage = id ? (await catalog.loadCateringPackageAdmin(id))?.package : null;
-  const slug = await uniqueSlugAsync(getString(form, 'slug') || existingPackage?.slug || name, (candidate) =>
-    catalog.cateringSlugTaken(candidate, existingId),
-  );
+  const rawSlug = getString(form, 'slug');
+  let slug: string;
+  if (rawSlug) {
+    const normalizedSlug = rawSlug
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    if (!normalizedSlug) throw new Error('Provided slug is invalid.');
+    const isTaken = await catalog.cateringSlugTaken(normalizedSlug, existingId);
+    if (isTaken) {
+      throw new Error(`Slug "${rawSlug}" is already in use by another catering package. Please choose a different slug.`);
+    }
+    slug = normalizedSlug;
+  } else {
+    const slugInput = existingPackage?.slug || name;
+    slug = await uniqueSlugAsync(slugInput, (candidate) =>
+      catalog.cateringSlugTaken(candidate, existingId),
+    );
+  }
 
   const uploaded = await saveUploadedImage(form, 'image', 'catering');
   let imageUrl = (uploaded ?? getString(form, 'image_path')) || null;
@@ -236,7 +267,7 @@ export async function saveCatering(form: FormData | null, id?: number): Promise<
     name,
     slug,
     imageUrl,
-    pricePaise: parseMoneyToPaise(getString(form, 'price')),
+    pricePaise,
     description: getString(form, 'description'),
     fullDescription: getString(form, 'full_description'),
     category: getString(form, 'category') || 'Signature',
@@ -460,14 +491,18 @@ export async function addGalleryCategory(form: FormData | null): Promise<void> {
   if (!name) return;
   const slug = await uniqueSlugAsync(name, (candidate) => catalog.galleryCategorySlugTaken(candidate));
   await catalog.insertGalleryCategory(name, slug);
+  invalidateContentCache();
 }
 
 export async function deleteGalleryCategory(id: number): Promise<void> {
   await catalog.deleteGalleryCategory(id);
+  invalidateContentCache();
 }
 
 export async function toggleGalleryCategory(id: number): Promise<boolean> {
-  return catalog.toggleGalleryCategoryVisibility(id);
+  const result = await catalog.toggleGalleryCategoryVisibility(id);
+  invalidateContentCache();
+  return result;
 }
 
 export interface GalleryUploadFailure {
@@ -535,6 +570,7 @@ export async function batchUploadGalleryAdmin(
       imageUrl: pasted,
     });
 
+    invalidateContentCache();
     return { uploaded: 1, itemIds: [itemId], failures: [] };
   }
 
@@ -569,6 +605,7 @@ export async function batchUploadGalleryAdmin(
     throw new Error(result.failures[0]?.error ?? 'The images could not be uploaded.');
   }
 
+  invalidateContentCache();
   return result;
 }
 
@@ -596,6 +633,7 @@ export async function replaceGalleryItemAdmin(
   if (!image) throw new Error('Choose a replacement image.');
 
   await catalog.updateGalleryItemImage(itemId, image);
+  invalidateContentCache();
   return { itemId, image };
 }
 
@@ -603,6 +641,7 @@ export async function saveGalleryItemTitle(id: number, form: FormData | null): P
   const title = getString(form, 'title');
   if (!title) throw new Error('Add a caption for the image.');
   await catalog.updateGalleryItemCaption(id, title);
+  invalidateContentCache();
   return title;
 }
 
@@ -610,15 +649,19 @@ export async function saveGalleryItemCategory(id: number, form: FormData | null)
   const categoryId = getInt(form, 'category_id', 0);
   if (!categoryId) throw new Error('Choose a valid category.');
   await catalog.updateGalleryItemCategory(id, categoryId);
+  invalidateContentCache();
   return categoryId;
 }
 
 export async function deleteGalleryItem(id: number): Promise<void> {
   await catalog.deleteGalleryItem(id);
+  invalidateContentCache();
 }
 
 export async function toggleGalleryItem(id: number): Promise<boolean> {
-  return catalog.toggleGalleryItemVisibility(id);
+  const result = await catalog.toggleGalleryItemVisibility(id);
+  invalidateContentCache();
+  return result;
 }
 
 /* ============================ Storage ============================ */

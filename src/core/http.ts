@@ -176,8 +176,18 @@ export function initials(name: string | null | undefined): string {
 }
 
 export function safeNext(value: string | null | undefined, fallback = '/'): string {
-  if (!value || !value.startsWith('/') || value.startsWith('//')) return fallback;
-  return value;
+  if (!value || typeof value !== 'string') return fallback;
+  const trimmed = value.trim();
+  if (!trimmed.startsWith('/') || trimmed.startsWith('//') || trimmed.includes('\\')) return fallback;
+  try {
+    const parsed = new URL(trimmed, 'https://dummy.local');
+    if (parsed.origin !== 'https://dummy.local' || !parsed.pathname.startsWith('/')) {
+      return fallback;
+    }
+    return trimmed;
+  } catch {
+    return fallback;
+  }
 }
 
 export function isEmail(value: string): boolean {

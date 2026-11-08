@@ -497,6 +497,7 @@ export async function deleteCateringPackage(id: number): Promise<void> {
     { sql: 'DELETE FROM catering_features WHERE package_id = ?', params: [id] },
     { sql: 'DELETE FROM banner_features WHERE package_id = ?', params: [id] },
     { sql: 'DELETE FROM guest_pricing WHERE package_id = ?', params: [id] },
+    { sql: 'DELETE FROM catering_package_images WHERE package_id = ?', params: [id] },
     { sql: 'DELETE FROM catering_packages WHERE id = ?', params: [id] },
   ]);
 }

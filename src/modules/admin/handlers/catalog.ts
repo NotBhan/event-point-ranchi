@@ -33,6 +33,7 @@ import {
   activateCatering,
   addCateringImage,
   archiveCatering,
+  deleteCatering,
   addGalleryCategory,
   addGuestPricing,
   addHomeFeature,
@@ -94,7 +95,7 @@ export async function cateringForm(ctx: PageContext) {
 
   const rawId = ctx.params.id;
   const id = rawId && rawId !== 'new' ? Number(rawId) : undefined;
-  const { setError } = await import('../../../core/flash');
+  const wantsJson = ctx.request.headers.get('accept')?.includes('application/json') ?? false;
 
   if (ctx.request.method === 'POST') {
     const action = getString(ctx.form, 'action');
@@ -102,9 +103,23 @@ export async function cateringForm(ctx: PageContext) {
     if (action === 'save' || !action) {
       try {
         const savedId = await saveCatering(ctx.form, id);
-        return redirect(`/admin/catering/${savedId}`);
+        const destination = `/admin/catering/${savedId}`;
+        const message = id ? 'Catering package updated successfully.' : 'Catering package created successfully.';
+        setSuccess(ctx.cookies, message);
+        if (wantsJson) {
+          return json({
+            status: 'ok',
+            message,
+            data: { id: savedId, redirect: destination },
+          });
+        }
+        return redirect(destination);
       } catch (error) {
-        setError(ctx.cookies, error instanceof Error ? error.message : 'Could not save the package.');
+        const message = error instanceof Error ? error.message : 'Could not save the package.';
+        setError(ctx.cookies, message);
+        if (wantsJson) {
+          return json({ status: 'error', message }, 400);
+        }
         return redirect(id ? `/admin/catering/${id}` : '/admin/catering/new');
       }
     }
@@ -171,6 +186,7 @@ export function cateringListAction(ctx: PageContext) {
       toggle_home: () => toggleCateringHome(id),
       archive: () => archiveCatering(id),
       activate: () => activateCatering(id),
+      delete: () => deleteCatering(id),
     },
     { redirectTo: '/admin/catering' },
   );

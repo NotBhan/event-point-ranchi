@@ -40,7 +40,10 @@ if (!matched) {
   } catch (err: any) {
     console.error(`[Server Error] Route handler failed for ${Astro.url.pathname}:`, err);
     Astro.response.status = 500;
-    serverError = err?.message || 'Internal Server Error';
+    serverError =
+      process.env.NODE_ENV === 'production'
+        ? 'An unexpected error occurred. Please try again or contact support.'
+        : err?.message || 'Internal Server Error';
   }
 }
 
