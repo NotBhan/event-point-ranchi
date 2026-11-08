@@ -148,6 +148,14 @@ export async function computeSourceFingerprint(source: D1QueryExecutor): Promise
   for (const table of CONTENT_SYNC_TABLES_ORDERED) {
     const res = await source.query<Record<string, unknown>>(`SELECT * FROM ${table}`);
     const rows = (res.results ?? []).map((row) => ({ ...row }));
+    // Normalize canonical schema defaults if reading from a source lacking additive columns
+    if (table === 'menu_items') {
+      for (const row of rows) {
+        if (row.sort === undefined) {
+          row.sort = 0;
+        }
+      }
+    }
     tableData.set(table, rows);
     tableCounts[table] = rows.length;
     totalRows += rows.length;

@@ -32,6 +32,7 @@
     "db:migrate:bookings": "node --import tsx scripts/migrate-bookings-neon.ts",
     "db:migrate:catalog": "node --import tsx scripts/migrate-catalog-to-d1.ts",
     "db:migrate:catalogue-admin": "node --import tsx scripts/migrate-catalogue-admin-d1.ts",
+    "db:bootstrap:build-d1": "node --import tsx scripts/bootstrap-build-d1.ts",
     "dev:snapshot": "CONTENT_SOURCE=snapshot astro dev"
   },
   "dependencies": {

@@ -81,7 +81,7 @@ export async function assertContentSyncStateReady(
       throw new ContentBuildSyncStateError(
         `[sync:content] Build D1 database (${databaseIdentity}) does not contain _content_sync_state table. ` +
           'The runtime-to-build D1 synchronization has never been run or failed before completion. ' +
-          'Publish changes from the admin CMS to synchronize build D1 before deploying.',
+          'Publish changes from the admin CMS or run `npm run db:bootstrap:build-d1` to synchronize build D1 before deploying.',
       );
     }
     return;
