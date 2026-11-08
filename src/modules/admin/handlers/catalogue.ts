@@ -1,6 +1,6 @@
 import { requireAdmin } from '../../../core/auth';
-import { getInt, getString, redirect } from '../../../core/http';
-import { setError } from '../../../core/flash';
+import { getInt, getString, json, redirect } from '../../../core/http';
+import { setError, setSuccess } from '../../../core/flash';
 import type { PageContext } from '../../../core/types';
 import type { CatalogueKind } from '../../../core/content/catalogue-admin-store';
 import {
@@ -37,16 +37,33 @@ export async function catalogueForm(ctx: PageContext, kind: CatalogueKind) {
 
   const rawId = ctx.params.id;
   const id = rawId && rawId !== 'new' ? Number(rawId) : undefined;
+  const wantsJson = ctx.request.headers.get('accept')?.includes('application/json') ?? false;
 
   if (ctx.request.method === 'POST') {
     const action = getString(ctx.form, 'action') || 'save';
+    const singular = kind === 'mandaps' ? 'Mandap' : kind === 'stages' ? 'Stage' : 'Equipment item';
 
     if (action === 'save') {
       try {
         const savedId = await saveCatalogueEditor(kind, ctx.form, id);
-        return redirect(editPath(kind, savedId));
+        const destination = editPath(kind, savedId);
+        const message = id ? `${singular} updated successfully.` : `${singular} created successfully.`;
+        setSuccess(ctx.cookies, message);
+        if (wantsJson) {
+          return json({
+            status: 'ok',
+            message,
+            data: { id: savedId, redirect: destination },
+          });
+        }
+        return redirect(destination);
       } catch (error) {
-        setError(ctx.cookies, error instanceof Error ? error.message : 'Could not save the catalogue item.');
+        const message = error instanceof Error ? error.message : 'Could not save the catalogue item.';
+        console.error(`[catalogueForm] Error saving ${kind}:`, error);
+        setError(ctx.cookies, message);
+        if (wantsJson) {
+          return json({ status: 'error', message }, 400);
+        }
         return redirect(id ? editPath(kind, id) : `${catalogueBasePath(kind)}/new`);
       }
     }

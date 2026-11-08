@@ -125,12 +125,40 @@ export async function saveCatalogueEditor(
   if (!name) throw new Error('Name is required.');
   const current = id ? await loadCatalogueAdmin(kind, id) : null;
   const rawSlug = formValue(form, 'slug').trim();
-  const slugInput = rawSlug || (current?.item.slug as string) || name;
-  const slug = await uniqueSlug(slugInput, id ?? 0, kind);
+  let slug: string;
+  if (rawSlug) {
+    const normalizedSlug = rawSlug
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    if (!normalizedSlug) throw new Error('Provided slug is invalid.');
+    const isTaken = await catalogueSlugTaken(kind, normalizedSlug, id ?? 0);
+    if (isTaken) {
+      const singular = kind === 'mandaps' ? 'mandap' : kind === 'stages' ? 'stage' : 'equipment item';
+      throw new Error(`Slug "${rawSlug}" is already in use by another ${singular}. Please choose a different slug.`);
+    }
+    slug = normalizedSlug;
+  } else {
+    const slugInput = (current?.item.slug as string) || name;
+    slug = await uniqueSlug(slugInput, id ?? 0, kind);
+  }
+
   const status = formValue(form, 'status', 'active');
   if (!['active', 'draft', 'archived'].includes(status)) throw new Error('Invalid publication status.');
   const pricingMode = formValue(form, 'pricing_mode', 'fixed');
-  const price = pricingMode === 'on_request' ? 0 : parseMoneyToPaise(formValue(form, 'price'));
+  const rawPriceStr = formValue(form, 'price');
+  if (pricingMode === 'fixed' && rawPriceStr.trim() !== '') {
+    const cleaned = rawPriceStr.replace(/[₹,\s]/g, '');
+    const num = Number(cleaned);
+    if (!Number.isFinite(num)) {
+      throw new Error('Invalid price format.');
+    }
+    if (num < 0) {
+      throw new Error('Price cannot be negative.');
+    }
+  }
+  const price = pricingMode === 'on_request' ? 0 : parseMoneyToPaise(rawPriceStr);
   if (price < 0) throw new Error('Price cannot be negative.');
 
   const image = await saveUploadedImage(form, 'image', KIND_FOLDERS[kind], {
@@ -142,7 +170,7 @@ export async function saveCatalogueEditor(
   const rawSortOrder = formValue(form, 'sort_order');
   const sortOrder =
     rawSortOrder !== ''
-      ? formNumber(form, 'sort_order', 0)
+      ? Math.max(0, formNumber(form, 'sort_order', 0))
       : (id ? Number(current?.item.sort_order ?? 0) : await getNextCatalogueOrder(kind));
 
   const common: Record<string, unknown> = {
@@ -161,25 +189,37 @@ export async function saveCatalogueEditor(
 
   let values: Record<string, unknown>;
   if (kind === 'mandaps') {
+    const lengthFt = formNumber(form, 'length_ft', 16);
+    const widthFt = formNumber(form, 'width_ft', 16);
+    const heightFt = formNumber(form, 'height_ft', 12);
+    if (lengthFt < 0 || widthFt < 0 || heightFt < 0) {
+      throw new Error('Dimensions cannot be negative.');
+    }
     values = {
       ...common,
       category: formValue(form, 'category', 'Traditional Royal'),
-      length_ft: formNumber(form, 'length_ft', 16),
-      width_ft: formNumber(form, 'width_ft', 16),
-      height_ft: formNumber(form, 'height_ft', 12),
+      length_ft: lengthFt,
+      width_ft: widthFt,
+      height_ft: heightFt,
       dimension_unit: formValue(form, 'dimension_unit', 'ft'),
       material_specs: formValue(form, 'material_specs'),
-      capacity: getInt(form, 'capacity', 0),
+      capacity: Math.max(0, getInt(form, 'capacity', 0)),
       features_json: textLinesToJson(formValue(form, 'features')),
       price_starting_paise: price,
     };
   } else if (kind === 'stages') {
+    const lengthFt = formNumber(form, 'length_ft', 24);
+    const widthFt = formNumber(form, 'width_ft', 16);
+    const heightFt = formNumber(form, 'height_ft', 14);
+    if (lengthFt < 0 || widthFt < 0 || heightFt < 0) {
+      throw new Error('Dimensions cannot be negative.');
+    }
     values = {
       ...common,
       style_category: formValue(form, 'style_category', 'Royal Reception'),
-      length_ft: formNumber(form, 'length_ft', 24),
-      width_ft: formNumber(form, 'width_ft', 16),
-      height_ft: formNumber(form, 'height_ft', 14),
+      length_ft: lengthFt,
+      width_ft: widthFt,
+      height_ft: heightFt,
       dimension_unit: formValue(form, 'dimension_unit', 'ft'),
       decoration_notes: formValue(form, 'decoration_notes'),
       price_starting_paise: price,

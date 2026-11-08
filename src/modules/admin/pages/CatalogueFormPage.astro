@@ -45,6 +45,7 @@ const preview = kind === 'mandaps' ? `/mandaps/${value('slug')}` : kind === 'sta
 
   <form method="POST" action={action} enctype="multipart/form-data" class="admin-grid-3 catalogue-editor">
     <input type="hidden" name="_csrf" value={csrf} />
+    <div class="catalogue-form-alert alert alert-error" role="alert" style="display:none; grid-column:1 / -1; margin-bottom:12px;"></div>
 
     <div class="catalogue-editor-main">
       <div class="admin-panel">

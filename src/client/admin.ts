@@ -408,7 +408,7 @@ document.addEventListener('submit', async (event) => {
     // Classic (non-AJAX) admin forms: lock the submit button just after the
     // browser has assembled the payload so uploads cannot be double-submitted.
     const classicForm = event.target as HTMLFormElement | null;
-    if (classicForm) {
+    if (classicForm && !classicForm.classList.contains('catalogue-editor')) {
       window.setTimeout(() => {
         classicForm.querySelectorAll<HTMLButtonElement>('button[type="submit"], input[type="submit"]').forEach((button) => {
           button.disabled = true;
